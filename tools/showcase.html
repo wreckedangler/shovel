@@ -21,7 +21,7 @@ p{margin:0 0 8px;color:#c4abd8;font-size:13px}
 </style></head><body>
 <h1>Schaufelheld</h1>
 <p>Alle Grafiken direkt aus dem Spiel, 4- bis 6-fach vergrössert.</p>
-<div class="hero"><canvas id="heroBig"></canvas><div><b style="font-size:18px">Der Held</b><p>Startet im Eimerhelm aus Holz, mit Spross obendrauf. Jede der 12 Rüstungen hat eine eigene Silhouette; ab Titan kommen Effekte dazu.</p></div></div>
+<div class="hero"><canvas id="heroBig"></canvas><div><b style="font-size:18px">Der Held</b><p>Ein eigener Held: leuchtende Augen, langer Schal, der im Wind flattert. Jede der 12 Rüstungen hat eine eigene Silhouette und färbt den Schal.</p></div></div>
 <h2>Rüstung · 12 Stufen</h2>
 <p>Held jeweils mit passender Schaufel (stehend). Kaufbar sind aktuell Holz bis Adamantium.</p>
 <div class="grid" id="armor"></div>
@@ -45,14 +45,14 @@ function scene(w, h, scale, draw) {
   const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false; cx.drawImage(t, 0, 0, c.width, c.height);
   return c;
 }
-const pose = (a, s, wp, p, atk = 8) => (R) => { R.t = 40; R.figure(S.hero(a, s, wp), 11, 13, 1, p, 0, atk); };
+const pose = (a, s, wp, p, atk = 8) => (R) => { R.t = 40; R.figure(S.hero(a, s, wp), 17, 13, 1, p, 0, atk, null, 0, 16, 1.2, 0); };
 
-document.getElementById('heroBig').replaceWith(Object.assign(scene(58, 30, 3, (R) => { R.figure(S.hero(0, 0), 8, 13, 1, 0, 0); R.figure(S.hero(0, 0), 28, 13, 1, 3, 4); }), { id: 'heroBig' }));
+document.getElementById('heroBig').replaceWith(Object.assign(scene(64, 30, 3, (R) => { R.t = 30; R.figure(S.hero(0, 0), 14, 13, 1, 1, 4, 8, null, 0, 16, 2, 0); R.figure(S.hero(0, 0), 40, 13, 1, 3, 0, 6); }), { id: 'heroBig' }));
 
 const arm = document.getElementById('armor');
 TIERS.forEach((t, i) => {
   const d = document.createElement('div'); d.className = 'cell';
-  d.append(scene(30, 30, 3, pose(i, i, null, 0)));
+  d.append(scene(36, 30, 3, pose(i, i, null, 0)));
   d.insertAdjacentHTML('beforeend', `<b style="color:${t.light}">${t.name}</b><small>${ARMOR[i].hp} Herzen${i >= AVAILABLE ? ' · bald' : ''}</small>`);
   arm.append(d);
 });
@@ -75,7 +75,7 @@ for (const w of WEAPONS) {
 const at = document.getElementById('attack');
 for (const w of WEAPONS) {
   const d = document.createElement('div'); d.className = 'cell';
-  d.append(scene(40, 28, 3, (R) => { R.t = 40; R.figure(S.hero(7, 3, w.id), 8, 12, 1, 3, 0, 4); }));
+  d.append(scene(44, 28, 3, (R) => { R.t = 40; R.figure(S.hero(7, 3, w.id), 12, 12, 1, 3, 0, 6); }));
   d.insertAdjacentHTML('beforeend', `<small>${w.name}</small>`);
   at.append(d);
 }

@@ -46,7 +46,7 @@ function bladeSet(rows, pal) {
 function weaponPal(w) { return { h: w.handle, H: w.light, s: w.dark, S: w.light, w: '#ffffff', x: w.light, W: '#ffffff' }; }
 export function hero(armor, shovel, weapon = null) {
   return memo(`hero${armor}.${shovel}.${weapon}`, () => {
-    const art = ARMOR_ART[armor], out = { fx: art.fx || null, tier: armor };
+    const art = ARMOR_ART[armor], out = { fx: art.fx || null, tier: armor, scarf: art.scarf || [art.pal.c, art.pal.C], scarfLen: 7 + Math.floor(armor / 2) };
     for (const k in LEGS) { const r = heroFrame(art, LEGS[k]); out[k] = [r, flipX(r)]; }
     const wp = weapon && weaponById(weapon);
     Object.assign(out, wp ? bladeSet(WEAPON_ART[wp.id], weaponPal(wp)) : bladeSet(SHOVEL_ART[shovel].rows, SHOVEL_ART[shovel].pal));

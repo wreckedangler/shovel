@@ -92,7 +92,7 @@ function drawMenuBg() {
   const ts = S.tileset(th);
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
   const hs = S.hero(D.armor, D.shovel, D.weapon);
-  R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8);
+  R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8, null, 0, 16, 2, 0);
 }
 
 /* ---------- Spielen ---------- */
@@ -353,9 +353,9 @@ function forge(msg = '') {
   const tick = () => {
     if (id !== forgeAnim || !pv.isConnected) return;
     stage(pv, 72, 40, () => {
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 12, 18, 1, 0, 0, 8);
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 16, 18, 1, 0, 0, 8);
       const nh = S.hero(nA, nS, null), locked = nA >= AVAILABLE && nS >= AVAILABLE;
-      R.x.globalAlpha = locked ? 0.45 : 1; R.figure(nh, 50, 18, 1, 3, 0, 4); R.x.globalAlpha = 1;
+      R.x.globalAlpha = locked ? 0.45 : 1; R.figure(nh, 52, 18, 1, 3, 0, 6); R.x.globalAlpha = 1;
       R.x.fillStyle = '#ffd84a'; R.x.fillRect(33, 22, 5, 1); R.x.fillRect(36, 21, 1, 3); R.x.fillRect(37, 22, 1, 1);
     });
     requestAnimationFrame(tick);
@@ -377,8 +377,8 @@ function gearReveal(kind, t) {
   const tick = () => {
     if (!cv.isConnected) return;
     stage(cv, 50, 28, () => {
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 12, 12, 1, 0, 0, 8);
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 32, 12, 1, 3, 0, 4);
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 14, 12, 1, 1, menuT, 8, null, 0, 16, 2, 0);
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 34, 12, 1, 3, 0, 6);
     });
     requestAnimationFrame(tick);
   };
@@ -394,7 +394,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.5</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.6</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);

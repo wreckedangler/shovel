@@ -197,7 +197,7 @@ export class Renderer {
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
     const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
     if (p.dash > 0) { this.x.globalAlpha = 0.6; }
-    this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null, p.land, p.atkLen || 16);
+    this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null, p.land, p.atkLen || 16, p.vx, p.vy);
     this.x.globalAlpha = 1;
     const wp = g.gear.weapon && weaponById(g.gear.weapon);
     if (wp && (this.t + p.anim) % 24 < 3) {
@@ -207,22 +207,72 @@ export class Renderer {
       this.x.fillRect(Math.round(bx), Math.round(p.atk > 0 ? p.y + 5 : p.y - 8), 1, 1);
     }
   }
-  figure(hs, px, py, face, pose, anim, atk = 8, white = null, land = 0, atkLen = 16) {
-    const x = this.x, i = face > 0 ? 0 : 1, X = Math.round(px), Y = Math.round(py);
+  figure(hs, px, py, face, pose, anim, atk = 8, white = null, land = 0, atkLen = 16, vx = 0, vy = 0) {
+    const x = this.x, i = face > 0 ? 0 : 1, X = Math.round(px), Y0 = Math.round(py);
     const wind = atk > atkLen * 0.78;
-    const legs = pose === 1 ? ((anim >> 3) & 1 ? 'run1' : 'run2') : pose === 2 || pose === 4 ? 'air' : 'stand';
+    // Lauf-Zyklus mit 4 Phasen (Wippen), Atmen im Stand, Fallen mit gestreckten Beinen
+    let legs = 'stand', bob = 0;
+    if (pose === 1) { const ph = (anim >> 2) & 3; legs = ['run1', 'pass', 'run2', 'pass'][ph]; bob = ph & 1 ? -1 : 0; }
+    else if (pose === 2 || pose === 4) legs = vy > 1.5 ? 'fall' : 'air';
+    else if (pose === 0) bob = ((this.t + px) >> 5) & 1 ? 0 : 1;
+    const Y = Y0;
     const U = hs.shU[i], H = hs.shH[i], Dn = hs.shD[i];
+    if (hs.scarf && !white) this.scarf(hs, X, Y + bob, face, pose, vx, vy);
     if (hs.fx && !white) this.fx(hs.fx, X, Y, face, false);
-    if (pose <= 2) x.drawImage(U, face > 0 ? X - 5 : X + 8, Y + 7 - U.height);
+    if (pose <= 2) x.drawImage(U, face > 0 ? X - 5 : X + 8, Y + 7 - U.height + bob);
     const body = (white || hs)[legs][i];
     if (land > 0) { const q = Math.min(3, land); x.drawImage(body, X - 5 - q, Y - 10 + q, 20 + q * 2, 24 - q); }
-    else x.drawImage(body, X - 5, Y - 10);
+    else if (bob) {
+      // Oberkörper wippt, Füsse bleiben am Boden
+      x.drawImage(body, 0, 20, 20, 4, X - 5, Y + 10, 20, 4);
+      x.drawImage(body, 0, 0, 20, 21, X - 5, Y - 10 + bob, 20, 21);
+    } else x.drawImage(body, X - 5, Y - 10);
     if (pose === 3) {
       if (wind) x.drawImage(U, face > 0 ? X + 7 : X - 4, Y + 4 - U.height);
-      else x.drawImage(H, face > 0 ? X + 8 : X + 2 - H.width, Y + 2);
+      else {
+        x.drawImage(H, face > 0 ? X + 8 : X + 2 - H.width, Y + 2);
+        // Wischspur des Hiebs
+        const k = 1 - atk / atkLen;
+        if (!white && k > 0.2 && k < 0.75) {
+          x.globalAlpha = 0.85 - k * 0.7;
+          const cxp = face > 0 ? X + 6 : X + 4, r = H.width + 1;
+          for (let a = -1.5; a <= 0.7; a += 0.09) {
+            const ax = cxp + Math.cos(a) * r * face, ay = Y + 5 + Math.sin(a) * r * 0.85;
+            x.fillStyle = a > -0.2 && a < 0.4 ? '#ffffff' : '#ffe9a8'; x.fillRect(Math.round(ax), Math.round(ay), 2, a > -0.6 ? 2 : 1);
+          }
+          x.globalAlpha = 1;
+        }
+      }
     }
-    if (pose === 4) x.drawImage(Dn, X + 2, Y + 9);
+    if (pose === 4) {
+      x.drawImage(Dn, X + 2, Y + 9);
+      if (!white && vy > 2) { x.globalAlpha = 0.5; x.fillStyle = '#ffffff'; for (let k = 0; k < 3; k++) x.fillRect(X + 1 + k * 4, Y - 6 - ((this.t * 3 + k * 5) % 8), 1, 4); x.globalAlpha = 1; }
+    }
     if (hs.fx && !white) this.fx(hs.fx, X, Y, face, true);
+  }
+  // Langer Schal, der im Fahrtwind flattert (Erkennungszeichen des Helden)
+  scarf(hs, X, Y, face, pose, vx, vy) {
+    const x = this.x, n = hs.scarfLen, t = this.t;
+    const speed = Math.min(1, Math.abs(vx) / 2.2);
+    const ax = face > 0 ? X + 1 : X + 8, ay = Y + 3;
+    const pts = [];
+    for (let k = 1; k <= n; k++) {
+      const droop = (1.2 - speed * 0.9) * k * 0.9 - Math.max(-3, Math.min(3, vy)) * k * 0.28;
+      const wave = Math.sin(t / (4 - speed * 1.5) - k * 0.75) * (0.4 + speed * 0.9 + (pose === 2 || pose === 4 ? 0.6 : 0)) * Math.min(k, 4) * 0.45;
+      pts.push([ax - face * k * (1.1 + speed * 0.9), ay + droop + wave]);
+    }
+    const [c1, c2] = hs.scarf;
+    for (const pass of [0, 1]) {
+      pts.forEach(([px, py], k) => {
+        const th = k < n * 0.6 ? 2 : 1;
+        x.fillStyle = pass === 0 ? K : (k % 3 === 2 ? c2 : c1);
+        if (pass === 0) x.fillRect(Math.round(px) - 1, Math.round(py) - 1, th + 2, th + 2);
+        else x.fillRect(Math.round(px), Math.round(py), th, th);
+      });
+    }
+    // Schalende: zwei Zipfel
+    const [ex, ey] = pts[n - 1];
+    x.fillStyle = c2; x.fillRect(Math.round(ex - face), Math.round(ey + 1), 1, 2); x.fillRect(Math.round(ex - face * 2), Math.round(ey), 1, 1);
   }
   // Effekte der hohen Rüstungsstufen. front=false: hinter dem Helden, true: davor.
   fx(kind, X, Y, face, front) {
