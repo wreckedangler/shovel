@@ -10,6 +10,7 @@ const DEF = {
   weapons: {},     // freigeschaltete Waffen
   weapon: null,    // ausgerüstete Waffe (null = Schaufel)
   deathsTotal: 0, stars: {}, chests: {},
+  stick: false, vibrate: true, fullscreen: true,
 };
 const fresh = () => JSON.parse(JSON.stringify(DEF));
 const data = fresh();

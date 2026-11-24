@@ -4,6 +4,12 @@ Mobiler Pixel-Plattformer als installierbare Web-App. Graben, Schaufel-Sprünge,
 
 Keine Abhängigkeiten, kein Build-Schritt: reines HTML, CSS und JavaScript-Module.
 
+## Handy
+
+- **Hochformat:** Spielfeld oben, grosse Knöpfe darunter (nichts verdeckt das Spiel).
+- **Querformat:** gezoomte Ansicht, halbtransparente Knöpfe über dem Spiel.
+- **Optionen:** links Pfeiltasten oder Daumen-Stick, Vibration (Android), Vollbild (Android; auf dem iPhone über „Zum Home-Bildschirm“).
+
 ## Steuerung
 
 | Aktion | Touch | Tastatur | Gamepad |

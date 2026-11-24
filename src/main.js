@@ -4,7 +4,7 @@ import { LEVELS, WORLDS, levelById } from './levels.js';
 import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, ARMOR, PRICE, AVAILABLE } from './gear.js';
 import { Renderer } from './render.js';
-import { initInput, pollInput, clearInput } from './input.js';
+import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio } from './audio.js';
 import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
@@ -16,25 +16,43 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const canvas = $('#screen'), ctx = canvas.getContext('2d');
 const ui = $('#ui'), touchEl = $('#touch'), pauseBtn = $('#pauseBtn');
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const R = new Renderer(ctx);
-const VH = 180;
-let VW = 320;
+let VH = 180, VW = 320;
 const D = save.d;
 setAudio(D.sfx, D.music);
 
 let curCodes = [], mode = 'menu', game = null, ghosts = [], level = null, doneT = 0, menuT = 0;
-const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 
+// Auflösung je nach Gerät:
+// Handy hochkant: Spielfeld oben (11 Kacheln breit), Steuerung darunter, nichts verdeckt.
+// Handy quer: stärker gezoomt (9 Kacheln hoch), damit Figuren gross genug sind.
+// Computer: 180 px hoch wie gehabt.
 function resize() {
-  VW = Math.max(240, Math.min(400, Math.round(VH * innerWidth / innerHeight)));
+  const portrait = isTouch && innerHeight > innerWidth;
+  document.body.classList.toggle('portrait', portrait);
+  document.body.classList.toggle('touchdev', isTouch);
+  let sc;
+  if (portrait) {
+    const ctrl = Math.round(Math.max(210, innerHeight * 0.3));
+    const cssH = innerHeight - ctrl;
+    VW = 160; VH = Math.max(150, Math.min(248, Math.round(VW * cssH / innerWidth)));
+    sc = Math.min(innerWidth / VW, cssH / VH);
+    document.documentElement.style.setProperty('--ch', Math.round(VH * sc) + 'px');
+  } else {
+    VH = isTouch ? 144 : 180;
+    VW = Math.max(240, Math.min(isTouch ? 360 : 400, Math.round(VH * innerWidth / innerHeight)));
+    sc = Math.min(innerWidth / VW, innerHeight / VH);
+  }
   canvas.width = VW; canvas.height = VH; ctx.imageSmoothingEnabled = false;
-  const sc = Math.min(innerWidth / VW, innerHeight / VH);
   canvas.style.width = VW * sc + 'px'; canvas.style.height = VH * sc + 'px';
   R.resize(VW, VH);
 }
 addEventListener('resize', resize); resize();
 
 initInput(touchEl, () => unlockAudio());
+const applyControls = () => { setStickMode(!!D.stick); document.body.classList.toggle('stickmode', !!D.stick); };
+applyControls();
 addEventListener('pointerdown', () => unlockAudio(), { capture: true });
 addEventListener('keydown', e => { if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'pause') resume(); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play') pause(); });
@@ -54,6 +72,7 @@ function tick() {
   game.step(inp);
   for (const e of game.events) {
     sfx(e.name, e.v);
+    haptic(e.name);
     if (e.name === 'unlock') unlockWeapon(e.v, true);
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
     if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); }
@@ -87,7 +106,7 @@ async function startLevel(id, ghostCodes = []) {
   hideUI(); mode = 'play';
   touchEl.hidden = !isTouch; pauseBtn.hidden = false;
   playMusic(THEMES[level.theme].music);
-  tryLandscape();
+  goFullscreen();
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); show(`
   <div class="panel small"><h2>Pause</h2>
@@ -155,6 +174,14 @@ async function finish() {
   requestAnimationFrame(step);
   newStars.forEach((n, i) => n && setTimeout(() => sfx('star'), 350 + i * 350));
   setTimeout(showReveals, 1200);
+}
+
+/* ---------- Vibration (Android; iPhones unterstützen das im Browser nicht) ---------- */
+const HAPTIC = { hurt: [40, 30, 40], die: [80, 40, 120], hit: 12, poof: 18, bounce: 8, chest: [20, 30, 40], boing: 15, thud: 50, bossStart: [60, 40, 60], bossDie: [100, 50, 100, 50, 200], unlock: [30, 30, 30, 30, 120], check: 20, win: [20, 40, 20] };
+function haptic(name) {
+  const p = HAPTIC[name];
+  if (!p || !D.vibrate || !isTouch) return;
+  try { navigator.vibrate && navigator.vibrate(p); } catch {}
 }
 
 /* ---------- Waffen ---------- */
@@ -228,11 +255,18 @@ function title() {
     <button class="big" data-a="map">Spielen</button>
     <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer</button><button data-a="options">Optionen</button></div>
     <p class="gems">◆ ${D.gems}</p>
+    ${installTip()}
   </div>`);
 }
 
 let curWorld = 0;
 const worldOpen = wi => WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
+function installTip() {
+  const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
+  if (!isTouch || standalone || window.__SH_BUNDLE) return '';
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  return `<p class="tip">${ios ? 'Tipp: Teilen → „Zum Home-Bildschirm“ für Vollbild ohne Browserleisten.' : 'Tipp: Menü ⋮ → „App installieren“ für Vollbild und Offline-Spielen.'}</p>`;
+}
 function map(sel, wi) {
   mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
   playMusic(THEMES.karte.music);
@@ -360,7 +394,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.4</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.5</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -368,7 +402,10 @@ function options(msg = '') {
 }
 const toggles = () => `<div class="row toggles">
   <button data-a="sfx" class="${D.sfx ? 'on' : ''}">Effekte ${D.sfx ? 'an' : 'aus'}</button>
-  <button data-a="music" class="${D.music ? 'on' : ''}">Musik ${D.music ? 'an' : 'aus'}</button></div>`;
+  <button data-a="music" class="${D.music ? 'on' : ''}">Musik ${D.music ? 'an' : 'aus'}</button>
+  ${isTouch ? `<button data-a="stick" class="${D.stick ? 'on' : ''}">Links: ${D.stick ? 'Daumen-Stick' : 'Pfeiltasten'}</button>
+  <button data-a="vibrate" class="${D.vibrate ? 'on' : ''}">Vibration ${D.vibrate ? 'an' : 'aus'}</button>
+  <button data-a="fullscreen" class="${D.fullscreen ? 'on' : ''}">Vollbild ${D.fullscreen ? 'an' : 'aus'}</button>` : ''}</div>`;
 
 let resetArm = 0;
 ui.addEventListener('click', async e => {
@@ -378,7 +415,7 @@ ui.addEventListener('click', async e => {
   if (a !== 'nope' && a !== 'buy') sfx('click');
   switch (a) {
     case 'title': return title();
-    case 'map': return map();
+    case 'map': goFullscreen(); return map();
     case 'forge': return forge();
     case 'armory': return armory();
     case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
@@ -401,6 +438,9 @@ ui.addEventListener('click', async e => {
       D.gems -= price; D[k] = nx; save.write(); sfx('legend');
       forge(); return gearReveal(k, nx);
     }
+    case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
+    case 'vibrate': D.vibrate = !D.vibrate; save.write(); haptic('hit'); b.outerHTML = toggles().match(/<button data-a="vibrate".*?<\/button>/s)[0]; return;
+    case 'fullscreen': D.fullscreen = !D.fullscreen; save.write(); if (!D.fullscreen && document.fullscreenElement) document.exitFullscreen().catch(() => {}); b.outerHTML = toggles().match(/<button data-a="fullscreen".*?<\/button>/s)[0]; return;
     case 'sfx': D.sfx = !D.sfx; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="sfx".*?<\/button>/)[0]; return;
     case 'music': D.music = !D.music; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="music".*?<\/button>/)[0]; return;
     case 'import': {
@@ -422,9 +462,12 @@ ui.addEventListener('click', async e => {
   }
 });
 
-function tryLandscape() {
-  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch {}
+// Vollbild auf Android (iOS kennt das nur als installierte Web-App)
+function goFullscreen() {
+  if (!isTouch || !D.fullscreen || document.fullscreenElement) return;
+  try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (r) r.catch(() => {}); } catch {}
 }
+
 
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__SH_BUNDLE) navigator.serviceWorker.register('sw.js').catch(() => {});
 

@@ -15,8 +15,11 @@ export class Renderer {
   snapCamera(g) { this.cam = this.target(g); }
   target(g) {
     const p = g.p;
-    const x = Math.max(0, Math.min(g.w * T - this.W, p.x + p.w / 2 + p.face * 28 - this.W / 2));
-    const y = Math.max(0, Math.min(g.h * T - this.H, p.y - this.H * 0.55));
+    const lead = this.W < 220 ? 18 : 28;
+    const x = Math.max(0, Math.min(g.w * T - this.W, p.x + p.w / 2 + p.face * lead - this.W / 2));
+    const maxY = g.h * T - this.H;
+    // Ist die Ansicht höher als das Level (Hochformat), sitzt der Boden unten und oben ist Himmel
+    const y = maxY < 0 ? maxY : Math.max(0, Math.min(maxY, p.y - this.H * 0.55));
     return { x, y };
   }
 
@@ -281,8 +284,9 @@ export class Renderer {
 
   hud(g, ghosts) {
     const x = this.x, W = this.W, p = g.p;
-    for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % 10) * 8, 6 + Math.floor(i / 10) * 7);
-    const gy0 = p.maxhp > 10 ? 7 : 0;
+    const per = W < 220 ? 6 : 10;
+    for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % per) * 8, 6 + Math.floor(i / per) * 7);
+    const gy0 = Math.floor((p.maxhp - 1) / per) * 7;
     x.translate(0, gy0);
     x.drawImage(S.gemSprite(5), 6, 16);
     if (g.gems > (this.lastGems ?? g.gems)) this.bump = 10;
@@ -305,12 +309,13 @@ export class Renderer {
       x.globalAlpha = 1;
       if (b.t > 70 && b.t % 6 < 3) { x.fillStyle = 'rgba(255,255,255,0.08)'; x.fillRect(0, 0, W, this.H); }
     }
-    S.drawText(x, fmtTime(g.frame), W / 2, 6, '#fff', 1, 'center');
+    const tx = W < 220 ? Math.max(W / 2, 6 + per * 8 + 26) : W / 2;
+    S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
     for (const gh of ghosts) {
       const d = g.frame - gh.frames;
-      S.drawText(x, `${gh.name} ${fmtTime(gh.frames)}`, W / 2, gy, '#8fe8ff', 1, 'center'); gy += 7;
-      if (g.done) { S.drawText(x, (d <= 0 ? '-' : '+') + (Math.abs(d) / 60).toFixed(2), W / 2, gy, d <= 0 ? '#7dffa0' : '#ff7a8a', 1, 'center'); gy += 7; }
+      S.drawText(x, `${gh.name} ${fmtTime(gh.frames)}`, tx, gy, '#8fe8ff', 1, 'center'); gy += 7;
+      if (g.done) { S.drawText(x, (d <= 0 ? '-' : '+') + (Math.abs(d) / 60).toFixed(2), tx, gy, d <= 0 ? '#7dffa0' : '#ff7a8a', 1, 'center'); gy += 7; }
     }
     if (g.sign) {
       const lines = S.wrapText(g.sign, Math.floor((W - 40) / 4));
