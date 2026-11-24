@@ -65,10 +65,36 @@ Levels bestehen aus 20 Kacheln breiten Segmenten mit 14 Reihen. Legende:
 ^  Stacheln     B  Sprungpilz    P  Start             C  Laterne/Checkpoint
 E  Ziel         G  Edelstein     h  Apfel             T  Truhe
 i  Schild       b  Käfer         o  Blorb             v  Fledermaus    M  Boss
+Q  Altar (geheime Waffe)
 ```
 
 Faustregeln: Sprunghöhe 2 Kacheln, Sprungweite 3 Kacheln Lücke. Mit Pilz 4 Kacheln, mit Schaufel-Sprung auf Pilz 6.
 Danach `node tools/test.mjs` laufen lassen.
+
+## Sterne, Ketten und Waffen
+
+- **Sterne:** Jedes Level hat drei: geschafft, unter der Zielzeit, ohne Tod. Jeder neue Stern bringt 50 Edelsteine.
+- **Pogo-Ketten:** Ab drei Schaufel-Abprallern ohne Bodenkontakt gibt es Bonus-Edelsteine, die mit der Kette wachsen.
+- **Edelstein-Serien:** Schnell hintereinander eingesammelte Steine klingen jedes Mal einen Halbton höher.
+- **Legendäre und mythische Waffen (9):** Nicht kaufbar. Jede verlangt eine bestimmte Tat. In der Waffenkammer stehen nur Rätsel-Hinweise.
+
+<details><summary>Spoiler: alle Bedingungen</summary>
+
+| Waffe | Seltenheit | Bedingung | Wirkung |
+|---|---|---|---|
+| Federklinge | Legendär | 1-1 ohne einen Gegner zu besiegen | schneller, höher, längere Klinge |
+| Blitzspaten | Legendär | 1-1 unter 25 s | rasend schnelle Hiebe |
+| Erdfresser | Legendär | in 1-2 alle Erdblöcke ausgraben | gräbt 3×3, doppelte Erd-Beute |
+| Goldschaufel des Königs | Legendär | die 3 Truhen hinter Stein öffnen | Edelsteine zählen doppelt |
+| Geisterklinge | Legendär | fremden Geist um 2 s schlagen | Luft-Sprint mit A |
+| Sternenspaten | Mythisch | Kette aus 12 Abprallern | Abpraller schleudern Sterne |
+| Maulwurfkralle | Mythisch | Boss ohne Schaden besiegen | Erdwelle beim Hieb |
+| Seelenschaufel | Mythisch | 20 Tode insgesamt | einmal pro Level auferstehen |
+| Urfunke | Mythisch | Altar hoch über dem Dornenkamm (Pilz-Superprung auf dem Plateau, dann Wolkenpfad) | doppelter Schaden, brennende Hiebe |
+
+</details>
+
+Neue Waffen kommen in `src/weapons.js` (Daten und Wirkung), die Klingenform in `src/sprites.js` (`BLADES`), die Bedingung in `src/main.js` (`finish` oder ein `unlock`-Ereignis aus `game.js`).
 
 ## Online-Geister (optional)
 
@@ -101,7 +127,8 @@ Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für meh
 
 ## Fahrplan
 
-- **Etappe 1 (diese Version):** Welt 1 mit 3 Levels und Boss, Schmiede bis Stahl, Geister lokal und per Code, PWA.
+- **Etappe 1:** Welt 1 mit 3 Levels und Boss, Schmiede bis Stahl, Geister lokal und per Code, PWA.
+- **Etappe 1.5 (diese Version):** 9 legendäre/mythische Waffen, geheimer Himmelspfad, Sterne, Pogo-Ketten, Hit-Stop, Edelstein-Serien.
 - **Etappe 2:** Welt 2 *Uhrturm von Zahnfels* (Zahnräder, bewegte Plattformen), Titan- und Adamantium-Stufe, erste Relikte.
 - **Etappe 3:** Endloser Schacht-Modus mit erzeugten Levels und Tages-Seed für faire Geister-Rennen.
 - **Etappe 4:** Level-Editor mit Teilen per Code.

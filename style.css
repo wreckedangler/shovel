@@ -93,3 +93,50 @@ button.danger{background:#5a1830!important;margin-top:10px!important}
 }
 @media (max-width:640px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.detail{grid-template-columns:1fr}.forge{flex-direction:column;align-items:center}}
 @media (prefers-reduced-motion:reduce){#rotate .ph{animation:none}}
+
+/* Sterne */
+.starrow{display:flex;justify-content:center;gap:14px;margin:0 0 10px}
+.star{display:flex;flex-direction:column;align-items:center;opacity:.35}
+.star span{font-size:34px;line-height:1;color:#5a4a70;text-shadow:0 3px 0 var(--k)}
+.star small{font-size:12px;color:var(--mute)}
+.star.on{opacity:1}.star.on span{color:var(--gold)}
+.star.new span{animation:starpop .5s cubic-bezier(.3,1.8,.5,1) both;animation-delay:var(--d)}
+@keyframes starpop{0%{transform:scale(0) rotate(-90deg)}100%{transform:scale(1) rotate(0)}}
+.cstars{display:flex;gap:2px;font-size:15px}.cstars em{font-style:normal;color:#ffffff30}.cstars em.on{color:var(--gold)}
+
+/* Waffenkammer */
+.wgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
+.wcard{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border-radius:12px;padding:10px;border:2px solid transparent}
+.wcard.on{border-color:var(--c);box-shadow:0 0 18px -4px var(--c)}
+.wcard .wi{flex:none;width:44px;display:grid;place-items:center;padding-top:4px}
+.wcard canvas{image-rendering:pixelated}
+.wcard canvas.sil{filter:brightness(0) drop-shadow(0 0 1px #ffffff40)}
+.wcard b{display:block;font-size:16px;line-height:1.15}
+.wcard small{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.wcard p{margin:3px 0 4px;font-size:13px;color:var(--mute)}
+.wcard.locked p{font-style:italic}
+.wcard button{min-height:36px!important;padding:4px 12px!important;margin:2px 0!important;font-size:14px}
+.wcard.mythisch:not(.locked){background:linear-gradient(160deg,#3a1a5a,var(--panel) 60%)}
+.wcard.legendaer:not(.locked){background:linear-gradient(160deg,#4a3a10,var(--panel) 60%)}
+@media (max-width:760px){.wgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Enthüllung */
+.reveal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:#0a0512e8;overflow:hidden;animation:fadein .3s}
+@keyframes fadein{from{opacity:0}}
+.rays{position:absolute;width:200vmax;height:200vmax;left:50%;top:50%;margin:-100vmax 0 0 -100vmax;
+  background:repeating-conic-gradient(from 0deg,#ffffff10 0 8deg,transparent 8deg 20deg);animation:spin 18s linear infinite}
+.reveal.legendaer .rays{background:repeating-conic-gradient(#ffd84a22 0 8deg,transparent 8deg 20deg)}
+.reveal.mythisch .rays{background:repeating-conic-gradient(#ff7ae026 0 6deg,transparent 6deg 14deg,#9a4cff22 14deg 20deg,transparent 20deg 28deg)}
+@keyframes spin{to{transform:rotate(1turn)}}
+.rcard{position:relative;text-align:center;padding:16px 24px;max-width:min(460px,92vw);animation:rise .6s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes rise{from{transform:translateY(40px) scale(.7);opacity:0}}
+.rcard .rar{margin:0;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--c);text-shadow:0 0 12px var(--g)}
+.reveal.mythisch .rar{background:linear-gradient(90deg,#ff7ae0,#fff,#9a4cff,#ff7ae0);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shim 2s linear infinite}
+@keyframes shim{to{background-position:300% 0}}
+.rcard canvas{display:block;margin:8px auto;image-rendering:pixelated;max-height:34vh;width:auto;filter:drop-shadow(0 0 14px var(--g));animation:float 2.4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-8px)}}
+.rcard h2{font-size:clamp(26px,5vw,36px);margin:4px 0;color:#fff}
+.rcard .perk{margin:0 0 4px;font-size:17px}
+.rcard .cond{margin:0 0 8px;color:var(--mute);font-size:14px}
+.rcard button{min-height:44px;padding:8px 18px;border-radius:12px;border:3px solid var(--k);background:var(--panel2);box-shadow:0 4px 0 var(--k);font-weight:600;margin:4px;color:#fff;font-family:inherit}
+@media (prefers-reduced-motion:reduce){.rays,.rcard canvas,.reveal.mythisch .rar{animation:none}}

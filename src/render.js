@@ -2,6 +2,7 @@
 import { T } from './game.js';
 import { THEMES } from './themes.js';
 import { TIERS } from './gear.js';
+import { weaponById, RARITY } from './weapons.js';
 import { ghostAt, fmtTime } from './ghost.js';
 import * as S from './sprites.js';
 
@@ -47,6 +48,12 @@ export class Renderer {
       const s = q.life > 12 ? 2 : 1;
       x.fillRect(Math.round(q.x), Math.round(q.y), s, s);
     }
+    for (const n of g.nums) {
+      x.globalAlpha = Math.min(1, n.life / 15);
+      S.drawText(x, n.txt, Math.round(n.x) + 1, Math.round(n.y) + 1, K, 1, 'center');
+      S.drawText(x, n.txt, Math.round(n.x), Math.round(n.y), n.col, 1, 'center');
+    }
+    x.globalAlpha = 1;
     x.restore();
 
     if (g.level.theme === 'hoehle' || g.level.theme === 'bau') this.dark(g, cx, cy, g.level.theme === 'bau' ? 0.35 : 0.55);
@@ -102,6 +109,27 @@ export class Renderer {
         return;
       }
       case 'chest': x.drawImage(S.chestSprite(e.open), e.x, e.y); return;
+      case 'proj':
+        if (e.kind === 'star') {
+          const sx = Math.round(e.x), sy = Math.round(e.y), c = (f >> 1) & 1 ? '#ffffff' : '#d8c8ff';
+          x.fillStyle = K; x.fillRect(sx + 1, sy, 4, 6); x.fillRect(sx, sy + 1, 6, 4);
+          x.fillStyle = c; x.fillRect(sx + 2, sy, 2, 6); x.fillRect(sx, sy + 2, 6, 2);
+        } else {
+          const sx = Math.round(e.x), sy = Math.round(e.y), hgt = 6 + ((f >> 1) & 3);
+          x.fillStyle = K; x.fillRect(sx, sy + 10 - hgt - 1, 10, hgt + 1);
+          x.fillStyle = '#ff9a50'; x.fillRect(sx + 1, sy + 10 - hgt, 8, hgt - 1); x.fillStyle = '#ffe070'; x.fillRect(sx + 3, sy + 10 - hgt, 4, 2);
+        }
+        return;
+      case 'altar': {
+        if (!e.taken) { x.fillStyle = 'rgba(255,170,60,0.16)'; x.beginPath(); x.arc(e.x + 12, e.y + 2, 22 + Math.sin(f / 8) * 3, 0, 7); x.fill(); }
+        x.drawImage(S.altarSprite(!e.taken), e.x + 4, e.y + 12);
+        if (!e.taken) {
+          const ic = S.weaponIcon('urfunke');
+          x.drawImage(ic, e.x + 12 - ic.width / 2, e.y - 6 + Math.round(Math.sin(f / 14) * 2));
+          if (f % 4 === 0) g.parts.push({ x: e.x + 8 + Math.random() * 8, y: e.y + 4, vx: (Math.random() - 0.5) * 0.4, vy: -0.6, life: 26, col: 'fire', grav: -0.01 });
+        }
+        return;
+      }
       case 'apple': x.drawImage(S.appleSprite(), e.x, e.y + Math.round(Math.sin(f / 15) * 1)); return;
       case 'lantern':
         if (e.lit) { x.fillStyle = 'rgba(255,216,74,0.12)'; x.beginPath(); x.arc(e.x + 4, e.y + 5, 16 + Math.sin(f / 9) * 2, 0, 7); x.fill(); }
@@ -125,17 +153,30 @@ export class Renderer {
   player(g) {
     const p = g.p; if (p.dead) return;
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
-    const hs = S.hero(g.gear.armor, g.gear.shovel);
-    this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null);
+    const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
+    if (p.dash > 0) { this.x.globalAlpha = 0.6; }
+    this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null, p.land, p.atkLen || 16);
+    this.x.globalAlpha = 1;
+    const wp = g.gear.weapon && weaponById(g.gear.weapon);
+    if (wp && (this.t + p.anim) % 24 < 3) {
+      // Glitzern an der Klinge
+      this.x.fillStyle = wp.rar === 'mythisch' ? '#ff9af0' : '#fff6b0';
+      const bx = p.atk > 0 ? (p.face > 0 ? p.x + 20 : p.x - 10) : (p.face > 0 ? p.x - 3 : p.x + 11);
+      this.x.fillRect(Math.round(bx), Math.round(p.atk > 0 ? p.y + 4 : p.y - 5), 1, 1);
+    }
   }
-  figure(hs, px, py, face, pose, anim, atk = 8, white = null) {
+  figure(hs, px, py, face, pose, anim, atk = 8, white = null, land = 0, atkLen = 16) {
     const x = this.x, i = face > 0 ? 0 : 1, X = Math.round(px), Y = Math.round(py);
+    const wind = atk > atkLen * 0.78;
     const legs = pose === 1 ? ((anim >> 3) & 1 ? 'run1' : 'run2') : pose === 2 || pose === 4 || pose === 3 && atk < 0 ? 'air' : 'stand';
     if (pose <= 2) x.drawImage(hs.shU[i], face > 0 ? X - 4 : X + 9, Y - 5);
-    x.drawImage((white || hs)[legs][i], X - 1, Y - 2);
+    const body = (white || hs)[legs][i];
+    if (land > 0) { const q = Math.min(3, land); x.drawImage(body, X - 1 - q, Y - 2 + q, 12 + q * 2, 16 - q); }
+    else x.drawImage(body, X - 1, Y - 2);
     if (pose === 3) {
-      if (atk > 12) x.drawImage(hs.shU[i], face > 0 ? X + 8 : X - 3, Y - 8);
-      else x.drawImage(hs.shH[i], face > 0 ? X + 8 : X - 10, Y + 3);
+      const sw = hs.shH[i];
+      if (wind) x.drawImage(hs.shU[i], face > 0 ? X + 8 : X - 3, Y - 8);
+      else x.drawImage(sw, face > 0 ? X + 8 : X + 2 - sw.width, Y + 3);
     }
     if (pose === 4) x.drawImage(hs.shD[i], X + 3, Y + 9);
   }
@@ -161,7 +202,25 @@ export class Renderer {
     const x = this.x, W = this.W, p = g.p;
     for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + i * 8, 6);
     x.drawImage(S.gemSprite(5), 6, 16);
-    S.drawText(x, g.gems, 16, 17, '#fff');
+    if (g.gems > (this.lastGems ?? g.gems)) this.bump = 10;
+    this.lastGems = g.gems;
+    if (this.bump > 0) this.bump--;
+    S.drawText(x, g.gems, 16, 17 - (this.bump > 6 ? 1 : 0), this.bump > 0 ? '#ffd84a' : '#fff');
+    if (g.chain >= 2) {
+      const c = g.chain >= 8 ? '#ff7ae0' : g.chain >= 4 ? '#ffd84a' : '#ffffff';
+      S.drawText(x, 'KETTE', W - 30, 30, '#c4abd8', 1, 'center');
+      S.drawText(x, '×' + g.chain, W - 30, 38, c, 2, 'center');
+    }
+    if (g.banner) {
+      const b = g.banner, a = Math.min(1, b.t / 20), y0 = this.H / 2 - 30;
+      x.globalAlpha = a;
+      x.fillStyle = 'rgba(20,12,28,0.78)'; x.fillRect(0, y0, W, 40);
+      x.fillStyle = b.col; x.fillRect(0, y0, W, 1); x.fillRect(0, y0 + 39, W, 1);
+      if (b.sub) S.drawText(x, b.sub, W / 2, y0 + 6, b.col, 1, 'center');
+      S.drawText(x, b.text, W / 2, y0 + (b.sub ? 16 : 13), (this.t >> 2) & 1 ? '#ffffff' : b.col, 2, 'center');
+      x.globalAlpha = 1;
+      if (b.t > 70 && b.t % 6 < 3) { x.fillStyle = 'rgba(255,255,255,0.08)'; x.fillRect(0, 0, W, this.H); }
+    }
     S.drawText(x, fmtTime(g.frame), W / 2, 6, '#fff', 1, 'center');
     let gy = 14;
     for (const gh of ghosts) {
@@ -183,7 +242,7 @@ export class Renderer {
       x.fillStyle = K; x.fillRect(bx - 1, by - 1, bw + 2, 6); x.fillStyle = '#3a1010'; x.fillRect(bx, by, bw, 4);
       x.fillStyle = '#ff5a3a'; x.fillRect(bx, by, Math.round(bw * Math.max(0, b.hp) / b.maxhp), 4);
     }
-    if (g.frame < 150 && !g.done) {
+    if (g.frame < 150 && !g.done && !g.banner) {
       const a = g.frame < 120 ? 1 : (150 - g.frame) / 30;
       x.globalAlpha = a;
       x.fillStyle = 'rgba(20,12,28,0.7)'; x.fillRect(0, this.H / 2 - 22, W, 34);
@@ -203,6 +262,11 @@ function partCol(c, th, g, q) {
     case 'poof': return alt ? '#ffffff' : '#c8b8e8';
     case 'hero': return alt ? TIERS[g.gear.armor].light : '#c23a5a';
     case 'spore': return alt ? '#ffb0c0' : '#ffffff';
+    case 'dust': return alt ? '#e8dcc8' : '#b8a890';
+    case 'ghost': return alt ? '#8fe8ff' : '#e8ffff';
+    case 'fire': return q.life > 18 ? '#ffe070' : q.life > 9 ? '#ff8a2a' : '#c02a00';
+    case 'soul': return alt ? '#b07aff' : '#ffffff';
+    case 'star': return alt ? '#d8c8ff' : '#ffffff';
     default: return '#fff';
   }
 }

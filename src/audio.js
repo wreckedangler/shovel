@@ -43,9 +43,21 @@ const SFX = {
   dig: () => { noise(0.14, 0.35, 700); osc('triangle', 180, 90, 0.12, 0.2); },
   crack: () => { noise(0.2, 0.4, 1600); osc('square', 220, 70, 0.15, 0.12); },
   clink: () => { osc('square', 1600, 1400, 0.06, 0.08); osc('triangle', 2400, 2200, 0.1, 0.06, 0.02); },
-  gem: () => { osc('square', 988, 988, 0.06, 0.08); osc('square', 1319, 1319, 0.12, 0.08, 0.05); },
+  // Edelstein-Serie: jeder weitere Stein in kurzer Folge einen Halbton höher (bis eine Oktave)
+  gem: (n = 1) => { const k = 2 ** (Math.min(12, n - 1) / 12); osc('square', 988 * k, 988 * k, 0.06, 0.08); osc('square', 1319 * k, 1319 * k, 0.12, 0.08, 0.05); },
   hit: () => { osc('square', 440, 110, 0.1, 0.15); noise(0.06, 0.2, 2000); },
-  bounce: () => osc('square', 200, 800, 0.1, 0.12),
+  // Pogo-Kette: steigende Tonleiter
+  bounce: (n = 1) => { const k = 2 ** ([0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19][Math.min(11, n - 1)] / 12); osc('square', 200 * k, 800 * k, 0.1, 0.12); if (n >= 3) osc('triangle', 523 * k, 523 * k, 0.12, 0.08, 0.03); },
+  chainEnd: (n = 3) => [0, 4, 7, 12].slice(0, Math.min(4, n - 1)).forEach((s, i) => osc('square', 523 * 2 ** (s / 12), 523 * 2 ** (s / 12), 0.1, 0.07, i * 0.05)),
+  dash: () => { noise(0.18, 0.25, 4000); osc('sine', 900, 300, 0.2, 0.12); },
+  wave: () => { noise(0.25, 0.3, 500); osc('triangle', 140, 60, 0.2, 0.2); },
+  revive: () => [262, 330, 392, 523, 659, 784].forEach((n, i) => osc('triangle', n, n, 0.3, 0.12, i * 0.08)),
+  legend: () => {
+    [392, 523, 659, 784, 1047].forEach((n, i) => osc('square', n, n, 0.18, 0.09, i * 0.09));
+    [1047, 1319, 1568].forEach(n => osc('square', n, n, 0.9, 0.06, 0.5)); osc('triangle', 131, 131, 1.2, 0.25, 0.5); noise(0.8, 0.15, 6000, 0.5);
+  },
+  star: () => { osc('square', 1568, 1568, 0.08, 0.08); osc('square', 2093, 2093, 0.25, 0.08, 0.08); },
+  tick: () => osc('square', 1760, 1760, 0.02, 0.04),
   boing: () => { osc('triangle', 150, 900, 0.25, 0.25); osc('square', 300, 1200, 0.2, 0.05); },
   hurt: () => { osc('sawtooth', 400, 80, 0.3, 0.18); noise(0.15, 0.2, 900); },
   die: () => { [0, 0.12, 0.24, 0.36].forEach((w, i) => osc('square', 440 / (i + 1), 200 / (i + 1), 0.14, 0.14, w)); },
@@ -68,7 +80,7 @@ const SFX = {
   nope: () => osc('square', 160, 120, 0.15, 0.1),
   click: () => osc('square', 880, 880, 0.04, 0.06),
 };
-export function sfx(name) { if (ac && SFX[name]) SFX[name](); }
+export function sfx(name, v) { if (ac && SFX[name]) SFX[name](v); }
 
 /* ---------- Musik ---------- */
 const NOTE = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };

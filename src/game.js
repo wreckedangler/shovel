@@ -1,10 +1,11 @@
 // Spiellogik ohne DOM: läuft im Browser und in Node-Tests gleich.
 // Fester Zeitschritt: ein step() = 1/60 Sekunde.
 import { SHOVEL, ARMOR } from './gear.js';
+import { weaponMods } from './weapons.js';
 
 export const T = 16;
 const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X']);
-const GRAV = 0.36, MAXFALL = 6.5, RUN = 2.0, JUMP = 5.6, BOUNCE = 5.5;
+const GRAV = 0.36, MAXFALL = 6.5, BOUNCE = 5.5;
 
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const cx = e => e.x + e.w / 2;
@@ -19,17 +20,25 @@ export class Game {
     this.sh = SHOVEL[gear.shovel];
     this.ar = ARMOR[gear.armor];
     this.gear = gear;
+    this.mod = weaponMods(gear.weapon);
+    this.dmg = Math.round(this.sh.dmg * this.mod.dmgMul);
+    this.reach = this.sh.reach + this.mod.reach;
+    // Statistiken für Sterne und Waffen-Bedingungen
+    this.kills = 0; this.hurtCount = 0; this.bossHurt = 0; this.bossClean = false;
+    this.chain = 0; this.maxChain = 0; this.soulUsed = false; this.streak = 0; this.streakT = 0;
+    this.freeze = 0; this.nums = []; this.banner = null;
     this.tiles = level.map.map(r => r.split(''));
     this.h = this.tiles.length;
     this.w = this.tiles[0].length;
     this.rand = rng(opt.seed || 7);
     this.ents = []; this.parts = []; this.events = [];
-    this.frame = 0; this.gems = 0; this.deaths = 0;
+    this.frame = 0; this.gems = 0; this.deaths = 0; this.dirtTotal = 0;
     this.done = false; this.shake = 0; this.sign = null; this.boss = null;
     this.rec = [];
     const signs = [];
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
       const c = this.tiles[y][x];
+      if (c === 'D') this.dirtTotal++;
       if ('.#=DSB^X'.includes(c)) continue;
       this.tiles[y][x] = '.';
       const px = x * T, py = y * T;
@@ -40,7 +49,8 @@ export class Game {
         case 'v': this.add(bat(px + 2, py + 2)); break;
         case 'G': this.add(gem(px + 4, py + 4, 5, true)); break;
         case 'h': this.add({ type: 'apple', x: px + 4, y: py + 8, w: 8, h: 8 }); break;
-        case 'T': this.add({ type: 'chest', x: px + 1, y: py + 4, w: 14, h: 12, open: false }); break;
+        case 'T': this.add({ type: 'chest', x: px + 1, y: py + 4, w: 14, h: 12, open: false, key: `${level.id}:${x}:${y}` }); break;
+        case 'Q': this.add({ type: 'altar', x: px - 4, y: py - 8, w: 24, h: 24, taken: false }); break;
         case 'C': this.add({ type: 'lantern', x: px + 4, y: py + 2, w: 8, h: 14, lit: false }); break;
         case 'E': this.add({ type: 'goal', x: px + 2, y: py - 32, w: 12, h: 48 }); break;
         case 'i': { const s = { type: 'sign', x: px + 1, y: py + 2, w: 14, h: 14, text: '' }; signs.push(s); this.add(s); break; }
@@ -54,12 +64,15 @@ export class Game {
       type: 'player', x: this.spawn.x, y: this.spawn.y, w: 10, h: 14, vx: 0, vy: 0,
       face: 1, hp: this.ar.hp, maxhp: this.ar.hp, atk: 0, atkCd: 0, pogo: false,
       inv: 0, hurt: 0, safe: 0, coyote: 0, jbuf: 0, jumping: false, dead: 0, drop: 0, anim: 0,
+      land: 0, dash: 0, dashUsed: false,
     };
     p.onGround = false;
   }
 
   add(e) { this.ents.push(e); return e; }
-  ev(name, x, y) { this.events.push({ name, x, y }); }
+  ev(name, x, y, v) { this.events.push({ name, x, y, v }); }
+  num(x, y, txt, col = '#fff') { this.nums.push({ x, y, txt: String(txt), col, life: 40 }); }
+  dirtLeft() { let n = 0; for (const r of this.tiles) for (const c of r) if (c === 'D') n++; return n; }
 
   tile(tx, ty) {
     if (tx < 0 || tx >= this.w) return '#';
@@ -113,17 +126,30 @@ export class Game {
       g.vx = (this.rand() - 0.5) * 3; g.vy = -2 - this.rand() * 2.5;
     }
   }
+  dig(tx, ty) {
+    // Erdfresser: 3×3 Erde auf einmal
+    this.breakTile(tx, ty);
+    if (!this.mod.area) return;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.tile(tx + dx, ty + dy) === 'D') this.breakTile(tx + dx, ty + dy);
+  }
   breakTile(tx, ty) {
     const c = this.tile(tx, ty);
+    if (c !== 'D' && c !== 'S') return;
     this.tiles[ty][tx] = '.';
     this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : 'dirt', 2.2);
     this.shake = Math.max(this.shake, 3);
     this.ev(c === 'S' ? 'crack' : 'dig', tx * T, ty * T);
-    this.dropGems(tx * T + 8, ty * T + 8, c === 'S' ? 12 : 2 + Math.floor(this.rand() * 5));
+    this.dropGems(tx * T + 8, ty * T + 8, c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul);
   }
 
   step(inp) {
     this.events.length = 0;
+    for (const n of this.nums) { n.y -= 0.5; n.life--; }
+    this.nums = this.nums.filter(n => n.life > 0);
+    if (this.banner && --this.banner.t <= 0) this.banner = null;
+    // Hit-Stop: kurze Standbilder machen Treffer spürbar
+    if (this.freeze > 0) { this.freeze--; if (inp.jumpP) this.p.jbuf = 7; if (inp.attackP) this.pendAtk = true; return; }
+    if (this.streakT > 0 && --this.streakT === 0) this.streak = 0;
     if (!this.done) this.frame++;
     this.stepPlayer(inp);
     for (const e of this.ents) if (!e.dead && e.update) e.update(this, e);
@@ -158,7 +184,9 @@ export class Game {
     if (p.hurt > 0) p.hurt--;
     else {
       const acc = p.onGround ? 0.32 : 0.22;
-      if (i.left && !i.right) { p.vx = Math.max(-RUN, p.vx - acc); p.face = -1; }
+      const RUN = this.mod.run;
+      if (p.dash > 0) { /* Geister-Sprint */ }
+      else if (i.left && !i.right) { p.vx = Math.max(-RUN, p.vx - acc); p.face = -1; }
       else if (i.right && !i.left) { p.vx = Math.min(RUN, p.vx + acc); p.face = 1; }
       else { p.vx *= p.onGround ? 0.68 : 0.93; if (Math.abs(p.vx) < 0.05) p.vx = 0; }
     }
@@ -166,20 +194,34 @@ export class Game {
     p.jbuf = i.jumpP ? 7 : Math.max(0, p.jbuf - 1);
     if (p.jbuf && p.onGround && i.down && p.groundC === '=') { p.drop = 10; p.y += 2; p.jbuf = 0; p.onGround = false; }
     else if (p.jbuf && p.coyote && p.hurt <= 0) {
-      p.vy = -JUMP; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.jumping = true; this.ev('jump');
+      p.vy = -this.mod.jump; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.jumping = true; this.ev('jump');
+      this.burst(cx(p), p.y + p.h, 4, 'dust', 0.8, 0, 14);
+    } else if (i.jumpP && this.mod.dash && !p.onGround && !p.dashUsed && p.hurt <= 0) {
+      p.dash = 12; p.dashUsed = true; p.jbuf = 0; p.vx = p.face * 5; p.vy = 0; p.inv = Math.max(p.inv, 14); p.jumping = false;
+      this.ev('dash'); this.burst(cx(p), p.y + 7, 10, 'ghost', 1.5, 0, 18);
     }
+    if (p.dash > 0) { p.dash--; p.vx = p.face * 5; p.vy = 0; if (p.dash % 2) this.parts.push({ x: p.x + 5, y: p.y + 7, vx: 0, vy: 0, life: 14, col: 'ghost', grav: 0 }); }
     if (!i.jump && p.jumping && p.vy < -2.2) p.vy = -2.2;
 
     if (p.atkCd > 0) p.atkCd--;
-    if (i.attackP && p.atk === 0 && p.atkCd === 0) { p.atk = 16; p.hits = new Set(); this.ev('swing'); }
-    if (p.atk > 0) { p.atk--; if (p.atk === 0) p.atkCd = 3; if (p.atk <= 12 && p.atk >= 5) this.swing(); }
+    const L = this.mod.atkLen;
+    if ((i.attackP || this.pendAtk) && p.atk === 0 && p.atkCd === 0) { this.pendAtk = false; p.atk = L; p.atkLen = L; p.hits = new Set(); this.ev('swing'); }
+    if (p.atk > 0) {
+      p.atk--; if (p.atk === 0) p.atkCd = L < 16 ? 0 : 3;
+      if (p.atk <= L * 0.75 && p.atk >= L * 0.3) this.swing();
+    }
     p.pogo = !p.onGround && i.down && p.atk === 0 && p.hurt <= 0;
 
-    p.vy = Math.min(MAXFALL, p.vy + GRAV);
+    if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + GRAV);
     if (p.pogo && p.vy > 0) this.pogoCheck();
+    const fallV = p.vy, wasGround = p.onGround;
     this.moveX(p);
     this.moveY(p);
     if (p.onGround) {
+      if (!wasGround && fallV > 3) { p.land = 6; this.burst(cx(p), p.y + p.h, 5, 'dust', 1, 0, 14); }
+      p.dashUsed = false;
+      if (this.chain >= 3) this.ev('chainEnd', p.x, p.y, this.chain);
+      this.chain = 0;
       p.jumping = false; p.groundC = p.ground && p.ground.c;
       if (p.ground && p.ground.c === 'B') {
         p.vy = -(p.pogo ? 8.6 : 7); p.onGround = false;
@@ -189,44 +231,62 @@ export class Game {
         else { p.vy = -4; p.onGround = false; }
       }
     }
-    if (p.y > this.h * T + 40) this.kill();
+    if (p.land > 0) p.land--;
+    if (p.y > this.h * T + 40) this.kill(true);
   }
 
   pogoCheck() {
     const p = this.p, sh = this.sh;
     const box = { x: p.x + 1, y: p.y + p.h, w: p.w - 2, h: p.vy + 3 };
+    let killed = false;
     let hit = false;
     for (const e of this.ents) {
       if (e.dead || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden) { e.hurtBy(this, e, sh.dmg, 0); hit = true; }
+      if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg, 0); hit = true; }
       else if (e.type === 'chest' && !e.open) { this.openChest(e); hit = true; }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y, 8, 'stone'); hit = true; }
     }
     const ty = Math.floor((box.y + box.h) / T);
     for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
       const c = this.tile(tx, ty);
-      if (c === 'D' || (c === 'S' && sh.stone)) { this.breakTile(tx, ty); hit = true; }
+      if (c === 'D' || (c === 'S' && sh.stone)) { this.dig(tx, ty); hit = true; }
     }
     if (hit) {
-      p.vy = -BOUNCE * sh.pogo; p.jumping = false; p.safe = 10;
-      this.ev('bounce', p.x, p.y);
+      p.vy = -BOUNCE * sh.pogo; p.jumping = false; p.safe = 10; p.dashUsed = false;
+      this.chain++; this.maxChain = Math.max(this.maxChain, this.chain);
+      this.freeze = Math.max(this.freeze, 3);
+      this.ev('bounce', p.x, p.y, this.chain);
       this.burst(cx(p), p.y + p.h, 6, 'spark', 1.6, 0.05, 14);
+      // Pogo-Kette: ab 3 in Folge gibt es Bonus-Edelsteine, die mit der Kette wachsen
+      if (this.chain >= 3) {
+        const bonus = Math.min(20, (this.chain - 2) * 2);
+        this.num(cx(p), p.y - 6, `KETTE ×${this.chain}`, this.chain >= 8 ? '#ff7ae0' : '#ffd84a');
+        this.dropGems(cx(p), p.y + p.h, bonus);
+      }
+      if (this.chain === 12) this.ev('unlock', p.x, p.y, 'sternenspaten');
+      if (this.mod.stars) for (const d of [-1, 1]) this.add(proj(cx(p) - 3, p.y + p.h - 4, d * 2.6, 1.2, this.dmg, 'star'));
     }
   }
 
   swing() {
     const p = this.p, sh = this.sh;
-    const box = { x: p.face > 0 ? p.x + p.w : p.x - sh.reach, y: p.y + 2, w: sh.reach, h: 10 };
+    const R = this.reach;
+    const box = { x: p.face > 0 ? p.x + p.w : p.x - R, y: p.y + 2, w: R, h: 10 };
+    if (!p.hits.has('fx')) {
+      p.hits.add('fx');
+      if (this.mod.fire) this.burst(p.face > 0 ? p.x + p.w + R / 2 : p.x - R / 2, p.y + 7, 10, 'fire', 1.4, -0.05, 20);
+      if (this.mod.wave && p.onGround) { this.add(proj(p.face > 0 ? p.x + p.w : p.x - 10, p.y + p.h - 10, p.face * 3, 0, this.dmg, 'wave')); this.ev('wave'); }
+    }
     for (const e of this.ents) {
       if (e.dead || p.hits.has(e) || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden) { p.hits.add(e); e.hurtBy(this, e, sh.dmg, p.face); }
+      if (e.foe && !e.hidden) { p.hits.add(e); e.hurtBy(this, e, this.dmg, p.face); }
       else if (e.type === 'chest' && !e.open) { p.hits.add(e); this.openChest(e); }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y + 5, 8, 'stone'); this.ev('crack'); }
     }
     for (let ty = Math.floor(box.y / T); ty <= Math.floor((box.y + box.h - 0.01) / T); ty++)
       for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
         const c = this.tile(tx, ty);
-        if (c === 'D' || (c === 'S' && sh.stone)) this.breakTile(tx, ty);
+        if (c === 'D' || (c === 'S' && sh.stone)) this.dig(tx, ty);
         else if (c === 'S' && !p.hits.has('clink')) {
           p.hits.add('clink'); this.ev('clink'); this.burst(tx * T + (p.face > 0 ? 0 : 16), p.y + 7, 6, 'spark', 2, 0.05, 12);
         }
@@ -234,7 +294,7 @@ export class Game {
   }
 
   openChest(e) {
-    e.open = true; this.ev('chest', e.x, e.y); this.shake = 4;
+    e.open = true; this.ev('chest', e.x, e.y, e.key); this.shake = 4; this.freeze = 10;
     this.burst(cx(e), e.y, 16, 'spark', 2.5, 0.05, 20);
     this.dropGems(cx(e), e.y, 80);
   }
@@ -242,15 +302,25 @@ export class Game {
   hurtPlayer(dmg, dir, spike) {
     const p = this.p;
     if (p.inv > 0 || p.dead || this.done) { if (spike) { p.vy = -6; p.onGround = false; } return; }
-    p.hp -= dmg;
-    p.inv = 70; p.hurt = Math.round(14 * this.ar.kb) + 4;
+    p.hp -= dmg; this.hurtCount++; this.bossHurt++;
+    p.inv = 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
     this.shake = 5; this.ev('hurt');
     if (p.hp <= 0) this.kill();
   }
-  kill() {
+  kill(fell) {
     const p = this.p;
     if (p.dead) return;
+    if (this.mod.soul && !this.soulUsed) {
+      // Seelenschaufel: einmal auferstehen
+      this.soulUsed = true;
+      if (fell) { p.x = this.check.x; p.y = this.check.y; p.vx = p.vy = 0; }
+      p.hp = p.maxhp; p.inv = 120; p.hurt = 0;
+      this.burst(cx(p), p.y + 7, 30, 'soul', 2.5, -0.05, 40);
+      this.ev('revive'); this.freeze = 20; this.shake = 6;
+      this.banner = { text: 'SEELE ENTFESSELT', col: '#b07aff', t: 90 };
+      return;
+    }
     p.dead = 70; p.hp = 0; this.deaths++;
     const lost = Math.floor(this.gems * 0.25);
     this.gems -= lost;
@@ -270,7 +340,14 @@ export class Game {
     for (const e of this.ents) {
       if (e.dead || !overlap(p, e)) continue;
       switch (e.type) {
-        case 'gem': if (e.age > 10) { e.dead = true; this.gems += e.val; this.ev('gem', e.x, e.y); this.burst(e.x + 3, e.y + 3, 4, 'spark', 1, 0, 10); } break;
+        case 'gem': if (e.age > 10) {
+          e.dead = true; const v = e.val * this.mod.gemMul; this.gems += v;
+          this.streak++; this.streakT = 45;
+          this.ev('gem', e.x, e.y, this.streak);
+          if (v >= 5) this.num(e.x + 3, e.y - 2, '+' + v, '#a8d4ff');
+          this.burst(e.x + 3, e.y + 3, 4, 'spark', 1, 0, 10);
+        } break;
+        case 'altar': if (!e.taken) { e.taken = true; this.ev('unlock', e.x, e.y, 'urfunke'); this.burst(cx(e), e.y + 4, 40, 'fire', 3, -0.05, 50); this.shake = 8; } break;
         case 'apple': if (p.hp < p.maxhp) { e.dead = true; p.hp = Math.min(p.maxhp, p.hp + 2); this.ev('heal'); } break;
         case 'lantern': if (!e.lit) { for (const o of this.ents) if (o.type === 'lantern') o.lit = false; e.lit = true; this.check = { x: e.x - 1, y: e.y }; this.ev('check'); this.burst(e.x + 4, e.y + 4, 14, 'spark', 1.5, 0, 24); } break;
         case 'goal': if (!this.done && !(this.boss && !this.boss.dead)) { this.done = true; this.ev('win'); this.burst(cx(e), e.y + 6, 30, 'spark', 3, 0.05, 40); } break;
@@ -285,7 +362,7 @@ export class Game {
 
   /* ---------- Boss ---------- */
   setGate(c) { for (let y = 2; y <= 10; y++) this.tiles[y][this.level.gate] = c; }
-  startBoss() { this.setGate('X'); this.boss.state = 'roar'; this.boss.t = 70; this.shake = 6; this.ev('bossStart'); }
+  startBoss() { this.bossHurt = 0; this.setGate('X'); this.boss.state = 'roar'; this.boss.t = 70; this.shake = 6; this.ev('bossStart'); }
   resetBoss() {
     const b = this.boss;
     Object.assign(b, { x: b.home.x, y: b.home.y, hp: b.maxhp, state: 'idle', t: 0, hidden: false, vx: 0, vy: 0 });
@@ -293,7 +370,9 @@ export class Game {
     this.setGate('.');
   }
   bossDefeated(b) {
-    b.state = 'dying'; b.t = 100; b.foe = false; this.ev('bossDie'); this.shake = 10;
+    b.state = 'dying'; b.t = 100; b.foe = false; this.ev('bossDie'); this.shake = 10; this.freeze = 30;
+    this.bossClean = this.bossHurt === 0;
+    if (this.bossClean) this.ev('unlock', b.x, b.y, 'maulwurfkralle');
   }
 }
 
@@ -302,6 +381,10 @@ function gem(x, y, val, fixed) {
   return { type: 'gem', x, y, w: 7, h: 7, val, vx: 0, vy: 0, fixed, age: fixed ? 99 : 0,
     update(g, e) {
       e.age++;
+      const p = g.p;
+      if (e.age > 12 && !p.dead && Math.abs(cx(p) - e.x) < 22 && Math.abs(p.y + 7 - e.y) < 22) {
+        e.fixed = false; e.x += (cx(p) - 3 - e.x) * 0.25; e.y += (p.y + 4 - e.y) * 0.25; return;
+      }
       if (e.fixed) return;
       e.vy = Math.min(5, e.vy + GRAV * 0.8);
       g.moveX(e); if (e.hitWall) e.vx = 0;
@@ -314,11 +397,12 @@ function gem(x, y, val, fixed) {
 function hurtFoe(g, e, dmg, dir) {
   if (e.iframe > 0) return;
   e.hp -= dmg; e.iframe = 10; e.flash = 8;
-  g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2);
+  g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2); g.freeze = Math.max(g.freeze, 3);
+  g.num(e.x + e.w / 2, e.y - 2, dmg, dmg >= 4 ? '#ff9a50' : '#ffffff');
   if (dir && e.type !== 'mole') e.vx = dir * 1.8;
   if (e.hp <= 0) {
     if (e.type === 'mole') return g.bossDefeated(e);
-    e.dead = true; g.ev('poof', e.x, e.y);
+    e.dead = true; g.kills++; g.freeze = Math.max(g.freeze, 5); g.ev('poof', e.x, e.y);
     g.burst(e.x + e.w / 2, e.y + e.h / 2, 14, 'poof', 2, 0.02, 24);
     g.dropGems(e.x + e.w / 2, e.y, e.loot || 8);
   }
@@ -430,5 +514,20 @@ function rock(x, y, delay) {
       if (g.solid(Math.floor((e.x + 5) / T), Math.floor((e.y + e.h) / T))) {
         e.dead = true; g.burst(e.x + 5, e.y + 8, 10, 'stone', 2); g.ev('crack');
       }
+    } };
+}
+
+// Projektile der Waffen (Sterne, Erdwelle)
+function proj(x, y, vx, vy, dmg, kind) {
+  return { type: 'proj', kind, x, y, w: kind === 'wave' ? 10 : 6, h: kind === 'wave' ? 10 : 6, vx, vy, dmg, life: kind === 'wave' ? 40 : 50, hit: new Set(),
+    update(g, e) {
+      e.x += e.vx; e.y += e.vy; e.vy += kind === 'star' ? 0.08 : 0;
+      if (--e.life <= 0 || g.solid(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h / 2) / T))) {
+        e.dead = true; g.burst(e.x + 3, e.y + 3, 6, kind === 'wave' ? 'dirt' : 'spark', 1.5); return;
+      }
+      if (kind === 'wave' && !g.solid(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h + 2) / T))) { e.dead = true; return; }
+      if (g.frame % 3 === 0) g.parts.push({ x: e.x + 3, y: e.y + 3, vx: 0, vy: kind === 'wave' ? -1 : 0, life: 12, col: kind === 'wave' ? 'dirt' : 'star', grav: 0.05 });
+      for (const f of g.ents) if (f.foe && !f.hidden && !f.dead && !e.hit.has(f) && overlap(e, f)) { e.hit.add(f); f.hurtBy(g, f, e.dmg, sign(e.vx)); if (kind === 'star') e.dead = true; }
+      for (const f of g.ents) if (f.type === 'chest' && !f.open && overlap(e, f)) g.openChest(f);
     } };
 }

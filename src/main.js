@@ -10,6 +10,7 @@ import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts } from './online.js';
 import * as S from './sprites.js';
+import { WEAPONS, RARITY, weaponById } from './weapons.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -51,7 +52,12 @@ function tick() {
   if (mode !== 'play' && mode !== 'won') { menuT++; return; }
   const inp = mode === 'play' ? pollInput() : { };
   game.step(inp);
-  for (const e of game.events) sfx(e.name);
+  for (const e of game.events) {
+    sfx(e.name, e.v);
+    if (e.name === 'unlock') unlockWeapon(e.v, true);
+    if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).length >= 3) unlockWeapon('goldschaufel', true); }
+    if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); }
+  }
   if (game.done && mode === 'play') { mode = 'won'; doneT = 0; touchEl.hidden = true; pauseBtn.hidden = true; }
   if (mode === 'won' && ++doneT === 80) finish();
 }
@@ -66,16 +72,16 @@ function drawMenuBg() {
   for (const [img, f] of [[bg.far, 0.15], [bg.near, 0.4]]) { const ox = -Math.round(t * f) % img.width; for (let k = ox - img.width; k < VW; k += img.width) ctx.drawImage(img, k, 0); }
   const ts = S.tileset(th);
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
-  const hs = S.hero(D.armor, D.shovel);
+  const hs = S.hero(D.armor, D.shovel, D.weapon);
   R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8);
 }
 
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor }, { seed: 7 });
+  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7 });
   ghosts = [];
-  for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) ghosts.push(g); }
+  for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
   clearInput();
   hideUI(); mode = 'play';
@@ -94,26 +100,39 @@ function resume() { hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isT
 async function finish() {
   const id = level.id, frames = game.frame, first = !D.cleared[id];
   const bonus = first ? (level.boss ? 300 : 100) : 0;
-  const earned = game.gems + bonus;
+  // Sterne: geschafft · unter Zielzeit · ohne Tod. Jeder neue Stern bringt 50.
+  const got = [true, frames <= level.par * 60, game.deaths === 0];
+  const had = D.stars[id] || [false, false, false];
+  const newStars = got.map((g, i) => g && !had[i]);
+  D.stars[id] = had.map((h, i) => h || got[i]);
+  const starGems = newStars.filter(Boolean).length * 50;
+  const earned = game.gems + bonus + starGems;
   D.gems += earned; D.earned += earned; D.cleared[id] = true;
   const li = LEVELS.findIndex(l => l.id === id);
   D.unlocked = Math.max(D.unlocked, li + 2);
   const old = D.best[id], record = !old || frames < old;
   const code = await encodeGhost({ level: id, name: D.name || 'Ich', frames, gear: { shovel: D.shovel, armor: D.armor }, rec: game.rec });
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
+  // Waffen-Bedingungen am Levelende
+  if (id === '1-1' && game.kills === 0) unlockWeapon('federklinge');
+  if (id === '1-1' && frames < 25 * 60) unlockWeapon('blitzspaten');
+  if (id === '1-2' && game.dirtTotal > 0 && game.dirtLeft() === 0) unlockWeapon('erdfresser');
+  if (ghosts.some(g => !g.own && g.frames - frames >= 120)) unlockWeapon('geisterklinge');
   save.write();
   let up = '';
   if (record && online() && D.name) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
   stopMusic(); sfx('win');
   mode = 'result';
   const next = LEVELS[li + 1];
+  const starLbl = ['Geschafft', `Unter ${level.par} s`, 'Ohne Tod'];
   show(`<div class="panel small result">
     <h2>${level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
     <p class="lvl">${esc(level.id)} · ${esc(level.name)}</p>
+    <div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s"><span>★</span><small>${starLbl[i]}</small></div>`).join('')}</div>
     <div class="stats">
       <div><small>Zeit</small><b>${fmtTime(frames)}</b>${record ? '<em>Neue Bestzeit!</em>' : `<em>Best ${fmtTime(old)}</em>`}</div>
-      <div><small>Edelsteine</small><b>+${earned}</b>${bonus ? `<em>inkl. ${bonus} Erst-Bonus</em>` : ''}</div>
-      <div><small>Tode</small><b>${game.deaths}</b></div>
+      <div><small>Edelsteine</small><b id="tally">+0</b><em>${[bonus ? `${bonus} Erst-Bonus` : '', starGems ? `${starGems} Sterne` : ''].filter(Boolean).join(' · ')}</em></div>
+      <div><small>Beste Kette</small><b>×${game.maxChain}</b></div>
     </div>
     ${ghosts.map(g => { const d = frames - g.frames; return `<p class="vs ${d <= 0 ? 'win' : 'lose'}">gegen ${esc(g.name)}: ${d <= 0 ? '−' : '+'}${(Math.abs(d) / 60).toFixed(2)} s</p>`; }).join('')}
     ${up ? `<p class="note">${up}</p>` : ''}
@@ -124,6 +143,76 @@ async function finish() {
     </div>
     <button class="ghostbtn" data-a="share" data-code="${esc(code)}">Diesen Lauf als Geist teilen</button>
   </div>`);
+  // Edelsteine hochzählen
+  const el = $('#tally'), t0 = performance.now(), dur = Math.min(1400, 300 + earned * 6);
+  let lastTick = 0;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), v = Math.round(earned * (1 - (1 - k) ** 3));
+    if (el.isConnected) el.textContent = '+' + v;
+    if (now - lastTick > 45 && k < 1) { sfx('tick'); lastTick = now; }
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  newStars.forEach((n, i) => n && setTimeout(() => sfx('star'), 350 + i * 350));
+  setTimeout(showReveals, 1200);
+}
+
+/* ---------- Waffen ---------- */
+const reveals = [];
+function unlockWeapon(id, inGame) {
+  if (D.weapons[id] || !weaponById(id)) return;
+  D.weapons[id] = true; save.write();
+  reveals.push(id);
+  const w = weaponById(id), r = RARITY[w.rar];
+  if (inGame && game) {
+    game.banner = { sub: `${r.name.toUpperCase()}E WAFFE ENTDECKT`, text: w.name, col: r.col, t: 150 };
+    game.freeze = Math.max(game.freeze, 36); game.shake = 6;
+    sfx('legend');
+  }
+}
+function showReveals() {
+  const id = reveals.shift(); if (!id) return;
+  const w = weaponById(id), r = RARITY[w.rar];
+  sfx('legend');
+  const el = document.createElement('div');
+  el.className = 'reveal ' + w.rar;
+  el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:${r.col};--g:${r.glow}">
+    <p class="rar">${r.name}e Waffe</p><canvas width="1" height="1"></canvas>
+    <h2>${esc(w.name)}</h2><p class="perk">${esc(w.perk)}</p><p class="cond">${esc(w.cond)}</p>
+    <div class="row"><button class="big" data-r="equip">Ausrüsten</button><button data-r="close">Später</button></div></div>`;
+  document.body.appendChild(el);
+  drawIcon(el.querySelector('canvas'), id, 7);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    if (b.dataset.r === 'equip') { D.weapon = id; save.write(); sfx('buy'); }
+    el.remove(); setTimeout(showReveals, 150);
+  });
+}
+function drawIcon(cv, id, scale) {
+  const ic = S.weaponIcon(id);
+  cv.width = ic.width * scale; cv.height = ic.height * scale;
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic, 0, 0, cv.width, cv.height);
+}
+
+function armory(msg = '') {
+  mode = 'menu';
+  const n = WEAPONS.filter(w => D.weapons[w.id]).length;
+  const cards = WEAPONS.map(w => {
+    const have = D.weapons[w.id], r = RARITY[w.rar], on = D.weapon === w.id;
+    if (!have) return `<div class="wcard locked ${w.rar}"><div class="wi"><canvas data-icon="${w.id}" class="sil"></canvas></div>
+      <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.secret ? 'Ein Gerücht erzählt von einem Glimmen in grosser Höhe …' : w.hint)}</p></div></div>`;
+    return `<div class="wcard ${w.rar} ${on ? 'on' : ''}" style="--c:${r.col}"><div class="wi"><canvas data-icon="${w.id}"></canvas></div>
+      <div><small style="color:${r.col}">${r.name}</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
+      <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ✓' : 'Ausrüsten'}</button></div></div>`;
+  }).join('');
+  show(`<div class="panel">
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Waffenkammer</h2><span class="gems">${n} / ${WEAPONS.length}</span></div>
+    <p class="note">Diese Waffen kann man nicht kaufen. Jede verlangt eine besondere Tat. Sie nutzen Schaden und Reichweite deiner Schaufel-Stufe und legen ihre Kraft obendrauf.</p>
+    <div class="wgrid">${cards}</div>
+    <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Normale Schaufel nehmen' : 'Normale Schaufel ausgerüstet ✓'}</button></div>
+    ${msg ? `<p class="msg">${msg}</p>` : ''}
+  </div>`);
+  for (const cv of document.querySelectorAll('[data-icon]')) drawIcon(cv, cv.dataset.icon, 3);
 }
 
 /* ---------- Menüs ---------- */
@@ -137,7 +226,7 @@ function title() {
     <h1>Schaufel<span>held</span></h1>
     <p>Grabe. Springe. Schmiede dich nach oben.</p>
     <button class="big" data-a="map">Spielen</button>
-    <div class="row"><button data-a="forge">Schmiede</button><button data-a="options">Optionen</button></div>
+    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer</button><button data-a="options">Optionen</button></div>
     <p class="gems">◆ ${D.gems}</p>
   </div>`);
 }
@@ -150,13 +239,14 @@ function map(sel) {
     const l = levelById(id), open = i < D.unlocked, best = D.best[id];
     return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
       <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>
-      <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}</small>${D.cleared[id] ? '<i>✓</i>' : ''}</button>`;
+      <span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => `<em class="${v ? 'on' : ''}">★</em>`).join('')}</span>
+      <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}</small></button>`;
   }).join('');
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="title">‹</button><h2>Welt ${w.id} · ${esc(w.name)}</h2><span class="gems">◆ ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="title">‹</button><h2>Welt ${w.id} · ${esc(w.name)}</h2><span class="gems">★ ${Object.values(D.stars).flat().filter(Boolean).length}/${w.levels.length * 3} · ◆ ${D.gems}</span></div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
-    <div class="row"><button data-a="forge">Schmiede</button><button data-a="options">Optionen</button></div>
+    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="options">Optionen</button></div>
     <p class="note soon">Welt 2 · Uhrturm von Zahnfels — in Arbeit</p>
   </div>`);
   if (sel) detail(sel);
@@ -201,12 +291,13 @@ function forge(msg = '') {
     <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">◆ ${D.gems}</span></div>
     <div class="forge"><canvas id="preview" width="48" height="40"></canvas>
       <div class="rows">${row('shovel', 'Schaufel', SHOVEL)}${row('armor', 'Rüstung', ARMOR)}
+      <div class="gear"><div class="gh"><b>Waffe: ${D.weapon ? esc(weaponById(D.weapon).name) : 'keine (normale Schaufel)'}</b><small>Legendäre und mythische Waffen findest du nicht im Laden.</small></div><div class="next"><span></span><button data-a="armory">Waffenkammer</button></div></div>
       <div class="gear soon"><div class="gh"><b>Relikt</b><small>Bald: Funkenrute, Flügelstiefel, Erdglocke …</small></div></div></div></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
   const pv = $('#preview'), px = pv.getContext('2d');
   px.imageSmoothingEnabled = false;
-  const old = R.x; R.x = px; R.figure(S.hero(D.armor, D.shovel), 14, 20, 1, 0, 0, 8); R.figure(S.hero(D.armor, D.shovel), 28, 20, 1, 3, 0, 8); R.x = old;
+  const old = R.x; R.x = px; R.figure(S.hero(D.armor, D.shovel, D.weapon), 14, 20, 1, 0, 0, 8); R.figure(S.hero(D.armor, D.shovel, D.weapon), 28, 20, 1, 3, 0, 8); R.x = old;
 }
 
 function options(msg = '') {
@@ -217,7 +308,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.1</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.2</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -237,6 +328,8 @@ ui.addEventListener('click', async e => {
     case 'title': return title();
     case 'map': return map();
     case 'forge': return forge();
+    case 'armory': return armory();
+    case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
     case 'options': return options();
     case 'pick': return map(id);
     case 'nope': return sfx('nope');

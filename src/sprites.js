@@ -1,5 +1,6 @@
 // Pixel-Grafik: Sprites aus Textzeilen, Tiles und Kulissen prozedural pro Welt-Thema.
 import { TIERS } from './gear.js';
+import { weaponById } from './weapons.js';
 
 const cache = new Map();
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
@@ -36,19 +37,40 @@ const LEGS = {
   air:   ['..kAkkkAk...', '..kakk.kak..', '...kk...kk..', '............'],
 };
 const SHOVEL_H = ['........kkk.', 'kkkkkkkkSSSk', 'khhhhhhksSSk', 'kkkkkkkkSSSk', '........kkk.'];
+// Eigene Klingenformen der legendären/mythischen Waffen (waagrecht, Klinge rechts)
+const BLADES = {
+  federklinge:    ['........kk....', 'kkkkkkkkSSkkk.', 'khhhhhhksSSSSk', 'kkkkkkkkSSkkk.', '........kk....'],
+  blitzspaten:    ['........kk....', 'kkkkkkkkkSk...', 'khhhhhhksSSSk.', 'kkkkkkkk..kSSk', '..........kk..'],
+  erdfresser:     ['........kkkkkk', 'kkkkkkkkSSSSSk', 'khhhhhhksSSSk.', 'kkkkkkkkSSSSSk', '........kkkkkk'],
+  goldschaufel:   ['........kkkk..', 'kkkkkkkkSSSSk.', 'khhhhhhksWSSSk', 'kkkkkkkkSSSSk.', '........kkkk..'],
+  geisterklinge:  ['.........kkk..', 'kkkkkkkkkSSSk.', 'khhhhhhksSSSSk', 'kkkkkkkkkSSSk.', '.........kkk..'],
+  sternenspaten:  ['..........k...', 'kkkkkkkk.kSk..', 'khhhhhhkkSWSSk', 'kkkkkkkk.kSk..', '..........k...'],
+  maulwurfkralle: ['........kSSSSk', 'kkkkkkkkSkkkk.', 'khhhhhhksSSSSk', 'kkkkkkkkSkkkk.', '........kSSSSk'],
+  seelenschaufel: ['..........kkk.', 'kkkkkkkk..kSSk', 'khhhhhhkkSSSk.', 'kkkkkkkksSSk..', '........kkk...'],
+  urfunke:        ['.........k.k..', 'kkkkkkkk.kSkSk', 'khhhhhhkkSWSSk', 'kkkkkkkkksSSk.', '........kkkk..'],
+};
+export function weaponIcon(id, scale = 1) {
+  return memo('wicon' + id, () => {
+    const w = weaponById(id);
+    return fromRows(rotCCW(BLADES[id]), { k: K, h: w.handle, s: w.dark, S: w.light, W: '#ffffff' });
+  });
+}
 
 function heroPal(armor, shovel) {
   const a = TIERS[armor], s = TIERS[shovel];
   return { k: '#140c1c', a: a.dark, A: a.light, v: '#241a3a', e: '#ffe066', C: '#c23a5a', c: '#7a1f3a', h: '#6b4426', s: s.dark, S: s.light };
 }
-export function hero(armor, shovel) {
-  return memo(`hero${armor}.${shovel}`, () => {
+export function hero(armor, shovel, weapon = null) {
+  return memo(`hero${armor}.${shovel}.${weapon}`, () => {
     const pal = heroPal(armor, shovel);
+    const wp = weapon && weaponById(weapon);
+    if (wp) Object.assign(pal, { s: wp.dark, S: wp.light, h: wp.handle, W: '#ffffff' });
     const head = armor >= 4 ? CREST : armor >= 2 ? HORNS : HEAD;
     const bodyPal = { ...pal, S: TIERS[armor].light };
     const out = {};
     for (const k in LEGS) { const r = fromRows([...head, ...BODY, ...LEGS[k]], bodyPal); out[k] = [r, flipX(r)]; }
-    const h = fromRows(SHOVEL_H, pal), d = fromRows(rotCW(SHOVEL_H), pal), u = fromRows(rotCCW(SHOVEL_H), pal);
+    const SH = wp ? BLADES[wp.id] : SHOVEL_H;
+    const h = fromRows(SH, pal), d = fromRows(rotCW(SH), pal), u = fromRows(rotCCW(SH), pal);
     out.shH = [h, flipX(h)]; out.shD = [d, flipX(d)]; out.shU = [u, flipX(u)];
     out.white = {}; for (const k in LEGS) out.white[k] = [tint(out[k][0], '#ffffff'), tint(out[k][1], '#ffffff')];
     return out;
@@ -73,6 +95,12 @@ const CHEST = ['.kkkkkkkkkkkk.', 'kwWWWWWWWWWWwk', 'kwWWWWWWWWWWwk', 'kyyyyyyyyy
 const LANTERN = ['...kk...', '..kyyk..', '.kkkkkk.', '.kLLLLk.', '.kLWLLk.', '.kLLLLk.', '.kkkkkk.', '...kk...', '...kk...', '...kk...', '...kk...', '...kk...', '..kkkk..', '.kkkkkk.'];
 const APPLE = ['....k...', '...kgk..', '.kkkkkk.', 'kRRWRRRk', 'kRWRRRRk', 'kRRRRRRk', '.kRRRRk.', '..kkkk..'];
 const K = '#140c1c';
+export function altarSprite(lit) {
+  return memo('altar' + lit, () => fromRows([
+    '....kkkkkkkk....', '...kWWWWWWWWk...', '...kkkkkkkkkk...', '.....kSSSSk.....', '.....kSssSk.....', '.....kSssSk.....',
+    '.....kSssSk.....', '.....kSssSk.....', '....kkSSSSkk....', '..kkSSSSSSSSkk..', '.kSSSSSSSSSSSSk.', 'kkkkkkkkkkkkkkkk'],
+    { k: K, W: lit ? '#ffe070' : '#5a4a6a', S: '#b0a0c8', s: '#6a5a88' }));
+}
 
 export const GEMCOL = { 1: ['#2fbf4f', '#9fffaf'], 5: ['#2f7fff', '#a8d4ff'], 20: ['#e0304f', '#ffa0b4'], 50: ['#e0a020', '#fff08f'] };
 export function gemSprite(v) { return memo('gem' + v, () => { const [d, l] = GEMCOL[v] || GEMCOL[1]; return fromRows(GEM, { k: K, D: d, L: l, W: '#ffffff' }); }); }

@@ -7,6 +7,9 @@ const DEF = {
   imported: {},    // levelId -> [{code, name, frames}]
   cleared: {},     // levelId -> true
   name: '', sfx: true, music: true, ghostOn: true,
+  weapons: {},     // freigeschaltete Waffen
+  weapon: null,    // ausgerüstete Waffe (null = Schaufel)
+  deathsTotal: 0, stars: {}, chests: {},
 };
 const fresh = () => JSON.parse(JSON.stringify(DEF));
 const data = fresh();
