@@ -200,24 +200,66 @@ export class Renderer {
     if (wp && (this.t + p.anim) % 24 < 3) {
       // Glitzern an der Klinge
       this.x.fillStyle = wp.rar === 'mythisch' ? '#ff9af0' : '#fff6b0';
-      const bx = p.atk > 0 ? (p.face > 0 ? p.x + 20 : p.x - 10) : (p.face > 0 ? p.x - 3 : p.x + 11);
-      this.x.fillRect(Math.round(bx), Math.round(p.atk > 0 ? p.y + 4 : p.y - 5), 1, 1);
+      const bx = p.atk > 0 ? (p.face > 0 ? p.x + 22 : p.x - 12) : (p.face > 0 ? p.x - 2 : p.x + 11);
+      this.x.fillRect(Math.round(bx), Math.round(p.atk > 0 ? p.y + 5 : p.y - 8), 1, 1);
     }
   }
   figure(hs, px, py, face, pose, anim, atk = 8, white = null, land = 0, atkLen = 16) {
     const x = this.x, i = face > 0 ? 0 : 1, X = Math.round(px), Y = Math.round(py);
     const wind = atk > atkLen * 0.78;
-    const legs = pose === 1 ? ((anim >> 3) & 1 ? 'run1' : 'run2') : pose === 2 || pose === 4 || pose === 3 && atk < 0 ? 'air' : 'stand';
-    if (pose <= 2) x.drawImage(hs.shU[i], face > 0 ? X - 4 : X + 9, Y - 5);
+    const legs = pose === 1 ? ((anim >> 3) & 1 ? 'run1' : 'run2') : pose === 2 || pose === 4 ? 'air' : 'stand';
+    const U = hs.shU[i], H = hs.shH[i], Dn = hs.shD[i];
+    if (hs.fx && !white) this.fx(hs.fx, X, Y, face, false);
+    if (pose <= 2) x.drawImage(U, face > 0 ? X - 5 : X + 8, Y + 7 - U.height);
     const body = (white || hs)[legs][i];
-    if (land > 0) { const q = Math.min(3, land); x.drawImage(body, X - 1 - q, Y - 2 + q, 12 + q * 2, 16 - q); }
-    else x.drawImage(body, X - 1, Y - 2);
+    if (land > 0) { const q = Math.min(3, land); x.drawImage(body, X - 5 - q, Y - 10 + q, 20 + q * 2, 24 - q); }
+    else x.drawImage(body, X - 5, Y - 10);
     if (pose === 3) {
-      const sw = hs.shH[i];
-      if (wind) x.drawImage(hs.shU[i], face > 0 ? X + 8 : X - 3, Y - 8);
-      else x.drawImage(sw, face > 0 ? X + 8 : X + 2 - sw.width, Y + 3);
+      if (wind) x.drawImage(U, face > 0 ? X + 7 : X - 4, Y + 4 - U.height);
+      else x.drawImage(H, face > 0 ? X + 8 : X + 2 - H.width, Y + 2);
     }
-    if (pose === 4) x.drawImage(hs.shD[i], X + 3, Y + 9);
+    if (pose === 4) x.drawImage(Dn, X + 2, Y + 9);
+    if (hs.fx && !white) this.fx(hs.fx, X, Y, face, true);
+  }
+  // Effekte der hohen Rüstungsstufen. front=false: hinter dem Helden, true: davor.
+  fx(kind, X, Y, face, front) {
+    const x = this.x, t = this.t;
+    const P = (col, row) => [face > 0 ? X - 5 + col : X + 14 - col, Y - 10 + row];
+    const dot = (c, r, col, s = 1) => { const [a, b] = P(c, r); x.fillStyle = col; x.fillRect(Math.round(a), Math.round(b), s, s); };
+    switch (kind) {
+      case 'visor': if (front) { x.globalAlpha = 0.35 + 0.35 * Math.sin(t / 8); for (let c = 6; c <= 13; c++) dot(c, 9, '#bff6ff'); x.globalAlpha = 1; } return;
+      case 'shine': if (front && t % 120 < 12) { const k = t % 120; for (let d = 0; d < 3; d++) dot(4 + k + d, 2 + k - d, '#ffffff'); } return;
+      case 'sparkle': if (front) for (let k = 0; k < 2; k++) { const ph = (t + k * 37) % 70; if (ph < 8) dot(2 + ((k * 7 + Math.floor(t / 70) * 5) % 16), 4 + ((k * 11 + Math.floor(t / 70) * 3) % 18), ph < 4 ? '#ffffff' : '#bfe8ff'); } return;
+      case 'stars':
+        if (!front) { for (let k = 0; k < 3; k++) if ((t + k * 20) % 60 < 30) dot(2 + k, 16 + k * 2, '#ffffff'); }
+        else { const a = t / 20; dot(9.5 + Math.cos(a) * 9, 12 + Math.sin(a) * 4, Math.sin(a) > 0 ? '#ffd84a' : '#fff6b0'); }
+        return;
+      case 'embers': if (!front) for (let k = 0; k < 3; k++) { const ph = (t * 0.6 + k * 23) % 40; dot(3 + k * 2 + Math.sin((t + k * 9) / 6), 20 - ph * 0.5, ph < 20 ? '#ff8a2a' : '#c02a00'); } return;
+      case 'void':
+        for (let k = 0; k < 3; k++) {
+          const a = t / 24 + k * 2.09, z = Math.sin(a);
+          if ((z > 0) !== front) continue;
+          const [a1, b1] = P(9.5 + Math.cos(a) * 11, 13 + z * 3);
+          x.fillStyle = '#140c1c'; x.fillRect(Math.round(a1) - 1, Math.round(b1) - 2, 3, 5);
+          x.fillStyle = (t >> 2) & 1 ? '#ff4fd8' : '#ffb0f0'; x.fillRect(Math.round(a1), Math.round(b1) - 1, 1, 3);
+        }
+        if (!front && t % 3 === 0) { x.globalAlpha = 0.5; dot(4 + (t % 5), 22 - (t % 7), '#ff4fd8'); x.globalAlpha = 1; }
+        return;
+      case 'gear':
+        if (!front) { const g = S.cogSprite((t >> 3) % 4, 7, 10), [a, b] = P(9.5, 10); x.globalAlpha = 0.85; x.drawImage(g, Math.round(a - g.width / 2), Math.round(b - g.height / 2) - 1); x.globalAlpha = 1; }
+        return;
+      case 'divine':
+        if (!front) {
+          // Lichtflügel
+          const flap = Math.sin(t / 10) * 2;
+          x.globalAlpha = 0.55;
+          for (let r = 0; r < 9; r++) { const w = 9 - r; const [a, b] = P(face > 0 ? 6 - w : 13, 11 + r - Math.round(flap * (1 - r / 9))); x.fillStyle = r % 3 === 0 ? '#ffffff' : '#ffe9a8'; x.fillRect(Math.round(face > 0 ? a : a - w + 1), Math.round(b), w, 1); }
+          x.globalAlpha = 1;
+          // Heiligenschein
+          for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; dot(9.5 + Math.cos(a) * 5, -2 + Math.sin(a) * 1.5, k % 4 === Math.floor(t / 6) % 4 ? '#ffffff' : '#ffd84a'); }
+        } else if (t % 9 === 0) dot(2 + (t * 7) % 16, 4 + (t * 3) % 18, '#fff6b0');
+        return;
+    }
   }
   ghost(gh, frame) {
     const s = ghostAt(gh, frame); if (!s) return;
@@ -239,12 +281,15 @@ export class Renderer {
 
   hud(g, ghosts) {
     const x = this.x, W = this.W, p = g.p;
-    for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + i * 8, 6);
+    for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % 10) * 8, 6 + Math.floor(i / 10) * 7);
+    const gy0 = p.maxhp > 10 ? 7 : 0;
+    x.translate(0, gy0);
     x.drawImage(S.gemSprite(5), 6, 16);
     if (g.gems > (this.lastGems ?? g.gems)) this.bump = 10;
     this.lastGems = g.gems;
     if (this.bump > 0) this.bump--;
     S.drawText(x, g.gems, 16, 17 - (this.bump > 6 ? 1 : 0), this.bump > 0 ? '#ffd84a' : '#fff');
+    x.translate(0, -gy0);
     if (g.chain >= 2) {
       const c = g.chain >= 8 ? '#ff7ae0' : g.chain >= 4 ? '#ffd84a' : '#ffffff';
       S.drawText(x, 'KETTE', W - 30, 30, '#c4abd8', 1, 'center');

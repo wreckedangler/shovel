@@ -59,12 +59,18 @@ button.danger{background:#5a1830!important;margin-top:10px!important}
 .ghosts label{display:flex;gap:8px;align-items:center;min-height:32px}
 .ghosts input{width:20px;height:20px;accent-color:#8fe8ff}
 .forge{display:flex;gap:14px;align-items:flex-start}
-#preview{width:144px;height:120px;image-rendering:pixelated;background:radial-gradient(#4a2c74,#1a0f2e 70%);border-radius:12px;flex:none}
+#preview{width:216px;height:120px;image-rendering:pixelated;background:radial-gradient(#4a2c74,#1a0f2e 70%);border-radius:12px;display:block}
+.pv{flex:none;text-align:center}.pv small{color:var(--mute);font-size:12px}.pv small span{color:var(--gold)}
+.chips canvas.gi{image-rendering:pixelated;height:30px;width:auto;border-radius:6px;background:#1a0f2e;padding:2px;opacity:.55}
+.chips canvas.gi.own{opacity:1}.chips canvas.gi.cur{outline:2px solid var(--gold);background:#3a2a10}
+.chips canvas.gi.lock{filter:brightness(0) drop-shadow(0 0 1px #ffffff60);opacity:.8}
+.reveal.gear .rays{background:repeating-conic-gradient(#ffffff14 0 8deg,transparent 8deg 20deg)}
+.reveal.gear .rcard canvas{filter:drop-shadow(0 0 16px var(--c))}
 .rows{flex:1;display:grid;gap:10px;min-width:0}
 .gear{background:var(--panel);border-radius:12px;padding:10px 12px}
 .gh{display:flex;flex-direction:column}.gh small{color:var(--mute)}
 .chips{display:flex;gap:4px;margin:8px 0;flex-wrap:wrap}
-.chip{width:20px;height:20px;border-radius:5px;border:2px solid var(--k);background:linear-gradient(135deg,var(--l) 30%,var(--d) 70%)}
+.chips{align-items:flex-end}
 .chip.cur{outline:2px solid var(--gold);outline-offset:1px}
 .chip.lock{opacity:.35}
 .next{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px}

@@ -281,29 +281,75 @@ async function detail(id) {
   }
 }
 
+// Kleine Pixel-Leinwand mit einer Szene, hochskaliert
+function stage(cv, w, h, draw) {
+  const t = document.createElement('canvas'); t.width = w; t.height = h;
+  const x = t.getContext('2d'), old = R.x, oldT = R.t; R.x = x; R.t = menuT; draw(x); R.x = old; R.t = oldT;
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height); c.drawImage(t, 0, 0, cv.width, cv.height);
+}
+let forgeAnim = 0;
 function forge(msg = '') {
   mode = 'menu';
   const row = (key, name, table) => {
     const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx];
-    const chips = TIERS.map((t, i) => `<span class="chip ${i === cur ? 'cur' : ''} ${i < AVAILABLE ? '' : 'lock'}" style="--d:${t.dark};--l:${t.light}" title="${esc(t.name)}"></span>`).join('');
+    const chips = TIERS.map((t, i) => `<canvas class="gi ${i === cur ? 'cur' : ''} ${i <= cur ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" title="${esc(t.name)}"></canvas>`).join('');
     return `<div class="gear">
-      <div class="gh"><b>${name}: ${esc(TIERS[cur].name)}</b><small>${esc(table[cur].perk)}</small></div>
+      <div class="gh"><b>${name}: <span style="color:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
       <div class="chips">${chips}</div>
-      ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b>${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
-        ${can ? `<button class="${D.gems >= price ? 'big' : 'off'}" data-a="buy" data-k="${key}">◆ ${price}</button>` : '<span class="lockt">ab Welt 2</span>'}</div>` : '<div class="next">Maximum erreicht.</div>'}
+      ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
+        ${can ? `<button class="${D.gems >= price ? 'big' : 'off'}" data-a="buy" data-k="${key}">◆ ${price}</button>` : '<span class="lockt">ab Welt 3</span>'}</div>` : '<div class="next">Maximum erreicht.</div>'}
     </div>`;
   };
+  const nA = Math.min(D.armor + 1, TIERS.length - 1), nS = Math.min(D.shovel + 1, TIERS.length - 1);
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">◆ ${D.gems}</span></div>
-    <div class="forge"><canvas id="preview" width="48" height="40"></canvas>
+    <div class="forge"><div class="pv"><canvas id="preview" width="216" height="120"></canvas><small>Jetzt <span>→</span> nächste Stufe</small></div>
       <div class="rows">${row('shovel', 'Schaufel', SHOVEL)}${row('armor', 'Rüstung', ARMOR)}
       <div class="gear"><div class="gh"><b>Waffe: ${D.weapon ? esc(weaponById(D.weapon).name) : 'keine (normale Schaufel)'}</b><small>Legendäre und mythische Waffen findest du nicht im Laden.</small></div><div class="next"><span></span><button data-a="armory">Waffenkammer</button></div></div>
       <div class="gear soon"><div class="gh"><b>Relikt</b><small>Bald: Funkenrute, Flügelstiefel, Erdglocke …</small></div></div></div></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
-  const pv = $('#preview'), px = pv.getContext('2d');
-  px.imageSmoothingEnabled = false;
-  const old = R.x; R.x = px; R.figure(S.hero(D.armor, D.shovel, D.weapon), 14, 20, 1, 0, 0, 8); R.figure(S.hero(D.armor, D.shovel, D.weapon), 28, 20, 1, 3, 0, 8); R.x = old;
+  for (const cv of document.querySelectorAll('[data-gi]')) {
+    const [k, i] = cv.dataset.gi.split(':'), ic = k === 'shovel' ? S.shovelIcon(+i) : S.armorIcon(+i);
+    cv.width = ic.width * 2; cv.height = ic.height * 2;
+    const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic, 0, 0, cv.width, cv.height);
+  }
+  // Vorschau läuft animiert (Effekte der hohen Stufen sichtbar)
+  const pv = $('#preview'), id = ++forgeAnim;
+  const tick = () => {
+    if (id !== forgeAnim || !pv.isConnected) return;
+    stage(pv, 72, 40, () => {
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 12, 18, 1, 0, 0, 8);
+      const nh = S.hero(nA, nS, null), locked = nA >= AVAILABLE && nS >= AVAILABLE;
+      R.x.globalAlpha = locked ? 0.45 : 1; R.figure(nh, 50, 18, 1, 3, 0, 4); R.x.globalAlpha = 1;
+      R.x.fillStyle = '#ffd84a'; R.x.fillRect(33, 22, 5, 1); R.x.fillRect(36, 21, 1, 3); R.x.fillRect(37, 22, 1, 1);
+    });
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+// Grosse Enthüllung nach dem Schmieden
+function gearReveal(kind, t) {
+  const tier = TIERS[t], el = document.createElement('div');
+  el.className = 'reveal gear';
+  el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:${tier.light};--g:${tier.dark}">
+    <p class="rar">${kind === 'shovel' ? 'Neue Schaufel geschmiedet' : 'Neue Rüstung geschmiedet'}</p>
+    <canvas width="300" height="168"></canvas>
+    <h2>${esc(tier.name)}</h2><p class="perk">${esc((kind === 'shovel' ? SHOVEL : ARMOR)[t].perk)}</p>
+    <div class="row"><button class="big" data-r="close">Stark!</button></div></div>`;
+  document.body.appendChild(el);
+  const cv = el.querySelector('canvas'), id = ++forgeAnim;
+  const tick = () => {
+    if (!cv.isConnected) return;
+    stage(cv, 50, 28, () => {
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 12, 12, 1, 0, 0, 8);
+      R.figure(S.hero(D.armor, D.shovel, D.weapon), 32, 12, 1, 3, 0, 4);
+    });
+    requestAnimationFrame(tick);
+  };
+  tick();
+  el.addEventListener('click', e => { if (e.target.closest('[data-r]')) { el.remove(); forge(); } });
 }
 
 function options(msg = '') {
@@ -314,7 +360,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.3</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.4</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -352,8 +398,8 @@ ui.addEventListener('click', async e => {
     case 'buy': {
       const k = b.dataset.k, nx = D[k] + 1, price = PRICE[nx];
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
-      D.gems -= price; D[k] = nx; save.write(); sfx('buy');
-      return forge(`${k === 'shovel' ? 'Schaufel' : 'Rüstung'} aus ${TIERS[nx].name} geschmiedet!`);
+      D.gems -= price; D[k] = nx; save.write(); sfx('legend');
+      forge(); return gearReveal(k, nx);
     }
     case 'sfx': D.sfx = !D.sfx; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="sfx".*?<\/button>/)[0]; return;
     case 'music': D.music = !D.music; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="music".*?<\/button>/)[0]; return;

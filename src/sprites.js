@@ -1,6 +1,7 @@
 // Pixel-Grafik: Sprites aus Textzeilen, Tiles und Kulissen prozedural pro Welt-Thema.
 import { TIERS } from './gear.js';
 import { weaponById } from './weapons.js';
+import { ARMOR_ART, LEGS, SHOVEL_ART, WEAPON_ART } from './heroart.js';
 
 const cache = new Map();
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
@@ -23,56 +24,32 @@ export function tint(c, col, alpha = 1) {
 const memo = (key, fn) => { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); };
 
 /* ---------- Held ---------- */
-const HEAD = ['....kkkk....', '...kAAAAk...'];
-const HORNS = ['.kA.kkkk.Ak.', '..kkAAAAkk..'];
-const CREST = ['...kkSSkk...', '...kASSAk...'];
-const BODY = [
-  '..kAAAAAAk..', '..kaAvvvvk..', '..kaAveevk..', '..kaaAAAAk..', '...kkaaakkC.',
-  '..kAAAAAAkCC', '.kAAaAAaAAkC', '.kaAAAAAAakC', '.kkaaAAaakkC', '..kaaaaaak..',
-];
-const LEGS = {
-  stand: ['..kAk..kAk..', '..kAk..kAk..', '.kkak..kakk.', '.kkkk..kkkk.'],
-  run1:  ['..kAkk.kAk..', '.kAk...kkAk.', 'kkak.....kak', 'kkk......kkk'],
-  run2:  ['...kAkkAk...', '...kAkkAk...', '..kkakkak...', '..kkkkkkk...'],
-  air:   ['..kAkkkAk...', '..kakk.kak..', '...kk...kk..', '............'],
-};
-const SHOVEL_H = ['........kkk.', 'kkkkkkkkSSSk', 'khhhhhhksSSk', 'kkkkkkkkSSSk', '........kkk.'];
-// Eigene Klingenformen der legendären/mythischen Waffen (waagrecht, Klinge rechts)
-const BLADES = {
-  federklinge:    ['........kk....', 'kkkkkkkkSSkkk.', 'khhhhhhksSSSSk', 'kkkkkkkkSSkkk.', '........kk....'],
-  blitzspaten:    ['........kk....', 'kkkkkkkkkSk...', 'khhhhhhksSSSk.', 'kkkkkkkk..kSSk', '..........kk..'],
-  erdfresser:     ['........kkkkkk', 'kkkkkkkkSSSSSk', 'khhhhhhksSSSk.', 'kkkkkkkkSSSSSk', '........kkkkkk'],
-  goldschaufel:   ['........kkkk..', 'kkkkkkkkSSSSk.', 'khhhhhhksWSSSk', 'kkkkkkkkSSSSk.', '........kkkk..'],
-  geisterklinge:  ['.........kkk..', 'kkkkkkkkkSSSk.', 'khhhhhhksSSSSk', 'kkkkkkkkkSSSk.', '.........kkk..'],
-  sternenspaten:  ['..........k...', 'kkkkkkkk.kSk..', 'khhhhhhkkSWSSk', 'kkkkkkkk.kSk..', '..........k...'],
-  maulwurfkralle: ['........kSSSSk', 'kkkkkkkkSkkkk.', 'khhhhhhksSSSSk', 'kkkkkkkkSkkkk.', '........kSSSSk'],
-  seelenschaufel: ['..........kkk.', 'kkkkkkkk..kSSk', 'khhhhhhkkSSSk.', 'kkkkkkkksSSk..', '........kkk...'],
-  pendelhammer:   ['.........kkkk.', 'kkkkkkkkkSSSSk', 'khhhhhhhkSWSSk', 'kkkkkkkkkSSSSk', '.........kkkk.'],
-  urfunke:        ['.........k.k..', 'kkkkkkkk.kSkSk', 'khhhhhhkkSWSSk', 'kkkkkkkkksSSk.', '........kkkk..'],
-};
-export function weaponIcon(id, scale = 1) {
-  return memo('wicon' + id, () => {
-    const w = weaponById(id);
-    return fromRows(rotCCW(BLADES[id]), { k: K, h: w.handle, s: w.dark, S: w.light, W: '#ffffff' });
-  });
+// Grafik-Daten in heroart.js. Rahmen 20×24, Körper ab (4, 8).
+function paint(x, segs, pal) {
+  for (const [y, x0, str] of segs) for (let i = 0; i < str.length; i++) {
+    const col = pal[str[i]]; if (col) { x.fillStyle = col; x.fillRect(x0 + i, y, 1, 1); }
+  }
 }
-
-function heroPal(armor, shovel) {
-  const a = TIERS[armor], s = TIERS[shovel];
-  return { k: '#140c1c', a: a.dark, A: a.light, v: '#241a3a', e: '#ffe066', C: '#c23a5a', c: '#7a1f3a', h: '#6b4426', s: s.dark, S: s.light };
+function heroFrame(art, legs) {
+  const c = mk(20, 24), x = c.getContext('2d'), pal = { k: K, ...art.pal };
+  paint(x, art.cape, pal);
+  paint(x, legs.map((r, i) => [20 + i, 4, r]), pal);
+  paint(x, art.torso, pal);
+  paint(x, art.helm, pal);
+  return c;
 }
+function bladeSet(rows, pal) {
+  const p = { k: K, W: '#ffffff', r: '#e0304f', ...pal };
+  const h = fromRows(rows, p), d = fromRows(rotCW(rows), p), u = fromRows(rotCCW(rows), p);
+  return { shH: [h, flipX(h)], shD: [d, flipX(d)], shU: [u, flipX(u)] };
+}
+function weaponPal(w) { return { h: w.handle, H: w.light, s: w.dark, S: w.light, w: '#ffffff', x: w.light, W: '#ffffff' }; }
 export function hero(armor, shovel, weapon = null) {
   return memo(`hero${armor}.${shovel}.${weapon}`, () => {
-    const pal = heroPal(armor, shovel);
+    const art = ARMOR_ART[armor], out = { fx: art.fx || null, tier: armor };
+    for (const k in LEGS) { const r = heroFrame(art, LEGS[k]); out[k] = [r, flipX(r)]; }
     const wp = weapon && weaponById(weapon);
-    if (wp) Object.assign(pal, { s: wp.dark, S: wp.light, h: wp.handle, W: '#ffffff' });
-    const head = armor >= 4 ? CREST : armor >= 2 ? HORNS : HEAD;
-    const bodyPal = { ...pal, S: TIERS[armor].light };
-    const out = {};
-    for (const k in LEGS) { const r = fromRows([...head, ...BODY, ...LEGS[k]], bodyPal); out[k] = [r, flipX(r)]; }
-    const SH = wp ? BLADES[wp.id] : SHOVEL_H;
-    const h = fromRows(SH, pal), d = fromRows(rotCW(SH), pal), u = fromRows(rotCCW(SH), pal);
-    out.shH = [h, flipX(h)]; out.shD = [d, flipX(d)]; out.shU = [u, flipX(u)];
+    Object.assign(out, wp ? bladeSet(WEAPON_ART[wp.id], weaponPal(wp)) : bladeSet(SHOVEL_ART[shovel].rows, SHOVEL_ART[shovel].pal));
     out.white = {}; for (const k in LEGS) out.white[k] = [tint(out[k][0], '#ffffff'), tint(out[k][1], '#ffffff')];
     return out;
   });
@@ -84,6 +61,10 @@ export function ghostHero() {
     return o;
   });
 }
+// Icons (Klinge nach oben) für Menüs
+export function weaponIcon(id) { return memo('wicon' + id, () => fromRows(rotCCW(WEAPON_ART[id]), { k: K, W: '#ffffff', r: '#e0304f', ...weaponPal(weaponById(id)) })); }
+export function shovelIcon(t) { return memo('sicon' + t, () => fromRows(rotCCW(SHOVEL_ART[t].rows), { k: K, ...SHOVEL_ART[t].pal })); }
+export function armorIcon(t) { return memo('aicon' + t, () => heroFrame(ARMOR_ART[t], LEGS.stand)); }
 
 /* ---------- Gegner & Objekte ---------- */
 const BEETLE = ['....kkkkkk....', '..kkGGGGggkk..', '.kGGGgggggggk.', '.kGggggggggggk', 'kykggggggggggk', 'kkkggggggggggk', '.kkkkkkkkkkkk.'];
