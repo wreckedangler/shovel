@@ -4,7 +4,7 @@ import { SHOVEL, ARMOR } from './gear.js';
 import { weaponMods } from './weapons.js';
 
 export const T = 16;
-const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X']);
+const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X', 'V', 'R']);
 const GRAV = 0.36, MAXFALL = 6.5, BOUNCE = 5.5;
 
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -31,7 +31,7 @@ export class Game {
     this.h = this.tiles.length;
     this.w = this.tiles[0].length;
     this.rand = rng(opt.seed || 7);
-    this.ents = []; this.parts = []; this.events = [];
+    this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = [];
     this.frame = 0; this.gems = 0; this.deaths = 0; this.dirtTotal = 0;
     this.done = false; this.shake = 0; this.sign = null; this.boss = null;
     this.rec = [];
@@ -39,7 +39,8 @@ export class Game {
     for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
       const c = this.tiles[y][x];
       if (c === 'D') this.dirtTotal++;
-      if ('.#=DSB^X'.includes(c)) continue;
+      if (c === 'V') this.vents.push({ tx: x, ty: y });
+      if ('.#=DSB^XVR'.includes(c)) continue;
       this.tiles[y][x] = '.';
       const px = x * T, py = y * T;
       switch (c) {
@@ -55,6 +56,12 @@ export class Game {
         case 'E': this.add({ type: 'goal', x: px + 2, y: py - 32, w: 12, h: 48 }); break;
         case 'i': { const s = { type: 'sign', x: px + 1, y: py + 2, w: 14, h: 14, text: '' }; signs.push(s); this.add(s); break; }
         case 'M': this.boss = this.add(mole(px - 8, py - 10)); break;
+        case 'W': this.boss = this.add(golem(px - 6, py - 14)); break;
+        case 'm': this.plats.push(plat(px, py, 'x')); break;
+        case 'n': this.plats.push(plat(px, py, 'y')); break;
+        case 'z': this.add({ type: 'cog', x: px - 2, y: py - 2, w: 20, h: 20 }); break;
+        case 'k': this.add(knight(px + 2, py + 2)); break;
+        case 'u': this.add(kuckuck(px + 1, py + 3)); break;
       }
     }
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
@@ -72,6 +79,8 @@ export class Game {
   add(e) { this.ents.push(e); return e; }
   ev(name, x, y, v) { this.events.push({ name, x, y, v }); }
   num(x, y, txt, col = '#fff') { this.nums.push({ x, y, txt: String(txt), col, life: 40 }); }
+  // Dampfstoss: 70 von 120 Frames aktiv, Säule 6 Kacheln über dem Rohr
+  ventOn(v) { return (this.frame + v.tx * 23) % 120 < 70; }
   dirtLeft() { let n = 0; for (const r of this.tiles) for (const c of r) if (c === 'D') n++; return n; }
 
   tile(tx, ty) {
@@ -134,12 +143,12 @@ export class Game {
   }
   breakTile(tx, ty) {
     const c = this.tile(tx, ty);
-    if (c !== 'D' && c !== 'S') return;
+    if (c !== 'D' && c !== 'S' && c !== 'R') return;
     this.tiles[ty][tx] = '.';
-    this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : 'dirt', 2.2);
+    this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : c === 'R' ? 'ore' : 'dirt', 2.2);
     this.shake = Math.max(this.shake, 3);
     this.ev(c === 'S' ? 'crack' : 'dig', tx * T, ty * T);
-    this.dropGems(tx * T + 8, ty * T + 8, c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul);
+    this.dropGems(tx * T + 8, ty * T + 8, c === 'R' ? 45 : c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul);
   }
 
   step(inp) {
@@ -151,6 +160,7 @@ export class Game {
     if (this.freeze > 0) { this.freeze--; if (inp.jumpP) this.p.jbuf = 7; if (inp.attackP) this.pendAtk = true; return; }
     if (this.streakT > 0 && --this.streakT === 0) this.streak = 0;
     if (!this.done) this.frame++;
+    for (const pl of this.plats) pl.update(this, pl);
     this.stepPlayer(inp);
     for (const e of this.ents) if (!e.dead && e.update) e.update(this, e);
     this.contacts();
@@ -178,6 +188,7 @@ export class Game {
     if (p.dead) { if (--p.dead === 0) this.respawn(); return; }
     if (this.done) { p.vx *= 0.8; p.vy = Math.min(MAXFALL, p.vy + GRAV); this.moveX(p); this.moveY(p); return; }
     p.anim++;
+    if (p.plat) { const pl = p.plat, vx0 = p.vx; p.vx = pl.dx; this.moveX(p); p.vx = vx0; p.y += pl.dy; }
     if (p.inv > 0) p.inv--;
     if (p.safe > 0) p.safe--;
     if (p.drop > 0) p.drop--;
@@ -192,7 +203,7 @@ export class Game {
     }
     p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
     p.jbuf = i.jumpP ? 7 : Math.max(0, p.jbuf - 1);
-    if (p.jbuf && p.onGround && i.down && p.groundC === '=') { p.drop = 10; p.y += 2; p.jbuf = 0; p.onGround = false; }
+    if (p.jbuf && p.onGround && i.down && (p.groundC === '=' || p.plat)) { p.drop = 10; p.y += 2; p.jbuf = 0; p.onGround = false; p.plat = null; }
     else if (p.jbuf && p.coyote && p.hurt <= 0) {
       p.vy = -this.mod.jump; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.jumping = true; this.ev('jump');
       this.burst(cx(p), p.y + p.h, 4, 'dust', 0.8, 0, 14);
@@ -214,9 +225,25 @@ export class Game {
 
     if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + GRAV);
     if (p.pogo && p.vy > 0) this.pogoCheck();
-    const fallV = p.vy, wasGround = p.onGround;
+    // Dampfstösse heben den Helden
+    for (const v of this.vents) {
+      if (!this.ventOn(v)) continue;
+      const vx = v.tx * T, top = (v.ty - 6) * T;
+      if (p.x + p.w > vx + 2 && p.x < vx + 14 && p.y + p.h > top && p.y < v.ty * T) {
+        p.vy = Math.max(p.vy - 0.85, -4.8); p.jumping = false; p.onGround = false; p.plat = null;
+      }
+    }
+    const fallV = p.vy, wasGround = p.onGround, prevBot = p.y + p.h;
     this.moveX(p);
     this.moveY(p);
+    p.plat = null;
+    if (!p.onGround && p.vy >= 0 && !p.drop) {
+      for (const pl of this.plats) {
+        if (p.x + p.w > pl.x + 1 && p.x < pl.x + pl.w - 1 && prevBot <= pl.y + 2 + Math.abs(pl.dy) && p.y + p.h >= pl.y) {
+          p.y = pl.y - p.h; p.vy = 0; p.onGround = true; p.plat = pl; p.ground = { c: '=' }; break;
+        }
+      }
+    }
     if (p.onGround) {
       if (!wasGround && fallV > 3) { p.land = 6; this.burst(cx(p), p.y + p.h, 5, 'dust', 1, 0, 14); }
       p.dashUsed = false;
@@ -242,14 +269,21 @@ export class Game {
     let hit = false;
     for (const e of this.ents) {
       if (e.dead || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg, 0); hit = true; }
+      if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true; }
       else if (e.type === 'chest' && !e.open) { this.openChest(e); hit = true; }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y, 8, 'stone'); hit = true; }
+      else if (e.type === 'cog') { hit = true; this.burst(cx(p), p.y + p.h, 6, 'spark', 2, 0.05, 12); this.ev('clink'); }
+      else if (e.type === 'eproj' && e.kind === 'gear') { e.dead = true; hit = true; this.burst(cx(e), e.y + 6, 8, 'spark', 2); }
     }
     const ty = Math.floor((box.y + box.h) / T);
     for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
       const c = this.tile(tx, ty);
-      if (c === 'D' || (c === 'S' && sh.stone)) { this.dig(tx, ty); hit = true; }
+      if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) { this.dig(tx, ty); hit = true; }
+    }
+    if (hit && this.mod.quake) {
+      // Pendelhammer: Druckwelle trifft alles in der Nähe
+      for (const e of this.ents) if (e.foe && !e.hidden && !e.dead && Math.abs(cx(e) - cx(p)) < 40 && Math.abs(e.y + e.h - (p.y + p.h)) < 30) e.hurtBy(this, e, Math.max(1, Math.ceil(this.dmg / 2)), sign(cx(e) - cx(p)), 'pogo');
+      this.burst(cx(p), p.y + p.h, 16, 'dust', 2.5, 0.05, 18); this.shake = Math.max(this.shake, 4);
     }
     if (hit) {
       p.vy = -BOUNCE * sh.pogo; p.jumping = false; p.safe = 10; p.dashUsed = false;
@@ -282,12 +316,13 @@ export class Game {
       if (e.foe && !e.hidden) { p.hits.add(e); e.hurtBy(this, e, this.dmg, p.face); }
       else if (e.type === 'chest' && !e.open) { p.hits.add(e); this.openChest(e); }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y + 5, 8, 'stone'); this.ev('crack'); }
+      else if (e.type === 'eproj' && e.kind !== 'shock') { e.dead = true; this.burst(cx(e), e.y + 4, 8, 'spark', 2); this.ev('clink'); }
     }
     for (let ty = Math.floor(box.y / T); ty <= Math.floor((box.y + box.h - 0.01) / T); ty++)
       for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
         const c = this.tile(tx, ty);
-        if (c === 'D' || (c === 'S' && sh.stone)) this.dig(tx, ty);
-        else if (c === 'S' && !p.hits.has('clink')) {
+        if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) this.dig(tx, ty);
+        else if ((c === 'S' || c === 'R') && !p.hits.has('clink')) {
           p.hits.add('clink'); this.ev('clink'); this.burst(tx * T + (p.face > 0 ? 0 : 16), p.y + 7, 6, 'spark', 2, 0.05, 12);
         }
       }
@@ -303,7 +338,7 @@ export class Game {
     const p = this.p;
     if (p.inv > 0 || p.dead || this.done) { if (spike) { p.vy = -6; p.onGround = false; } return; }
     p.hp -= dmg; this.hurtCount++; this.bossHurt++;
-    p.inv = 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
+    p.inv = this.ar.inv || 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
     this.shake = 5; this.ev('hurt');
     if (p.hp <= 0) this.kill();
@@ -353,6 +388,8 @@ export class Game {
         case 'goal': if (!this.done && !(this.boss && !this.boss.dead)) { this.done = true; this.ev('win'); this.burst(cx(e), e.y + 6, 30, 'spark', 3, 0.05, 40); } break;
         case 'sign': this.sign = e.text; break;
         case 'rock': if (!e.landed) { e.dead = true; this.hurtPlayer(1, sign(cx(p) - cx(e))); } break;
+        case 'cog': if (p.safe <= 0) this.hurtPlayer(1, sign(cx(p) - cx(e))); break;
+        case 'eproj': if (p.safe <= 0 || e.kind === 'shock') { if (e.kind !== 'shock') e.dead = true; this.hurtPlayer(e.dmg, sign(cx(p) - cx(e))); } break;
         default:
           if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
       }
@@ -366,13 +403,15 @@ export class Game {
   resetBoss() {
     const b = this.boss;
     Object.assign(b, { x: b.home.x, y: b.home.y, hp: b.maxhp, state: 'idle', t: 0, hidden: false, vx: 0, vy: 0 });
-    this.ents = this.ents.filter(e => e.type !== 'rock');
+    this.ents = this.ents.filter(e => e.type !== 'rock' && e.type !== 'eproj');
+    b.nonPogo = false; b.cyc = 0;
     this.setGate('.');
   }
   bossDefeated(b) {
     b.state = 'dying'; b.t = 100; b.foe = false; this.ev('bossDie'); this.shake = 10; this.freeze = 30;
     this.bossClean = this.bossHurt === 0;
-    if (this.bossClean) this.ev('unlock', b.x, b.y, 'maulwurfkralle');
+    if (b.type === 'mole' && this.bossClean) this.ev('unlock', b.x, b.y, 'maulwurfkralle');
+    if (b.type === 'golem' && !b.nonPogo) this.ev('unlock', b.x, b.y, 'pendelhammer');
   }
 }
 
@@ -394,14 +433,15 @@ function gem(x, y, val, fixed) {
     } };
 }
 
-function hurtFoe(g, e, dmg, dir) {
+function hurtFoe(g, e, dmg, dir, src) {
   if (e.iframe > 0) return;
+  if (src !== 'pogo') e.nonPogo = true;
   e.hp -= dmg; e.iframe = 10; e.flash = 8;
   g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2); g.freeze = Math.max(g.freeze, 3);
   g.num(e.x + e.w / 2, e.y - 2, dmg, dmg >= 4 ? '#ff9a50' : '#ffffff');
-  if (dir && e.type !== 'mole') e.vx = dir * 1.8;
+  if (dir && e !== g.boss) e.vx = dir * 1.8;
   if (e.hp <= 0) {
-    if (e.type === 'mole') return g.bossDefeated(e);
+    if (e === g.boss) return g.bossDefeated(e);
     e.dead = true; g.kills++; g.freeze = Math.max(g.freeze, 5); g.ev('poof', e.x, e.y);
     g.burst(e.x + e.w / 2, e.y + e.h / 2, 14, 'poof', 2, 0.02, 24);
     g.dropGems(e.x + e.w / 2, e.y, e.loot || 8);
@@ -530,4 +570,100 @@ function proj(x, y, vx, vy, dmg, kind) {
       for (const f of g.ents) if (f.foe && !f.hidden && !f.dead && !e.hit.has(f) && overlap(e, f)) { e.hit.add(f); f.hurtBy(g, f, e.dmg, sign(e.vx)); if (kind === 'star') e.dead = true; }
       for (const f of g.ents) if (f.type === 'chest' && !f.open && overlap(e, f)) g.openChest(f);
     } };
+}
+
+/* ---------- Welt 2: Uhrturm ---------- */
+function plat(x, y, axis) {
+  // 3 Kacheln breit, schwingt 3 Kacheln (waagrecht) bzw. 3 Kacheln (senkrecht) um den Ursprung
+  const ph = (x / T) * 0.45 + (y / T) * 0.4; // benachbarte Plattformen schwingen gegenläufig
+  return { type: 'plat', axis, ox: x, oy: y, x, y, w: 48, h: 8, dx: 0, dy: 0,
+    update(g, e) {
+      const t = g.frame * 0.022 + ph, nx = axis === 'x' ? e.ox + Math.sin(t) * 48 : e.ox, ny = axis === 'y' ? e.oy + Math.sin(t) * 48 : e.oy;
+      e.dx = nx - e.x; e.dy = ny - e.y; e.x = nx; e.y = ny;
+    } };
+}
+function knight(x, y) {
+  return foeBase({ type: 'knight', x, y, w: 12, h: 14, hp: 3, dmg: 1, dir: -1, t: 0, loot: 14,
+    hurtBy(g, e, dmg, dir, src) {
+      const front = sign(cx(g.p) - cx(e)) === e.dir;
+      if (src !== 'pogo' && dir && front) {
+        g.ev('clink'); g.burst(e.dir > 0 ? e.x + e.w : e.x, e.y + 7, 8, 'spark', 2, 0.05, 12);
+        if (!g.p.dead) { g.p.vx = e.dir * 2.4; g.p.hurt = Math.max(g.p.hurt, 6); }
+        g.num(cx(e), e.y - 4, 'BLOCK', '#a9b5c2'); e.vx = -e.dir * 0.8;
+        return;
+      }
+      hurtFoe(g, e, dmg, dir, src);
+    },
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      const dx = cx(g.p) - cx(e);
+      if (++e.t % 80 === 0 && Math.abs(dx) < 130) e.dir = sign(dx);
+      if (Math.abs(e.vx) > 0.5) e.vx *= 0.85; else e.vx = 0.35 * e.dir;
+      e.vy = Math.min(MAXFALL, e.vy + GRAV);
+      g.moveX(e); if (e.hitWall) e.dir *= -1;
+      g.moveY(e);
+      if (e.onGround) { const ahead = Math.floor((e.dir > 0 ? e.x + e.w + 1 : e.x - 1) / T); if (!g.solid(ahead, Math.floor((e.y + e.h + 2) / T))) e.dir *= -1; }
+      if (e.y > g.h * T + 20) e.dead = true;
+    } });
+}
+function kuckuck(x, y) {
+  return foeBase({ type: 'kuckuck', x, y, w: 14, h: 10, hp: 1, dmg: 1, ox: x, oy: y, dir: 1, t: 0, loot: 10,
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      e.t++; e.x += e.dir * 0.8;
+      if (e.x > e.ox + 56) e.dir = -1; if (e.x < e.ox - 56) e.dir = 1;
+      e.y = e.oy + Math.sin(e.t / 20) * 3;
+      if (e.t % 110 === 0 && Math.abs(cx(g.p) - cx(e)) < 120 && g.p.y > e.y) { g.add(eproj(cx(e) - 2, e.y + e.h, 0, 2.4, 'bolt')); g.ev('screech'); }
+    } });
+}
+function eproj(x, y, vx, vy, kind) {
+  const sz = { shock: [12, 10], gear: [12, 12], bolt: [4, 8] }[kind];
+  return { type: 'eproj', kind, x, y, w: sz[0], h: sz[1], vx, vy, dmg: 1, life: kind === 'gear' ? 300 : 160, bounces: 0,
+    update(g, e) {
+      if (--e.life <= 0) { e.dead = true; return; }
+      if (kind === 'bolt') { e.y += e.vy; if (g.solid(Math.floor((e.x + 2) / T), Math.floor((e.y + e.h) / T))) { e.dead = true; g.burst(e.x + 2, e.y + 6, 5, 'spark', 1.2); } return; }
+      if (kind === 'shock') { g.moveX(e); if (e.hitWall) { e.dead = true; g.burst(e.x + 6, e.y + 6, 8, 'dust', 1.5); } if (g.frame % 2) g.parts.push({ x: e.x + 2 + g.rand() * 8, y: e.y + 8, vx: 0, vy: -1.2, life: 12, col: 'spark', grav: 0.05 }); return; }
+      e.vy = Math.min(MAXFALL, e.vy + GRAV * 0.8); const vy = e.vy;
+      g.moveX(e); if (e.hitWall) { e.dead = true; g.burst(e.x + 6, e.y + 6, 8, 'spark', 1.5); return; }
+      g.moveY(e); if (e.onGround && vy > 1 && e.bounces < 2) { e.vy = -vy * 0.55; e.bounces++; }
+    } };
+}
+function golem(x, y) {
+  return foeBase({ type: 'golem', title: 'PENDELWERK', x, y, w: 28, h: 30, hp: 32, maxhp: 32, dmg: 2, state: 'idle', t: 0, face: -1, cyc: 0, home: { x, y },
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      const p = g.p, dx = cx(p) - cx(e), fast = e.hp <= e.maxhp / 2 ? 1.3 : 1;
+      const grav = () => { e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); g.moveY(e); };
+      switch (e.state) {
+        case 'idle': grav(); return;
+        case 'roar': e.vx = 0; grav(); if (e.t % 10 === 0) g.shake = 3; if (--e.t <= 0) { e.state = 'walk'; e.t = 70; } return;
+        case 'walk':
+          e.face = sign(dx); e.vx = e.face * 0.6 * fast; grav();
+          if (--e.t <= 0) { e.state = e.cyc++ % 2 ? 'throw' : 'crouch'; e.t = e.state === 'crouch' ? 26 : 36; }
+          return;
+        case 'crouch': e.vx = 0; grav(); if (--e.t <= 0) { e.state = 'leap'; e.vy = -7.2; e.vx = Math.max(-2.4, Math.min(2.4, dx / 36)); g.ev('charge'); } return;
+        case 'leap':
+          grav(); if (e.hitWall) e.vx = 0;
+          if (e.onGround) {
+            e.state = 'tired'; e.t = 80; g.shake = 9; g.ev('thud'); g.freeze = Math.max(g.freeze, 4);
+            for (const d of [-1, 1]) g.add(eproj(cx(e) - 6 + d * 12, e.y + e.h - 10, d * 3 * fast, 0, 'shock'));
+          }
+          return;
+        case 'throw':
+          e.vx = 0; e.face = sign(dx); grav();
+          if (e.t % 10 === 0 && e.t > 0 && (e.t <= 30 || fast > 1)) { g.add(eproj(cx(e) - 6, e.y + 2, e.face * (1.2 + g.rand() * 1.3) * fast, -3.8, 'gear')); g.ev('swing'); }
+          if (--e.t <= 0) { e.state = 'walk'; e.t = 80; }
+          return;
+        case 'tired': e.vx = 0; grav(); if (--e.t <= 0) { e.state = 'walk'; e.t = 50; } return;
+        case 'dying':
+          e.vx = 0; grav();
+          if (e.t % 8 === 0) { g.burst(e.x + g.rand() * e.w, e.y + g.rand() * e.h, 10, 'spark', 2.5, 0, 24); g.ev('boom'); g.shake = 6; }
+          if (--e.t <= 0) {
+            e.dead = true; g.dropGems(cx(e), e.y, 400);
+            g.add({ type: 'goal', x: Math.round(cx(e) / T) * T + 2, y: e.y + e.h - 48, w: 12, h: 48 });
+            g.setGate('.'); g.ev('win2');
+          }
+          return;
+      }
+    } });
 }

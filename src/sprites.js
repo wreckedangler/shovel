@@ -47,6 +47,7 @@ const BLADES = {
   sternenspaten:  ['..........k...', 'kkkkkkkk.kSk..', 'khhhhhhkkSWSSk', 'kkkkkkkk.kSk..', '..........k...'],
   maulwurfkralle: ['........kSSSSk', 'kkkkkkkkSkkkk.', 'khhhhhhksSSSSk', 'kkkkkkkkSkkkk.', '........kSSSSk'],
   seelenschaufel: ['..........kkk.', 'kkkkkkkk..kSSk', 'khhhhhhkkSSSk.', 'kkkkkkkksSSk..', '........kkk...'],
+  pendelhammer:   ['.........kkkk.', 'kkkkkkkkkSSSSk', 'khhhhhhhkSWSSk', 'kkkkkkkkkSSSSk', '.........kkkk.'],
   urfunke:        ['.........k.k..', 'kkkkkkkk.kSkSk', 'khhhhhhkkSWSSk', 'kkkkkkkkksSSk.', '........kkkk..'],
 };
 export function weaponIcon(id, scale = 1) {
@@ -100,6 +101,52 @@ export function altarSprite(lit) {
     '....kkkkkkkk....', '...kWWWWWWWWk...', '...kkkkkkkkkk...', '.....kSSSSk.....', '.....kSssSk.....', '.....kSssSk.....',
     '.....kSssSk.....', '.....kSssSk.....', '....kkSSSSkk....', '..kkSSSSSSSSkk..', '.kSSSSSSSSSSSSk.', 'kkkkkkkkkkkkkkkk'],
     { k: K, W: lit ? '#ffe070' : '#5a4a6a', S: '#b0a0c8', s: '#6a5a88' }));
+}
+
+const KNIGHT = ['....kkkk....', '...kSSSSk...', '..kSvvvvSk..', '..kSveevSk..', '...kSSSSk...', 'kkk.kaak....', 'kYYkkaaakk..',
+  'kYyYkaaaaak.', 'kYyYkaaaaak.', 'kYYkkaaaak..', 'kkk.kaaak...', '....kaka....', '....kakak...', '...kkk.kkk..'];
+const CUCKOO = ['....kkkk......', '...kBBBBk.....', '..kBBBkeBk....', '..kBBBBBBkook.', 'kkkBBBBBBBkk..', 'kWWkBBBBBBk...', '.kWWkBBBBk....', '..kkkbbbk.....', '......k.k.....'];
+export function knightSprite() { return memo('knight', () => { const r = fromRows(KNIGHT, { k: K, S: '#c8d0d8', v: '#241a3a', e: '#ff5040', a: '#b08030', Y: '#e0b040', y: '#c02a2a' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')]; }); }
+export function cuckooSprite() { return memo('cuckoo', () => { const r = fromRows(CUCKOO, { k: K, B: '#8a5a30', b: '#5a3a20', W: '#e0c080', e: '#ffe066', o: '#ff9a30' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')]; }); }
+export function cogSprite(i, R = 8, teeth = 8) {
+  return memo(`cog${i}.${R}`, () => {
+    const S2 = R * 2 + 6, c = mk(S2, S2), x = c.getContext('2d'), m = (S2 - 1) / 2;
+    for (let y = 0; y < S2; y++) for (let dx = 0; dx < S2; dx++) {
+      const a = Math.atan2(y - m, dx - m) + i * (Math.PI / teeth / 2), d = Math.hypot(y - m, dx - m);
+      const tooth = Math.cos(a * teeth) > 0.2 ? 2.5 : 0;
+      if (d < R + tooth) { x.fillStyle = d < R * 0.3 ? K : d > R + tooth - 1.2 ? K : d < R * 0.55 ? '#e0b040' : '#a8a8b8'; x.fillRect(dx, y, 1, 1); }
+    }
+    return c;
+  });
+}
+export function platSprite() {
+  return memo('plat', () => {
+    const c = mk(48, 8), x = c.getContext('2d');
+    x.fillStyle = K; x.fillRect(0, 0, 48, 8); x.fillStyle = '#c8963a'; x.fillRect(1, 1, 46, 5); x.fillStyle = '#ffe0a0'; x.fillRect(1, 1, 46, 1);
+    x.fillStyle = '#7a5a20'; x.fillRect(1, 5, 46, 1); x.fillStyle = K; for (const i of [4, 23, 43]) x.fillRect(i, 3, 1, 1);
+    return c;
+  });
+}
+export function golemSprite(flash) {
+  return memo('golem' + flash, () => {
+    const W = 30, H = 32, c = mk(W, H), x = c.getContext('2d'), m = [];
+    for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) {
+      let col = null;
+      if (i >= 9 && i <= 20 && y <= 9) col = y === 4 && (i === 12 || i === 17) ? '#ff5040' : '#4a5058';
+      if (i >= 4 && i <= 25 && y >= 9 && y <= 26) col = (i === 4 || i === 25 || y === 26) ? '#7a5a20' : '#b08030';
+      if (Math.hypot(i - 14.5, y - 17) < 6) col = Math.hypot(i - 14.5, y - 17) > 5 ? '#7a5a20' : '#f0e8d0';
+      if ((i <= 3 || i >= 26) && y >= 10 && y <= 22) col = '#4a5058';
+      if (((i >= 6 && i <= 11) || (i >= 18 && i <= 23)) && y >= 27) col = '#4a5058';
+      if ((i === 8 || i === 21) && y >= 12 && y <= 24 && y % 3 === 0) col = '#e0b040';
+      m.push(col);
+    }
+    for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) {
+      const col = m[y * W + i];
+      if (col) { x.fillStyle = flash ? '#ffffff' : col; x.fillRect(i, y, 1, 1); }
+      else if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => i + a >= 0 && i + a < W && y + b >= 0 && y + b < H && m[(y + b) * W + i + a])) { x.fillStyle = K; x.fillRect(i, y, 1, 1); }
+    }
+    return [c, flipX(c)];
+  });
 }
 
 export const GEMCOL = { 1: ['#2fbf4f', '#9fffaf'], 5: ['#2f7fff', '#a8d4ff'], 20: ['#e0304f', '#ffa0b4'], 50: ['#e0a020', '#fff08f'] };
@@ -190,6 +237,15 @@ export function tileset(th) {
       px(x, K, 0, 3, 16, 7); px(x, K, 2, 1, 12, 2); px(x, '#e8304a', 1, 3, 14, 5); px(x, '#e8304a', 3, 2, 10, 1);
       px(x, '#ffffff', 4, 4, 2, 2); px(x, '#ffffff', 10, 3, 2, 2); px(x, '#ffffff', 7, 6, 2, 1); px(x, '#a01830', 1, 8, 14, 1);
     });
+    t.vent = tile(x => {
+      px(x, K, 0, 0, 16, 16); px(x, '#5a6670', 1, 1, 14, 14); px(x, '#8aa0aa', 1, 1, 14, 2);
+      for (let i = 3; i < 14; i += 3) px(x, K, i, 4, 1, 9); px(x, '#3a444c', 2, 13, 12, 2);
+    });
+    t.ore = tile(x => {
+      px(x, K, 0, 0, 16, 16); px(x, '#2a2034', 1, 1, 14, 14);
+      for (const [a, b] of [[3, 3], [9, 5], [5, 10], [11, 11]]) { px(x, '#b04cff', a, b, 3, 3); px(x, '#f0c0ff', a, b, 1, 1); }
+      px(x, '#4a3a5a', 1, 1, 14, 1);
+    });
     t.gate = tile(x => { for (let i = 1; i < 16; i += 5) { px(x, K, i, 0, 3, 16); px(x, '#8a8aa0', i + 1, 0, 1, 16); } px(x, K, 0, 6, 16, 3); px(x, '#b0b0c8', 0, 7, 16, 1); });
     return t;
   });
@@ -228,6 +284,16 @@ export function backdrop(th, vh) {
       tops[x] = Math.max(tops[x], base[x] + h);
     }
     for (let x = 0; x < W; x++) nx.fillRect(x, Math.round(vh - tops[x]), 1, Math.round(tops[x]));
+    if (th.deco === 'zahnrad') {
+      // Zahnräder im Hintergrund
+      for (let k = 0; k < 7; k++) {
+        const gx = Math.floor(r() * W), gy = Math.floor(vh * (0.15 + r() * 0.5)), R0 = 10 + r() * 22, teeth = 8 + Math.floor(r() * 6);
+        for (let y = -R0 - 4; y <= R0 + 4; y++) for (let dx = -R0 - 4; dx <= R0 + 4; dx++) {
+          const d = Math.hypot(dx, y), a = Math.atan2(y, dx), tooth = Math.cos(a * teeth) > 0.3 ? 3.5 : 0;
+          if (d < R0 + tooth && (d > R0 * 0.68 || d < R0 * 0.28 || Math.abs(Math.sin(a * 2)) < 0.14 || Math.abs(Math.cos(a * 2)) < 0.14)) fx.fillRect((gx + dx + W) % W, gy + y, 1, 1);
+        }
+      }
+    }
     if (th.deco === 'kristall' || th.deco === 'lava') {
       // Tropfsteine von oben
       for (let k = 0; k < 18; k++) { const x0 = Math.floor(r() * W), h = 10 + r() * 34; for (let dx = -4; dx <= 4; dx++) { const hh = h * (1 - Math.abs(dx) / 4.5); fx.fillRect((x0 + dx + W) % W, 0, 1, Math.round(hh)); } }

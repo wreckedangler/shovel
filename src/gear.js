@@ -16,7 +16,7 @@ export const TIERS = [
   { id: 'urlicht',        name: 'Urlicht',        dark: '#ff9f3a', light: '#ffffff' },
 ];
 
-export const AVAILABLE = 4;           // Holz bis Stahl in Welt 1
+export const AVAILABLE = 6;           // Welt 1: bis Stahl · Welt 2: Titan, Adamantium
 export const PRICE = [0, 150, 450, 1100, 2400, 4200, 7000, 11000, 16000, 23000, 32000, 45000];
 
 // dmg: Schaden · reach: Reichweite in px · stone: zerschlägt Stein · pogo: Abprall-Faktor
@@ -25,8 +25,8 @@ export const SHOVEL = [
   { dmg: 2, reach: 15, pogo: 1.00, perk: 'Doppelter Schaden' },
   { dmg: 2, reach: 16, pogo: 1.04, stone: true, perk: 'Zerschlägt Stein' },
   { dmg: 3, reach: 19, pogo: 1.12, stone: true, perk: 'Mehr Reichweite, höherer Abpraller' },
-  { dmg: 4, reach: 19, pogo: 1.12, stone: true, perk: 'Doppel-Abpraller' },
-  { dmg: 5, reach: 20, pogo: 1.15, stone: true, perk: 'Gräbt Erz' },
+  { dmg: 4, reach: 19, pogo: 1.12, stone: true, pogoDmg: 2, perk: 'Schaufel-Sprung trifft doppelt' },
+  { dmg: 5, reach: 20, pogo: 1.15, stone: true, pogoDmg: 2, ore: true, perk: 'Gräbt violettes Erz' },
   { dmg: 5, reach: 22, pogo: 1.18, stone: true, perk: 'Federleicht: schnellere Hiebe' },
   { dmg: 6, reach: 22, pogo: 1.18, stone: true, perk: 'Sternenhieb (Projektil)' },
   { dmg: 7, reach: 24, pogo: 1.20, stone: true, perk: 'Feuerspur beim Abpraller' },
@@ -41,12 +41,12 @@ export const ARMOR = [
   { hp: 6,  kb: 1.0, spike: 2, perk: '+2 Herzen' },
   { hp: 8,  kb: 0.6, spike: 2, perk: '+2 Herzen, weniger Rückstoss' },
   { hp: 10, kb: 0.5, spike: 1, perk: '+2 Herzen, Stacheln halb so schlimm' },
-  { hp: 11, kb: 0.5, spike: 1, perk: 'Kurzer Schild nach Treffer' },
-  { hp: 12, kb: 0.4, spike: 1, perk: 'Lava-fest' },
-  { hp: 12, kb: 0.4, spike: 1, perk: 'Höher springen' },
-  { hp: 13, kb: 0.3, spike: 1, perk: 'Doppelsprung' },
-  { hp: 14, kb: 0.3, spike: 0, perk: 'Stacheln egal' },
-  { hp: 15, kb: 0.2, spike: 0, perk: 'Unsichtbar für Fledermäuse' },
-  { hp: 16, kb: 0.2, spike: 0, perk: 'Rückspulen bei Absturz' },
-  { hp: 20, kb: 0.0, spike: 0, perk: 'Unerschütterlich' },
+  { hp: 11, kb: 0.5, spike: 1, inv: 110, perk: 'Längerer Schutz nach Treffer' },
+  { hp: 12, kb: 0.0, spike: 1, inv: 110, perk: 'Kein Rückstoss mehr' },
+  { hp: 12, kb: 0.0, spike: 1, inv: 110, perk: 'Lava-fest' },
+  { hp: 13, kb: 0.0, spike: 1, inv: 110, perk: 'Doppelsprung' },
+  { hp: 14, kb: 0.0, spike: 0, inv: 110, perk: 'Stacheln egal' },
+  { hp: 15, kb: 0.0, spike: 0, inv: 110, perk: 'Unsichtbar für Fledermäuse' },
+  { hp: 16, kb: 0.0, spike: 0, inv: 110, perk: 'Rückspulen bei Absturz' },
+  { hp: 20, kb: 0.0, spike: 0, inv: 130, perk: 'Ewiger Glanz' },
 ];

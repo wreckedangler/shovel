@@ -55,7 +55,7 @@ function tick() {
   for (const e of game.events) {
     sfx(e.name, e.v);
     if (e.name === 'unlock') unlockWeapon(e.v, true);
-    if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).length >= 3) unlockWeapon('goldschaufel', true); }
+    if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
     if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); }
   }
   if (game.done && mode === 'play') { mode = 'won'; doneT = 0; touchEl.hidden = true; pauseBtn.hidden = true; }
@@ -231,23 +231,29 @@ function title() {
   </div>`);
 }
 
-function map(sel) {
+let curWorld = 0;
+const worldOpen = wi => WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
+function map(sel, wi) {
   mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
   playMusic(THEMES.karte.music);
-  const w = WORLDS[0];
+  if (wi != null) curWorld = wi;
+  else if (sel) curWorld = Math.max(0, WORLDS.findIndex(w => w.levels.includes(sel)));
+  const w = WORLDS[curWorld];
+  const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' 🔒'}</button>`).join('');
   const cards = w.levels.map((id, i) => {
-    const l = levelById(id), open = i < D.unlocked, best = D.best[id];
+    const l = levelById(id), open = LEVELS.findIndex(x => x.id === id) < D.unlocked, best = D.best[id];
     return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
       <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>
       <span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => `<em class="${v ? 'on' : ''}">★</em>`).join('')}</span>
       <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}</small></button>`;
   }).join('');
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="title">‹</button><h2>Welt ${w.id} · ${esc(w.name)}</h2><span class="gems">★ ${Object.values(D.stars).flat().filter(Boolean).length}/${w.levels.length * 3} · ◆ ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="title">‹</button><h2>Welt ${w.id} · ${esc(w.name)}</h2><span class="gems">★ ${w.levels.reduce((n, id) => n + (D.stars[id] || []).filter(Boolean).length, 0)}/${w.levels.length * 3} · ◆ ${D.gems}</span></div>
+    <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
     <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="options">Optionen</button></div>
-    <p class="note soon">Welt 2 · Uhrturm von Zahnfels — in Arbeit</p>
+    <p class="note soon">Welt 3 · Pilzwald von Moderbrück — in Arbeit</p>
   </div>`);
   if (sel) detail(sel);
 }
@@ -308,7 +314,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.2</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.3</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -332,6 +338,7 @@ ui.addEventListener('click', async e => {
     case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
     case 'options': return options();
     case 'pick': return map(id);
+    case 'world': return map(null, +b.dataset.w);
     case 'nope': return sfx('nope');
     case 'play': return startLevel(id, D.ghostOn && D.ghosts[id] ? [D.ghosts[id]] : []);
     case 'go': {
@@ -373,7 +380,7 @@ function tryLandscape() {
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch {}
 }
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__SH_BUNDLE) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 if (location.search.includes('debug')) window.__sh = { get game() { return game; } };
 

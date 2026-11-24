@@ -40,6 +40,9 @@ export class Renderer {
 
     x.save(); x.translate(-cx, -cy);
     this.tiles(g, th, cx, cy);
+    this.steam(g);
+    const ps = S.platSprite();
+    for (const pl of g.plats) x.drawImage(ps, Math.round(pl.x), Math.round(pl.y));
     for (const e of g.ents) this.ent(g, e, th);
     for (const gh of ghosts) this.ghost(gh, g.frame);
     this.player(g);
@@ -60,6 +63,19 @@ export class Renderer {
     this.hud(g, ghosts);
   }
 
+  steam(g) {
+    const x = this.x;
+    for (const v of g.vents) {
+      const on = g.ventOn(v), bx = v.tx * T, by = v.ty * T;
+      if (!on) { if ((this.t >> 3) & 1) { x.fillStyle = '#ffffff30'; x.fillRect(bx + 6, by - 3, 4, 2); } continue; }
+      for (let k = 0; k < 14; k++) {
+        const ph = (this.t * 2.2 + k * 7 + v.tx * 13) % 96, sx = bx + 3 + ((k * 5 + this.t) % 10), sy = by - ph;
+        x.fillStyle = ph > 70 ? '#ffffff30' : ph > 40 ? '#ffffff60' : '#ffffffa0';
+        x.fillRect(Math.round(sx), Math.round(sy), ph > 50 ? 3 : 2, ph > 50 ? 3 : 2);
+      }
+    }
+  }
+
   tiles(g, th, cx, cy) {
     const x = this.x, ts = S.tileset(th);
     const x0 = Math.floor(cx / T), x1 = Math.ceil((cx + this.W) / T), y0 = Math.max(0, Math.floor(cy / T)), y1 = Math.min(g.h - 1, Math.ceil((cy + this.H) / T));
@@ -70,6 +86,7 @@ export class Renderer {
       if (c === '#') { if (tx < 0 || tx >= g.w) continue; img = g.tile(tx, ty - 1) === '#' && ty > 0 ? ts.fill[v] : ts.top[v]; }
       else if (c === 'D') img = ts.dirt; else if (c === 'S') img = ts.stone; else if (c === '^') img = ts.spike;
       else if (c === '=') img = ts.plank; else if (c === 'B') img = ts.mush; else if (c === 'X') img = ts.gate;
+      else if (c === 'V') img = ts.vent; else if (c === 'R') img = ts.ore;
       if (img) x.drawImage(img, px, py);
     }
   }
@@ -109,6 +126,28 @@ export class Renderer {
         return;
       }
       case 'chest': x.drawImage(S.chestSprite(e.open), e.x, e.y); return;
+      case 'cog': x.drawImage(S.cogSprite((f >> 2) % 4), Math.round(e.x) - 1, Math.round(e.y) - 1); return;
+      case 'knight': x.drawImage(S.knightSprite()[(e.dir > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return;
+      case 'kuckuck': x.drawImage(S.cuckooSprite()[(e.dir > 0 ? 0 : 1) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y) - 1 + ((f >> 3) & 1)); return;
+      case 'eproj': {
+        const ex = Math.round(e.x), ey = Math.round(e.y);
+        if (e.kind === 'gear') x.drawImage(S.cogSprite((f >> 1) % 4, 4, 6), ex - 1, ey - 1);
+        else if (e.kind === 'bolt') { x.fillStyle = K; x.fillRect(ex, ey, 4, 8); x.fillStyle = '#e0b040'; x.fillRect(ex + 1, ey + 1, 2, 6); x.fillStyle = '#fff'; x.fillRect(ex + 1, ey + 6, 2, 1); }
+        else { for (let k = 0; k < 3; k++) { const hh = 4 + ((f + k * 3) % 6); x.fillStyle = k === 1 ? '#ffffff' : '#ffd84a'; x.fillRect(ex + k * 4, ey + 10 - hh, 3, hh); } }
+        return;
+      }
+      case 'golem': {
+        if (e.hidden) return;
+        const sp = S.golemSprite(e.flash > 0 || (e.state === 'dying' && (f >> 2) & 1));
+        const sq = e.state === 'crouch' ? 3 : e.state === 'tired' ? 1 : 0, jig = e.state === 'crouch' ? ((f >> 1) & 1) : 0;
+        x.drawImage(sp[e.face > 0 ? 1 : 0], Math.round(e.x) - 1 + jig, Math.round(e.y) - 2 + sq, 30, 32 - sq);
+        // Uhrzeiger auf der Brust
+        const ccx = Math.round(e.x) + 13.5, ccy = Math.round(e.y) + 15 + sq;
+        x.fillStyle = K;
+        for (const [len, sp2] of [[4, 0.05], [3, 0.004]]) { const a = f * sp2 * (e.state === 'tired' ? 0.2 : 1); for (let k = 0; k <= len; k++) x.fillRect(Math.round(ccx + Math.cos(a) * k), Math.round(ccy + Math.sin(a) * k), 1, 1); }
+        if (e.state === 'tired') for (let k = 0; k < 3; k++) { const a = f / 8 + k * 2.1; x.fillStyle = '#ffe066'; x.fillRect(Math.round(e.x + 14 + Math.cos(a) * 11), Math.round(e.y - 5 + Math.sin(a) * 3), 2, 2); }
+        return;
+      }
       case 'proj':
         if (e.kind === 'star') {
           const sx = Math.round(e.x), sy = Math.round(e.y), c = (f >> 1) & 1 ? '#ffffff' : '#d8c8ff';
@@ -238,7 +277,7 @@ export class Renderer {
     const b = g.boss;
     if (b && !b.dead && b.state !== 'idle') {
       const bw = Math.min(160, W - 60), bx = Math.round(W / 2 - bw / 2), by = this.H - 14;
-      S.drawText(x, 'ROSTMAULWURF', W / 2, by - 8, '#ffb070', 1, 'center');
+      S.drawText(x, b.title || 'ROSTMAULWURF', W / 2, by - 8, '#ffb070', 1, 'center');
       x.fillStyle = K; x.fillRect(bx - 1, by - 1, bw + 2, 6); x.fillStyle = '#3a1010'; x.fillRect(bx, by, bw, 4);
       x.fillStyle = '#ff5a3a'; x.fillRect(bx, by, Math.round(bw * Math.max(0, b.hp) / b.maxhp), 4);
     }
@@ -267,6 +306,7 @@ function partCol(c, th, g, q) {
     case 'fire': return q.life > 18 ? '#ffe070' : q.life > 9 ? '#ff8a2a' : '#c02a00';
     case 'soul': return alt ? '#b07aff' : '#ffffff';
     case 'star': return alt ? '#d8c8ff' : '#ffffff';
+    case 'ore': return alt ? '#b04cff' : '#f0c0ff';
     default: return '#fff';
   }
 }

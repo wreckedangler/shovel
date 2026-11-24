@@ -140,3 +140,9 @@ button.danger{background:#5a1830!important;margin-top:10px!important}
 .rcard .cond{margin:0 0 8px;color:var(--mute);font-size:14px}
 .rcard button{min-height:44px;padding:8px 18px;border-radius:12px;border:3px solid var(--k);background:var(--panel2);box-shadow:0 4px 0 var(--k);font-weight:600;margin:4px;color:#fff;font-family:inherit}
 @media (prefers-reduced-motion:reduce){.rays,.rcard canvas,.reveal.mythisch .rar{animation:none}}
+
+.wtabs{display:flex;gap:6px;margin:-2px 0 10px}
+.wtab{min-height:36px!important;padding:4px 14px!important;margin:0!important;font-size:15px}
+.wtab.on{background:var(--gold)!important;color:#2a1a00}
+.wtab.locked{opacity:.5}
+.th-uhrturm{--c1:#2a6a74;--c2:#10222a}.th-glocke{--c1:#7a5aa0;--c2:#18122a}.th-pendel{--c1:#b07a30;--c2:#200e08}

@@ -40,6 +40,10 @@ export const WEAPONS = [
     perk: 'Einmal pro Level: Auferstehen statt Sterben, ohne Verlust.',
     hint: 'Zwanzigmal gefallen. Die Seele merkt sich jeden Sturz.',
     cond: '20 Tode insgesamt.' },
+  { id: 'pendelhammer', name: 'Pendelhammer', rar: 'mythisch', dark: '#6a4a10', light: '#ffe08a', handle: '#2a1e10',
+    perk: 'Schaufel-Sprünge lösen eine Druckwelle aus, die alles daneben trifft.',
+    hint: 'Das Pendelwerk fällt nur durch Sprünge. Keine Klinge, die es seitlich berührt.',
+    cond: 'Das Pendelwerk ausschliesslich mit Schaufel-Sprüngen besiegen.' },
   { id: 'urfunke', name: 'Urfunke', rar: 'mythisch', dark: '#c02a00', light: '#ffe070', handle: '#400a00', secret: true,
     perk: 'Doppelter Schaden, jeder Hieb brennt.',
     hint: 'Über dem Dornenkamm, wo kein gewöhnlicher Sprung hinreicht, glimmt etwas.',
@@ -50,7 +54,7 @@ export const weaponById = id => WEAPONS.find(w => w.id === id) || null;
 
 // Wirkung im Spiel
 export function weaponMods(id) {
-  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 16, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false };
+  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 16, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false, quake: false };
   switch (id) {
     case 'federklinge': m.run = 2.35; m.jump = 6.05; m.reach = 4; break;
     case 'blitzspaten': m.run = 2.3; m.atkLen = 9; break;
@@ -60,6 +64,7 @@ export function weaponMods(id) {
     case 'sternenspaten': m.stars = true; break;
     case 'maulwurfkralle': m.wave = true; break;
     case 'seelenschaufel': m.soul = true; break;
+    case 'pendelhammer': m.quake = true; break;
     case 'urfunke': m.dmgMul = 2; m.fire = true; break;
   }
   return m;

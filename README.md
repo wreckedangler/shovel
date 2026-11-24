@@ -17,15 +17,27 @@ Keine Abhängigkeiten, kein Build-Schritt: reines HTML, CSS und JavaScript-Modul
 
 ## Lokal starten
 
+Am einfachsten: `dist/schaufelheld.html` doppelklicken. Diese Einzeldatei enthält das ganze Spiel und braucht keinen Server.
+Neu erzeugen nach Änderungen:
+
+```bash
+node tools/bundle.mjs
+```
+
+Entwicklung mit getrennten Dateien:
+
 ```bash
 python3 -m http.server 8000
 # dann http://localhost:8000 öffnen
 ```
 
+Aufs Handy im gleichen WLAN: Server wie oben starten, IP des Computers herausfinden und auf dem Handy `http://<IP>:8000` öffnen.
+
 Tests (Level-Prüfung, Bot-Durchlauf, Geist-Codes):
 
 ```bash
 node tools/test.mjs
+node tools/solve.mjs 2-2     # Suchbot beweist, dass ein Level mit Holz-Ausrüstung schaffbar ist
 ```
 
 ## Veröffentlichen (GitHub Pages)
@@ -53,7 +65,8 @@ src/audio.js              Synthetisierte Effekte und Chiptune-Musik
 src/input.js              Touch, Tastatur, Gamepad
 src/ghost.js              Geist-Codes (komprimiert, teilbar)
 src/online.js             Optionale Online-Bestenliste (Supabase)
-tools/                    Tests und Icon-Generator
+tools/                    Tests, Suchbot, Einzeldatei-Bündler, Icon-Generator
+dist/schaufelheld.html    Komplettes Spiel in einer Datei (zum Testen ohne Server)
 ```
 
 ## Neues Level bauen
@@ -66,6 +79,8 @@ Levels bestehen aus 20 Kacheln breiten Segmenten mit 14 Reihen. Legende:
 E  Ziel         G  Edelstein     h  Apfel             T  Truhe
 i  Schild       b  Käfer         o  Blorb             v  Fledermaus    M  Boss
 Q  Altar (geheime Waffe)
+Welt 2:  m / n  waagrechte / senkrechte Schwebeplattform   V  Dampfrohr (hebt 6 Kacheln)
+         R  Erz (ab Adamantium)   z  Zahnrad (Gefahr, Pogo möglich)   k  Zahnritter   u  Kuckuck   W  Boss Pendelwerk
 ```
 
 Faustregeln: Sprunghöhe 2 Kacheln, Sprungweite 3 Kacheln Lücke. Mit Pilz 4 Kacheln, mit Schaufel-Sprung auf Pilz 6.
@@ -76,7 +91,7 @@ Danach `node tools/test.mjs` laufen lassen.
 - **Sterne:** Jedes Level hat drei: geschafft, unter der Zielzeit, ohne Tod. Jeder neue Stern bringt 50 Edelsteine.
 - **Pogo-Ketten:** Ab drei Schaufel-Abprallern ohne Bodenkontakt gibt es Bonus-Edelsteine, die mit der Kette wachsen.
 - **Edelstein-Serien:** Schnell hintereinander eingesammelte Steine klingen jedes Mal einen Halbton höher.
-- **Legendäre und mythische Waffen (9):** Nicht kaufbar. Jede verlangt eine bestimmte Tat. In der Waffenkammer stehen nur Rätsel-Hinweise.
+- **Legendäre und mythische Waffen (10):** Nicht kaufbar. Jede verlangt eine bestimmte Tat. In der Waffenkammer stehen nur Rätsel-Hinweise.
 
 <details><summary>Spoiler: alle Bedingungen</summary>
 
@@ -90,6 +105,7 @@ Danach `node tools/test.mjs` laufen lassen.
 | Sternenspaten | Mythisch | Kette aus 12 Abprallern | Abpraller schleudern Sterne |
 | Maulwurfkralle | Mythisch | Boss ohne Schaden besiegen | Erdwelle beim Hieb |
 | Seelenschaufel | Mythisch | 20 Tode insgesamt | einmal pro Level auferstehen |
+| Pendelhammer | Mythisch | Pendelwerk nur mit Schaufel-Sprüngen besiegen | Druckwelle bei jedem Abpraller |
 | Urfunke | Mythisch | Altar hoch über dem Dornenkamm (Pilz-Superprung auf dem Plateau, dann Wolkenpfad) | doppelter Schaden, brennende Hiebe |
 
 </details>
@@ -128,8 +144,9 @@ Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für meh
 ## Fahrplan
 
 - **Etappe 1:** Welt 1 mit 3 Levels und Boss, Schmiede bis Stahl, Geister lokal und per Code, PWA.
-- **Etappe 1.5 (diese Version):** 9 legendäre/mythische Waffen, geheimer Himmelspfad, Sterne, Pogo-Ketten, Hit-Stop, Edelstein-Serien.
-- **Etappe 2:** Welt 2 *Uhrturm von Zahnfels* (Zahnräder, bewegte Plattformen), Titan- und Adamantium-Stufe, erste Relikte.
+- **Etappe 1.5:** 9 legendäre/mythische Waffen, geheimer Himmelspfad, Sterne, Pogo-Ketten, Hit-Stop, Edelstein-Serien.
+- **Etappe 2 (diese Version):** Welt 2 *Uhrturm von Zahnfels* mit Schwebeplattformen, Dampfrohren, Zahnrädern, Zahnrittern, Kuckucken, Erz und Boss *Pendelwerk*; Titan- und Adamantium-Stufe; 10. Waffe; Einzeldatei zum lokalen Testen.
+- **Etappe 2.5:** Erste Relikte (Funkenrute, Flügelstiefel).
 - **Etappe 3:** Endloser Schacht-Modus mit erzeugten Levels und Tages-Seed für faire Geister-Rennen.
 - **Etappe 4:** Level-Editor mit Teilen per Code.
 - Danach: weitere Welten (Pilzwald, Lavaschmiede, Wolkenwerft, Kristallmagen) bis zur Urlicht-Stufe.
