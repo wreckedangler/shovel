@@ -128,6 +128,9 @@ export class Renderer {
         if ((f + e.x) % 90 < 6) { x.fillStyle = '#fff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y) + bob + 1, 1, 1); }
         return;
       }
+      case 'toad': { const sp = S.toadSprite(e.onGround ? 0 : 1); x.drawImage(sp[(e.face > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return; }
+      case 'wisp': { const sp = S.wispSprite()[e.flash ? 1 : 0]; x.globalAlpha = 0.75 + Math.sin(f / 6) * 0.25; x.drawImage(sp, Math.round(e.x), Math.round(e.y)); x.globalAlpha = 1; return; }
+      case 'snail': { const sp = S.snailSprite(); x.drawImage(sp[(e.dir > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return; }
       case 'beetle': { const sp = S.beetleSprite((f >> 3) & 1); x.drawImage(sp[(e.dir > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return; }
       case 'blorb': {
         const sp = S.blorbSprite()[e.flash ? 1 : 0], sq = e.onGround ? (e.t < 12 ? 2 : 0) : -2;

@@ -188,6 +188,12 @@ export function heart(full) { return memo('heart' + full, () => fromRows(HEART, 
 export function beetleSprite(i) {
   return memo('beetle' + i, () => { const r = fromRows([...BEETLE, ...BLEGS[i]], { k: K, g: '#2f9a4a', G: '#8ff07a', y: '#ffe066', l: '#2a1a10' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')]; });
 }
+const TOAD = ['...kk..kk...', '..kWkkkWk...', '.kgkkgkkgk..', 'kgggggggggk.', 'kgGGggggGGk.', 'kgggyyyyggk.', '.kgyyyyyygk.', 'kggkkkkkggk.', 'kgk....kgk..', 'kk......kk..'];
+const WISP = ['...kkk...', '..kBWBk..', '.kBWWWBk.', 'kBWWkWWBk', 'kBWWWWWBk', '.kBWWWBk.', '..kBBBk..', '...kBk...', '....k....'];
+const SNAIL = ['.....k.k.k....', '....kskskk....', '...kssssssk...', '..kssSSSsssk..', '..ksSkkkSssk..', '..ksSkWkSssk..', 'k.kssSSSsssk..', 'kekksssssskk..', 'kyyyykkkkyyyyk', '.kkkkkkkkkkkk.'];
+export function toadSprite(air) { return memo('toad' + air, () => { const r = fromRows(air ? [TOAD[0], TOAD[1], TOAD[2], TOAD[3], TOAD[4], TOAD[5], TOAD[6], TOAD[7], 'kgk......kgk', 'k.k......k.k'] : TOAD, { k: K, g: '#3a8a3a', G: '#9ae05a', y: '#f0d890', W: '#ffffff' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')]; }); }
+export function wispSprite() { return memo('wisp', () => { const r = fromRows(WISP, { k: '#0b1a2a', B: '#4fd2ff', W: '#e8faff' }); return [r, tint(r, '#fff')]; }); }
+export function snailSprite() { return memo('snail', () => { const r = fromRows(SNAIL, { k: K, s: '#8a4a9a', S: '#d0a0e0', W: '#ffffff', e: '#ffffff', y: '#e0c070' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')]; }); }
 export function blorbSprite() { return memo('blorb', () => { const r = fromRows(BLORB, { k: K, p: '#a04cf0', P: '#e2a8ff', w: '#ffffff' }); return [r, tint(r, '#fff')]; }); }
 export function batSprite() { return memo('bat', () => { const r = fromRows(BAT, { k: K, b: '#5a3a7a', B: '#9a6ac0', e: '#ff5a5a' }); return [r, tint(r, '#fff')]; }); }
 export function chestSprite(open) {

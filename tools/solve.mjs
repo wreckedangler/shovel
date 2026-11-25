@@ -2,10 +2,11 @@
 // node tools/solve.mjs 2-1 [schaufel] [rüstung]
 import { levelById } from '../src/levels.js';
 import { Game } from '../src/game.js';
+import { generateLevel } from '../src/gen.js';
 
 const id = process.argv[2] || '1-1';
 const gear = { shovel: +(process.argv[3] || 0), armor: +(process.argv[4] || 0) };
-const L = levelById(id);
+const L = process.env.GEN ? generateLevel(...process.env.GEN.split(':').map(Number)) : levelById(id);
 const CH = 6;
 const ACTS = [
   { right: 1 }, { right: 1, jump: 1, jp: 1 }, { right: 1, jump: 1 }, {}, { left: 1 }, { left: 1, jump: 1, jp: 1 },

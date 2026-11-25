@@ -62,6 +62,9 @@ export class Game {
       switch (c) {
         case 'P': this.spawn = { x: px + 3, y: py + 2 }; break;
         case 'b': this.add(beetle(px + 1, py + 7)); break;
+        case 'f': this.add(toad(px + 2, py + 6)); break;
+        case 'w': this.add(wisp(px + 3, py + 3)); break;
+        case 'q': this.add(snail(px + 1, py + 6)); break;
         case 'o': this.add(blorb(px + 2, py + 6)); break;
         case 'v': this.add(bat(px + 2, py + 2)); break;
         case 'G': this.add(gem(px + 4, py + 4, 5, true)); break;
@@ -107,7 +110,7 @@ export class Game {
     // Münzen in fester Reihenfolge nummerieren (für den Spielstand)
     this.ents.filter(e => e.type === 'coin').sort((a, b) => a.x - b.x || a.y - b.y).forEach((c, i) => { c.idx = i; });
     // Seltene goldene Gegner (deterministisch pro Level)
-    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat', 'spitter', 'kuckuck'].includes(e.type) && (this.rand() < [0.07, 0.14, 0.2, 0.28][this.relic.glueck || 0] || this.cheat.midas)) {
+    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat', 'spitter', 'kuckuck', 'toad', 'wisp', 'snail'].includes(e.type) && (this.rand() < [0.07, 0.14, 0.2, 0.28][this.relic.glueck || 0] || this.cheat.midas)) {
       e.golden = true; e.hp += 2; e.loot = 60;
     }
     this.coinTotal = this.ents.filter(e => e.type === 'coin').length;
@@ -378,7 +381,8 @@ export class Game {
     let hit = false;
     for (const e of this.ents) {
       if (e.dead || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true; }
+      if (e.foe && !e.hidden && e.spiky) { this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)) || 1, true); this.ev('clink'); hit = true; }
+      else if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true; }
       else if (e.type === 'chest' && !e.open) { this.openChest(e); hit = true; }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y, 8, 'stone'); hit = true; }
       else if (e.type === 'cog') { hit = true; this.burst(cx(p), p.y + p.h, 6, 'spark', 2, 0.05, 12); this.ev('clink'); }
@@ -606,6 +610,49 @@ function beetle(x, y) {
         const ahead = Math.floor((e.dir > 0 ? e.x + e.w + 1 : e.x - 1) / T);
         if (!g.solid(ahead, Math.floor((e.y + e.h + 2) / T))) e.dir *= -1;
       }
+      if (e.y > g.h * T + 20) e.dead = true;
+    } });
+}
+// Springkröte: lauert und springt dem Helden entgegen
+function toad(x, y) {
+  return foeBase({ type: 'toad', x, y, w: 12, h: 10, hp: 2, dmg: 1, t: 60, face: -1, loot: 10,
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); if (e.hitWall) e.vx = -e.vx * 0.5; g.moveY(e);
+      const p = g.p, dx = cx(p) - cx(e);
+      if (e.onGround) {
+        e.vx *= 0.7; e.face = dx < 0 ? -1 : 1;
+        if (--e.t <= 0 && Math.abs(dx) < 120) {
+          // nicht in Abgründe springen
+          const land = Math.floor((cx(e) + e.face * 34) / T);
+          let safe = false; for (let k = 0; k < 4; k++) if (g.solid(land, Math.floor((e.y + e.h) / T) + k)) safe = true;
+          if (safe) { e.vx = e.face * 1.6; e.vy = -4.6; g.ev('boing', e.x, e.y); }
+          e.t = 70 + Math.floor(g.rand() * 40);
+        }
+      }
+      if (e.y > g.h * T + 20) e.dead = true;
+    } });
+}
+// Irrlicht: schwebt durch Wände, kreist um seinen Ort und zieht langsam zum Helden. Ideal für Pogo-Ketten.
+function wisp(x, y) {
+  return foeBase({ type: 'wisp', x, y, w: 9, h: 9, hp: 1, dmg: 1, ax: x, ay: y, ph: x * 0.07, loot: 6, float: true,
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      const p = g.p, d = Math.hypot(cx(p) - e.ax, p.y - e.ay);
+      if (d < 90 && !p.dead) { e.ax += Math.sign(cx(p) - e.ax) * 0.18; e.ay += Math.sign(p.y - 4 - e.ay) * 0.12; }
+      e.ph += 0.045;
+      e.x = e.ax + Math.cos(e.ph) * 14 + e.vx * 4; e.y = e.ay + Math.sin(e.ph * 2) * 6; e.vx *= 0.9;
+      if ((g.frame + Math.floor(e.ax)) % 5 === 0) g.parts.push({ x: e.x + 4, y: e.y + 6, vx: 0, vy: 0.2, life: 18, col: 'ice', grav: 0 });
+    } });
+}
+// Stachelschnecke: Pogo auf den Panzer tut weh. Von der Seite treffen!
+function snail(x, y) {
+  return foeBase({ type: 'snail', x, y, w: 14, h: 10, hp: 3, dmg: 1, dir: -1, loot: 14, spiky: true,
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      if (Math.abs(e.vx) > 0.4) e.vx *= 0.85; else e.vx = 0.22 * e.dir;
+      e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); if (e.hitWall) e.dir *= -1; g.moveY(e);
+      if (e.onGround) { const ahead = Math.floor((e.dir > 0 ? e.x + e.w + 1 : e.x - 1) / T); if (!g.solid(ahead, Math.floor((e.y + e.h + 2) / T))) e.dir *= -1; }
       if (e.y > g.h * T + 20) e.dead = true;
     } });
 }

@@ -218,3 +218,15 @@ Truhen kosten Edelsteine oder einen Schlüssel. Schlüssel gibt es für den erst
 - Fehlende Gegenstände fallen doppelt so oft wie Duplikate. Duplikate werden zu Splittern.
 - Inhalte (`src/loot.js`): 11 Relikte (3 Plätze, Stufe 1–3), 6 Spuren, 5 Färbungen, 3 Auren.
 - Splitter + Edelsteine schmieden die Stufen 7–12 (Mithril bis Urlicht) mit echten Perks: schnellere Hiebe, Sternenhieb, Flächenhieb, Doppel-/Dreifachsprung, Schutz beim ersten Treffer, Edelstein-Magnet, Rückspulen bei Absturz.
+
+## Endlose Tiefen (v0.11, `src/gen.js`)
+
+Ab 1-1 gibt es im Kartenmenü den Tab **∞ Tiefen**. Jede Tiefe wird aus dem *Weltsamen* erzeugt: Gleicher Samen = gleiche Welt (zum Teilen), neuer Samen = neue Welt.
+
+- **9 Biome** (Wurzelwald, Tiefhöhle, Dornenhang, Maulwurfsbau, Zahnradwerk, Glockenhallen, Pilzdickicht, Leuchtgrotte, Modersumpf) mit eigener Optik, eigenen Gegnern und Mechaniken.
+- **4 Bauarten:** Pfad (offenes Gelände), Höhle (mit Decke, viel Graben), Abgrund (Inseln und Brücken), Schacht (senkrecht nach oben).
+- **Bausteine:** Lücken, Stufen, Stachelfelder, Plattformbrücken, Erdwände, Sprungpilze, Bröckelbrücken, Schwebeplattformen, Dampfrohre, Zahnräder, Geheimkammern unter falschen Böden, unsichtbare Blöcke, Laternen.
+- **Schwierigkeit** steigt bis Tiefe 40 (breitere Lücken, mehr Gegner, längere Levels).
+- **Neue Gegner:** Springkröte (`f`, springt dich an), Irrlicht (`w`, schwebt durch Wände, ideal für Pogo-Ketten), Stachelschnecke (`q`, Pogo auf den Panzer tut weh, von der Seite treffen).
+- **Belohnungen:** Edelsteine pro Tiefe, alle 5 Tiefen ein Schlüssel (10: Eisen/Gold, 25: Urlicht).
+- **Garantie:** Jedes Level wird beim Erzeugen auf Erreichbarkeit von Ziel und allen 3 Münzen geprüft (`reachable()`), sonst wird neu gewürfelt. `node tools/gentest.mjs 1000` prüft 1000 Levels, `GEN=seed:tiefe node tools/solve.mjs gen` spielt eines mit echter Physik durch.

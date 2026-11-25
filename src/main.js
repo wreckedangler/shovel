@@ -13,6 +13,7 @@ import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
 import { relicMods, SHARD_PRICE, CHESTS } from './loot.js';
+import { generateLevel, BIOMES, STYLE_NAME } from './gen.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD } from './levels.js';
@@ -162,7 +163,8 @@ async function startLevel(id, ghostCodes = []) {
   playMusic(THEMES[level.theme].music);
   goFullscreen();
   const wn = ALLW().find(w => w.levels.includes(id));
-  setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '', level.secret ? 'jade' : 'gold', 3.2); }, 250);
+  const sub = level.gen ? `Tiefe ${level.depth} · ${BIOMES.find(b => b.id === level.theme).name} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
+  setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); show(`
   <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
@@ -173,6 +175,7 @@ function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true
 function resume() { hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isTouch; pauseBtn.hidden = false; }
 
 async function finish() {
+  if (level.gen) return finishEndless();
   const id = level.id, frames = game.frame, first = !D.cleared[id];
   const viaSecret = game.exit === 'secret';
   const cheated = playCheats(D).length > 0;
@@ -469,6 +472,84 @@ function cheatbook(msg = '') {
   </div>`);
   const inp = $('#cheatcode'); inp.addEventListener('keydown', e => { if (e.key === 'Enter') ui.querySelector('[data-a=cheatenter]').click(); });
 }
+/* ---------- Endlose Tiefen ---------- */
+const endlessOpen = () => !!D.cleared['1-1'];
+const eSeed = () => { if (!D.endless.seed) { D.endless.seed = 1 + Math.floor(Math.random() * 999999); save.write(); } return D.endless.seed; };
+const genId = (seed, depth) => `∞${depth}-${seed}`;
+const STYLE_IC = { lauf: '▶', hoehle: '▬', abgrund: '◇', schacht: '▲' };
+function miniMap(L) {
+  // Kachelkarte im Kleinformat: zeigt, wie verschieden die Levels sind
+  const th = THEMES[L.theme], H = L.map.length, W = L.map[0].length, vert = H > W;
+  const c = document.createElement('canvas'); c.width = vert ? H : W; c.height = vert ? W : H;
+  const x = c.getContext('2d'); x.fillStyle = th.sky[0]; x.fillRect(0, 0, c.width, c.height);
+  const col = { '#': th.dirt, D: th.dirtL, '=': th.plank, c: th.plank, '^': '#e04050', B: '#ff6ad0', V: '#c0c0d0', F: th.dirt, G: '#4fd2ff', O: '#ffd84a', E: '#ffffff', P: '#7dffcf', C: '#ffb020', m: th.plank, T: '#ffd84a' };
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+    let ch = L.map[yy][xx]; if ('bofqwvsku'.includes(ch)) { x.fillStyle = '#ff5a5a'; } else if (col[ch]) x.fillStyle = col[ch]; else continue;
+    if (ch === '#' && yy > 0 && L.map[yy - 1][xx] === '.') x.fillStyle = th.grass || th.dirtL;
+    if (vert) x.fillRect(H - 1 - yy, xx, 1, 1); else x.fillRect(xx, yy, 1, 1);
+  }
+  return c;
+}
+function endless(msg = '') {
+  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'endless';
+  playMusic(THEMES.karte.music);
+  const seed = eSeed(), E = D.endless, cards = [];
+  for (let k = 0; k < 4; k++) {
+    const dep = E.depth + k, L = generateLevel(seed, dep), bio = BIOMES.find(b => b.id === L.theme);
+    cards.push(`<button class="dcard th-${L.theme} ${k ? 'later' : 'now'}" ${k ? 'data-a="nope"' : `data-a="eplay" data-id="${genId(seed, dep)}"`}>
+      <span class="no">Tiefe ${dep}${dep % 5 === 0 ? ` · ${ic('lock')}` : ''}</span><b>${esc(L.name)}</b>
+      <canvas class="mini" data-mini="${dep}"></canvas>
+      <small>${esc(bio.name)} · ${STYLE_IC[L.style]} ${STYLE_NAME[L.style]}</small></button>`);
+  }
+  show(`<div class="panel">
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Endlose Tiefen</h2><span class="gems">Rekord ${E.best} · ${ic('gem')} ${D.gems}</span></div>
+    <p class="note">Jede Tiefe wird aus dem Weltsamen erzeugt: neun Biome, vier Bauarten, immer neue Wege, Gegner, Münzen und Geheimkammern. Je tiefer, desto härter. Alle 5 Tiefen ein Schlüssel.</p>
+    <div class="dcards">${cards.join('')}</div>
+    <div class="row"><button class="big" data-a="eplay" data-id="${genId(seed, E.depth)}">Tiefe ${E.depth} betreten</button></div>
+    ${msg ? `<p class="msg">${msg}</p>` : ''}
+    <div class="seedbox inset">
+      <label class="field">Weltsamen (teilen = dieselbe Welt)<input id="eseed" inputmode="numeric" maxlength="9" value="${seed}"></label>
+      <div class="row"><button data-a="eseed">Samen übernehmen</button><button data-a="ereroll">Neu würfeln</button></div>
+      <p class="note">Ein neuer Samen beginnt wieder bei Tiefe 1. Dein Rekord bleibt.</p>
+    </div>
+  </div>`);
+  for (const cv of ui.querySelectorAll('[data-mini]')) {
+    const L = generateLevel(seed, +cv.dataset.mini), m = miniMap(L);
+    cv.width = m.width; cv.height = m.height; cv.getContext('2d').drawImage(m, 0, 0);
+  }
+}
+async function finishEndless() {
+  const E = D.endless, dep = level.depth, main = level.seed === E.seed && dep === E.depth;
+  const coins = game.coins.length, info = { coins: (level.map.join('').match(/O/g) || []).length };
+  const bonus = 40 + dep * 12, coinGems = coins * 60, earned = game.gems + bonus + coinGems;
+  D.gems += earned; D.earned += earned; E.runs++; E.coins += coins;
+  let keyHtml = '';
+  if (main) {
+    E.depth = dep + 1; const rec = dep > E.best; E.best = Math.max(E.best, dep);
+    const award = (kind, why) => { const k = 'E' + dep + ':' + E.seed; if (playCheats(D).length || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
+    if (rec && dep % 25 === 0) award('urlicht', `Tiefe ${dep}`); else if (rec && dep % 10 === 0) award('gold', `Tiefe ${dep}`); else if (dep % 5 === 0) award(dep % 10 === 0 ? 'eisen' : 'holz', `Tiefe ${dep}`);
+  }
+  save.write(); checkAch();
+  stopMusic(); sfx('win'); mode = 'result';
+  const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${game.coins.includes(k) ? 'on new' : ''}"></i>`).join('');
+  show(`<div class="panel small result">
+    <h2>Tiefe ${dep} bezwungen</h2>
+    <p class="lvl">${esc(level.name)} · ${esc(BIOMES.find(b => b.id === level.theme).name)}</p>
+    ${main && dep === E.best ? '<p class="secretmsg">Neuer Tiefenrekord!</p>' : ''}
+    ${keyHtml ? `<div class="keys">${keyHtml}</div>` : ''}
+    <div class="coinrow">${coinRow}<small>Münzen ${coins}/${info.coins}</small></div>
+    <div class="stats">
+      <div><small>Zeit</small><b>${fmtTime(game.frame)}</b><em>Ziel ${level.par} s</em></div>
+      <div><small>Edelsteine</small><b id="tally">+${earned}</b><em>${bonus} Tiefe · ${coinGems} Münzen</em></div>
+      <div><small>Tode</small><b>${game.deaths}</b></div>
+    </div>
+    <div class="row">
+      ${main ? `<button class="big" data-a="eplay" data-id="${genId(E.seed, E.depth)}">Tiefer: ${E.depth}</button>` : ''}
+      <button data-a="endless">Übersicht</button>
+      ${keyHtml ? '<button class="treasurebtn" data-a="treasury">Truhe öffnen</button>' : ''}
+    </div>
+  </div>`);
+}
 function splash() {
   mode = 'menu';
   show(`<div class="splash" data-a="title">${logoImg()}<div class="press">Tippe, um zu beginnen</div></div>`);
@@ -483,6 +564,7 @@ function title() {
     <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
     <div class="menu">
       <button class="big" data-a="map">Abenteuer</button>
+      ${endlessOpen() ? `<button data-a="endless">∞ Endlose Tiefen${D.endless.best ? ` <small style="color:var(--mute)">${D.endless.best}</small>` : ''}</button>` : ''}
       <button class="treasurebtn" data-a="treasury">${ic('lock')} Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button>
       <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
       <button data-a="cheats">${ic('scroll')} Schummelbuch</button>
@@ -512,7 +594,8 @@ function map(sel, wi) {
   const w = ALLW()[curWorld];
   const nSec = SECRET_WORLD.levels.filter(id => D.secretOpen[id]).length;
   const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' ' + ic('lock')}</button>`).join('')
-    + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`;
+    + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`
+    + `<button class="wtab inf ${endlessOpen() ? '' : 'locked'}" data-a="${endlessOpen() ? 'endless' : 'nope'}">∞ Tiefen${endlessOpen() ? (D.endless.best ? ' ' + D.endless.best : '') : ' ' + ic('lock')}</button>`;
   const cards = w.levels.map(id => {
     const l = levelById(id), open = levelOpen(id), best = D.best[id], info = LEVEL_INFO[id], rk = D.ranks[id];
     if (l.secret && !open) return `<button class="card locked secretcard" data-a="nope"><span class="no">???</span><b>???</b>
@@ -530,7 +613,7 @@ function map(sel, wi) {
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
     <div class="row"><button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button><button data-a="forge">Schmiede</button><button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="wardrobe">Garderobe</button><button data-a="options">Optionen</button></div>
-    <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · Welt 4 · Kristallmagen — in Arbeit</p>
+    <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · ${endlessOpen() ? 'Endlose Tiefen offen: Tab ∞' : 'Schaffe 1-1, um die endlosen Tiefen zu öffnen'}</p>
   </div>`);
   if (sel) detail(sel);
 }
@@ -637,7 +720,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.10</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.11</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -659,6 +742,10 @@ ui.addEventListener('click', async e => {
   switch (a) {
     case 'title': return title();
     case 'treasury': return treasury();
+    case 'endless': return endlessOpen() ? endless() : sfx('nope');
+    case 'eplay': goFullscreen(); return startLevel(id);
+    case 'eseed': { const v = parseInt($('#eseed').value, 10); if (!(v > 0)) return endless('Bitte eine Zahl eingeben.'); if (v !== D.endless.seed) { D.endless.seed = v; D.endless.depth = 1; save.write(); } return endless(`Weltsamen ${v} gesetzt.`); }
+    case 'ereroll': D.endless.seed = 1 + Math.floor(Math.random() * 999999); D.endless.depth = 1; save.write(); return endless('Eine neue Welt wurde erschaffen.');
     case 'collection': return collection();
     case 'map': goFullscreen(); return map();
     case 'forge': return forge();

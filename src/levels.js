@@ -445,4 +445,12 @@ export const LEVELS = [
     signs: ['DIE SCHAUFELGRUFT. HIER RUHEN DIE, DIE ZU VIEL GEGRABEN HABEN. AUF DEM GRABSTEIN: DISCOGRUFT.'] },
 ];
 
-export const levelById = id => LEVELS.find(l => l.id === id);
+import { generateLevel } from './gen.js';
+const genCache = new Map();
+// Generierte Levels haben die Kennung ∞<Tiefe>-<Seed>
+export const levelById = id => {
+  const l = LEVELS.find(l => l.id === id); if (l) return l;
+  const m = /^∞(\d+)-(\d+)$/.exec(id); if (!m) return undefined;
+  if (!genCache.has(id)) genCache.set(id, generateLevel(+m[2], +m[1]));
+  return genCache.get(id);
+};
