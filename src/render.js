@@ -57,6 +57,7 @@ export class Renderer {
     for (const e of g.ents) this.ent(g, e, th);
     for (const gh of ghosts) this.ghost(gh, g.frame);
     this.player(g);
+    if (g.chase) this.chaseFx(g, cx, cy);
     for (const q of g.parts) {
       if (q.z) { x.globalAlpha = Math.min(1, q.life / 20); S.drawText(x, 'Z', Math.round(q.x), Math.round(q.y), '#ffffff'); x.globalAlpha = 1; continue; }
       x.fillStyle = partCol(q.col, th, g, q);
@@ -77,6 +78,31 @@ export class Renderer {
     this.hud(g, ghosts);
   }
 
+  // Verfolger zeichnen: steigende Flut/Lava oder Wurm/Einsturz von links
+  chaseFx(g, cx, cy) {
+    const x = this.x, ch = g.chase, t = this.t;
+    if (ch.vert) {
+      const lava = ch.kind === 'lava', top = ch.pos;
+      for (let sx = Math.floor(cx / 2) * 2; sx < cx + this.W; sx += 2) {
+        const wy = top + Math.round(Math.sin(sx / 9 + t / 8) * 2 + Math.sin(sx / 23 - t / 13) * 1.5);
+        x.fillStyle = lava ? '#ffb030' : '#9ad8ff'; x.fillRect(sx, wy, 2, 2);
+        x.fillStyle = lava ? '#e04010' : '#2a6ab0'; x.fillRect(sx, wy + 2, 2, cy + this.H - wy + 4);
+      }
+      x.fillStyle = lava ? 'rgba(255,90,20,0.25)' : 'rgba(40,120,220,0.25)'; x.fillRect(cx, top - 12, this.W, 12);
+      if (t % 3 === 0) g.parts.push({ x: cx + Math.random() * this.W, y: top, vx: 0, vy: -0.6 - Math.random(), life: 20, col: lava ? 'fire' : 'ice', grav: 0.04 });
+    } else {
+      const fx = ch.pos;
+      if (ch.kind === 'decke') {
+        for (let sy = Math.floor(cy / 8) * 8; sy < cy + this.H; sy += 8) { x.fillStyle = (sy >> 3) & 1 ? '#3a3040' : '#2a2030'; x.fillRect(cx, sy, fx - cx + Math.round(Math.sin(sy + t / 3) * 4), 8); }
+        if (t % 2 === 0) g.parts.push({ x: fx + Math.random() * 30, y: cy - 4, vx: 0, vy: 2 + Math.random() * 2, life: 50, col: 'stone', grav: 0.2 });
+      } else {
+        // Riesenwurm: Maul mit Zähnen
+        for (let sy = Math.floor(cy / 4) * 4; sy < cy + this.H; sy += 4) { const w = 10 + Math.sin(sy / 14 + t / 6) * 4; x.fillStyle = '#5a2a3a'; x.fillRect(cx, sy, fx - cx + w, 4); x.fillStyle = '#8a3a4a'; x.fillRect(fx + w - 3, sy, 3, 4); }
+        for (let sy = Math.floor(cy / 10) * 10; sy < cy + this.H; sy += 10) { x.fillStyle = '#f0e8d0'; x.fillRect(fx + 12 + Math.sin(sy + t / 4) * 3, sy + 2, 5, 3); x.fillStyle = K; x.fillRect(fx + 16 + Math.sin(sy + t / 4) * 3, sy + 3, 2, 1); }
+        const ey = g.p.y - 10; x.fillStyle = '#ffd84a'; x.fillRect(fx - 4, ey, 5, 5); x.fillStyle = K; x.fillRect(fx - 2, ey + 1, 2, 3);
+      }
+    }
+  }
   steam(g) {
     const x = this.x;
     for (const v of g.vents) {
@@ -106,6 +132,22 @@ export class Renderer {
       else if (c === 'D') img = ts.dirt; else if (c === 'S') img = ts.stone; else if (c === '^') img = ts.spike;
       else if (c === '=') img = ts.plank; else if (c === 'B') img = ts.mush; else if (c === 'X') img = ts.gate;
       else if (c === 'V') img = ts.vent; else if (c === 'R') img = ts.ore;
+      else if (c === 'A') { // Pfeilwerfer: Steinblock mit Schlitz, glüht vor dem Schuss
+        x.drawImage(ts.stone, px, py); const tr = g.traps.find(t => t.tx === tx && t.ty === ty), fx = tr && tr.face > 0 ? px + 12 : px;
+        x.fillStyle = K; x.fillRect(fx, py + 6, 4, 4); x.fillStyle = tr && tr.warn > 0 && (this.t >> 1) & 1 ? '#ff5030' : '#3a1010'; x.fillRect(fx + 1, py + 7, 2, 2);
+        x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 3, py + 3, 10, 1); continue;
+      }
+      else if (c === 'K') { // Kippboden: Bretter mit Scharnier, wackeln vor dem Kippen
+        const fl = g.flips.get(tx + ',' + ty), wob = fl && fl.state === 'warn' ? ((this.t >> 1) & 1) * 2 - 1 : 0;
+        x.save(); x.translate(px + 8, py + 2); x.rotate(wob * 0.06); x.drawImage(ts.plank, -8, -2); x.restore();
+        x.fillStyle = K; x.fillRect(px, py + 5, 16, 1); x.fillStyle = '#8a8a9a'; x.fillRect(px + 1, py + 4, 2, 2); x.fillRect(px + 13, py + 4, 2, 2);
+        x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 7, py, 2, 5); continue;
+      }
+      else if (c === 'I') { // Trollblock: unsichtbar, nur ein seltenes Glitzern verrät ihn
+        if ((this.t + tx * 31 + ty * 17) % 240 < 6) { x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillRect(px + 7, py + 7, 1, 1); x.fillRect(px + 6, py + 8, 3, 1); }
+        if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(255,90,90,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); }
+        continue;
+      }
       if (img) x.drawImage(img, px, py);
       if (c === 'F') {
         // Feiner Riss als Hinweis; mit der Spürschaufel leuchtet die Wand
@@ -116,6 +158,7 @@ export class Renderer {
   }
 
   ent(g, e, th) {
+    if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
     if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
     this.ent0(g, e, th);
     if (e.golden && !e.dead) {
@@ -133,6 +176,23 @@ export class Renderer {
         x.drawImage(S.gemSprite(e.val), Math.round(e.x), Math.round(e.y) + bob);
         if ((f + e.x) % 90 < 6) { x.fillStyle = '#fff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y) + bob + 1, 1, 1); }
         return;
+      }
+      case 'icicle': {
+        if (e.state === 'gone') return;
+        const sx = Math.round(e.x) + (e.state === 'shake' ? ((f >> 1) & 1) * 2 - 1 : 0), sy = Math.round(e.y);
+        for (let k = 0; k < 14; k++) { const w = Math.max(1, Math.round(10 * (1 - k / 14))); x.fillStyle = K; x.fillRect(sx + 5 - Math.ceil(w / 2) - 1, sy + k, w + 2, 1); x.fillStyle = k < 3 ? '#8a8f9e' : '#c8ccd8'; x.fillRect(sx + 5 - Math.ceil(w / 2), sy + k, w, 1); }
+        x.fillStyle = '#ffffff'; x.fillRect(sx + 3, sy + 2, 1, 5);
+        return;
+      }
+      case 'saw': {
+        const scx = e.x + 7, scy = e.y + 7;
+        // Schiene
+        x.fillStyle = 'rgba(0,0,0,0.5)'; if (e.axis === 'x') x.fillRect(Math.round(e.ox - 41), Math.round(e.oy + 6), 96, 2); else x.fillRect(Math.round(e.ox + 6), Math.round(e.oy - 41), 2, 96);
+        x.save(); x.translate(Math.round(scx), Math.round(scy)); x.rotate(e.rot);
+        x.fillStyle = K; x.beginPath(); for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, r = k % 2 ? 8 : 6; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.fill();
+        x.fillStyle = '#c8ccd8'; x.beginPath(); for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, r = k % 2 ? 7 : 5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.fill();
+        x.fillStyle = '#6a6f7e'; x.fillRect(-2, -2, 4, 4); x.fillStyle = '#ff5030'; x.fillRect(-1, -1, 2, 2);
+        x.restore(); return;
       }
       case 'toad': { const sp = S.toadSprite(e.onGround ? 0 : 1); x.drawImage(sp[(e.face > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return; }
       case 'wisp': { const sp = S.wispSprite()[e.flash ? 1 : 0]; x.globalAlpha = 0.75 + Math.sin(f / 6) * 0.25; x.drawImage(sp, Math.round(e.x), Math.round(e.y)); x.globalAlpha = 1; return; }
@@ -184,6 +244,7 @@ export class Renderer {
         const ex = Math.round(e.x), ey = Math.round(e.y);
         if (e.kind === 'gear') x.drawImage(S.cogSprite((f >> 1) % 4, 4, 6), ex - 1, ey - 1);
         else if (e.kind === 'spore') { x.fillStyle = K; x.fillRect(ex, ey + 1, 7, 5); x.fillRect(ex + 1, ey, 5, 7); x.fillStyle = (f >> 2) & 1 ? '#c86aff' : '#e0a0ff'; x.fillRect(ex + 1, ey + 1, 5, 5); x.fillStyle = '#fff'; x.fillRect(ex + 2, ey + 2, 1, 1); }
+        else if (e.kind === 'arrow') { x.fillStyle = K; x.fillRect(ex, ey, 10, 3); x.fillStyle = '#c8b090'; x.fillRect(ex + 1, ey + 1, 8, 1); x.fillStyle = '#e8e8f0'; x.fillRect(e.vx > 0 ? ex + 8 : ex, ey, 2, 3); x.fillStyle = '#c04030'; x.fillRect(e.vx > 0 ? ex : ex + 8, ey, 2, 3); }
         else if (e.kind === 'bolt') { x.fillStyle = K; x.fillRect(ex, ey, 4, 8); x.fillStyle = '#e0b040'; x.fillRect(ex + 1, ey + 1, 2, 6); x.fillStyle = '#fff'; x.fillRect(ex + 1, ey + 6, 2, 1); }
         else { for (let k = 0; k < 3; k++) { const hh = 4 + ((f + k * 3) % 6); x.fillStyle = k === 1 ? '#ffffff' : '#ffd84a'; x.fillRect(ex + k * 4, ey + 10 - hh, 3, hh); } }
         return;
@@ -489,6 +550,8 @@ export class Renderer {
     S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
     if (g.level.gen) { S.drawText(x, 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
+    if (g.timeLimit && !g.done) { const left = Math.max(0, g.timeLimit - g.frame); S.drawText(x, 'NOCH ' + fmtTime(left), tx, gy, left < 600 && (this.t >> 3) & 1 ? '#ff5050' : '#ffb0a0', 1, 'center'); gy += 8; }
+    if (g.chase && !g.done) { const d = g.chase.vert ? (g.chase.pos - g.p.y - g.p.h) : (g.p.x - g.chase.pos); if (d < 90 && (this.t >> 2) & 1) { x.fillStyle = 'rgba(255,40,40,0.18)'; g.chase.vert ? x.fillRect(0, this.H - 18, W, 18) : x.fillRect(0, 0, 14, this.H); } }
     for (const gh of ghosts) {
       const d = g.frame - gh.frames;
       S.drawText(x, `${gh.name} ${fmtTime(gh.frames)}`, tx, gy, '#8fe8ff', 1, 'center'); gy += 7;

@@ -4,7 +4,7 @@ import { SHOVEL, ARMOR } from './gear.js';
 import { weaponMods } from './weapons.js';
 
 export const T = 16;
-const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X', 'V', 'R', 'F', 'J', 'c']);
+const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X', 'V', 'R', 'F', 'J', 'c', 'A', 'K', 'I']);
 const GRAV = 0.36, MAXFALL = 6.5, BOUNCE = 5.5;
 
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -44,7 +44,7 @@ export class Game {
     this.rand = rng(opt.seed || 7);
     this.cheat = opt.cheats || {};
     this.pgrav = GRAV * (this.cheat.mond ? 0.5 : 1);
-    this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = [];
+    this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = []; this.traps = []; this.flips = new Map();
     this.frame = 0; this.gems = 0; this.deaths = 0; this.dirtTotal = 0;
     this.secretTotal = 0; this.secretsFound = 0; this.coins = []; this.crumbles = new Map();
     this.rush = 0; this.rushT = 0; this.idle = 0; this.flagBonus = false; this.exit = null;
@@ -56,7 +56,8 @@ export class Game {
       if (c === 'D') this.dirtTotal++;
       if (c === 'V') this.vents.push({ tx: x, ty: y });
       if (c === 'H') this.secretTotal++;
-      if ('.#=DSB^XVRFHJc'.includes(c)) continue;
+      if (c === 'A') this.traps.push({ tx: x, ty: y, t: Math.floor(x * 37 % 110), warn: 0, face: 0 });
+      if ('.#=DSB^XVRFHJcAKI'.includes(c)) continue;
       this.tiles[y][x] = '.';
       const px = x * T, py = y * T;
       switch (c) {
@@ -65,6 +66,9 @@ export class Game {
         case 'f': this.add(toad(px + 2, py + 6)); break;
         case 'w': this.add(wisp(px + 3, py + 3)); break;
         case 'q': this.add(snail(px + 1, py + 6)); break;
+        case 'L': this.add(icicle(px + 3, py)); break;
+        case 'Z': this.add(saw(px + 1, py + 1, 'x')); break;
+        case 'U': this.add(saw(px + 1, py + 1, 'y')); break;
         case 'o': this.add(blorb(px + 2, py + 6)); break;
         case 'v': this.add(bat(px + 2, py + 2)); break;
         case 'G': this.add(gem(px + 4, py + 4, 5, true)); break;
@@ -114,6 +118,24 @@ export class Game {
       e.golden = true; e.hp += 2; e.loot = 60;
     }
     this.coinTotal = this.ents.filter(e => e.type === 'coin').length;
+    for (const tr of this.traps) tr.face = !this.solid(tr.tx - 1, tr.ty) ? -1 : 1;
+    // Flüche, Elitegegner, Wächter
+    const cu = this.curse = opt.curses || {};
+    const foes = this.ents.filter(e => e.foe && e !== this.boss);
+    if (cu.flut) for (const e of foes) if (MAKERS[e.type] && !e.float) { const c = MAKERS[e.type](e.x + 18, e.y); if (!this.solid(Math.floor((c.x + c.w) / T), Math.floor((c.y + 2) / T))) this.add(c); }
+    const eliteP = cu.elite ? 1 : opt.elite || 0;
+    for (const e of this.ents) if (e.foe && e !== this.boss && MAKERS[e.type] && this.rand() < eliteP) {
+      e.elite = ['schnell', 'zaeh', 'teilt'][Math.floor(this.rand() * 3)];
+      if (e.elite === 'zaeh') { e.hp *= 3; } e.loot = (e.loot || 8) * 3;
+    }
+    this.bossTier = opt.bossTier || 0;
+    if (this.boss && this.bossTier) { this.boss.hp = this.boss.maxhp = Math.round(this.boss.maxhp * (1 + 0.35 * this.bossTier)); }
+    this.noCheck = !!opt.noCheck;
+    if (level.chase) {
+      const ch = level.chase, vert = ch.kind === 'flut' || ch.kind === 'lava';
+      this.chase = { ...ch, vert, pos: vert ? this.h * T + 60 : -90, t: 0 };
+    }
+    if (opt.timeLimit) this.timeLimit = opt.timeLimit;
     if (!this.spawn) this.spawn = { x: 24, y: 100 };
     this.check = { ...this.spawn };
     const p = this.p = {
@@ -123,6 +145,7 @@ export class Game {
       land: 0, dash: 0, dashUsed: false,
     };
     p.onGround = false;
+    if (opt.curses && opt.curses.einherz) p.hp = p.maxhp = 1;
   }
 
   add(e) { this.ents.push(e); return e; }
@@ -269,7 +292,11 @@ export class Game {
     this.idle = anyIn ? 0 : this.idle + 1;
     if (this.idle === 900) this.ev('sleep');
     this.stepPlayer(inp);
-    for (const e of this.ents) if (!e.dead && e.update) e.update(this, e);
+    for (const e of this.ents) if (!e.dead && e.update) {
+      e.update(this, e);
+      if (!e.dead && (e.elite === 'schnell' || (e === this.boss && this.bossTier && this.frame % Math.max(2, 6 - this.bossTier) === 0))) e.update(this, e);
+    }
+    this.stepTraps();
     this.contacts();
     this.ents = this.ents.filter(e => !e.dead);
     for (const q of this.parts) { q.x += q.vx; q.y += q.vy; q.vy += q.grav; q.vx *= 0.97; q.life--; }
@@ -382,7 +409,8 @@ export class Game {
     let hit = false;
     for (const e of this.ents) {
       if (e.dead || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden && e.spiky) { this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)) || 1, true); this.ev('clink'); hit = true; }
+      if (e.type === 'saw' || (e.type === 'icicle' && e.state !== 'gone')) { this.hurtPlayer(2, sign(cx(p) - cx(e)) || 1, true); hit = true; }
+      else if (e.foe && !e.hidden && e.spiky) { this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)) || 1, true); this.ev('clink'); hit = true; }
       else if (e.foe && !e.hidden) { e.hurtBy(this, e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true; }
       else if (e.type === 'chest' && !e.open) { this.openChest(e); hit = true; }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y, 8, 'stone'); hit = true; }
@@ -474,7 +502,7 @@ export class Game {
   kill(fell) {
     const p = this.p;
     if (p.dead) return;
-    if (fell && this.ar.rewind && p.hp > 1 && this.lastSafe) {
+    if (fell === true && this.ar.rewind && p.hp > 1 && this.lastSafe) {
       p.x = this.lastSafe.x; p.y = this.lastSafe.y; p.vx = p.vy = 0; p.hp--; p.inv = 90; this.ev('revive'); this.freeze = 12;
       this.num(cx(p), p.y - 6, 'ZURÜCKGESPULT', '#ffd84a'); this.burst(cx(p), p.y + 7, 18, 'gold', 2, 0, 24); return;
     }
@@ -505,6 +533,45 @@ export class Game {
     const p = this.p;
     Object.assign(p, { x: this.check.x, y: this.check.y, vx: 0, vy: 0, hp: p.maxhp, inv: 60, hurt: 0, atk: 0, pogo: false });
     if (this.boss && this.boss.state !== 'idle' && !this.boss.dead) this.resetBoss();
+    if (this.chase) this.chase.pos = this.chase.vert ? this.check.y + 150 : this.check.x - 130, this.chase.t = 0;
+    for (const e of this.ents) if (e.type === 'icicle') { e.state = 'hang'; e.x = e.ox; e.y = e.oy; e.vy = 0; }
+    for (const [k, f] of this.flips) { this.tiles[f.ty][f.tx] = 'K'; this.flips.delete(k); }
+    this.ents = this.ents.filter(e => e.type !== 'eproj');
+  }
+  // Fallen: Pfeilwerfer, Kippböden, Trollblöcke, Verfolger
+  stepTraps() {
+    const p = this.p;
+    for (const tr of this.traps) {
+      const near = Math.abs(cx(p) - tr.tx * T) < 210 && Math.abs(p.y + 7 - tr.ty * T - 8) < 56;
+      if (!near) continue;
+      tr.t++;
+      if (tr.t % 110 === 84) { tr.warn = 26; this.ev('click', tr.tx * T, tr.ty * T); }
+      if (tr.warn > 0) tr.warn--;
+      if (tr.t % 110 === 0) { this.add(eproj(tr.tx * T + (tr.face < 0 ? -10 : 16), tr.ty * T + 7, tr.face * 3.4, 0, 'arrow')); this.ev('twang', tr.tx * T, tr.ty * T); }
+    }
+    // Kippböden: kippen kurz nach dem Betreten weg und klappen später zurück
+    if (p.onGround && !p.dead) for (let tx = Math.floor(p.x / T); tx <= Math.floor((p.x + p.w - 0.01) / T); tx++) {
+      const ty = Math.floor((p.y + p.h + 1) / T), k = tx + ',' + ty;
+      if (this.tile(tx, ty) === 'K' && !this.flips.has(k)) { this.flips.set(k, { tx, ty, t: 22, state: 'warn' }); this.ev('creak', tx * T, ty * T); }
+    }
+    for (const [k, f] of this.flips) {
+      if (--f.t > 0) continue;
+      if (f.state === 'warn') { f.state = 'open'; f.t = 100; this.tiles[f.ty][f.tx] = '.'; this.burst(f.tx * T + 8, f.ty * T + 4, 6, 'dust', 1.2); this.ev('flip'); }
+      else { const ov = p.x + p.w > f.tx * T && p.x < f.tx * T + T && p.y + p.h > f.ty * T && p.y < f.ty * T + T; if (ov) { f.t = 10; continue; } this.tiles[f.ty][f.tx] = 'K'; this.flips.delete(k); }
+    }
+    // Trollblöcke: unsichtbar und fest, werden beim Anstossen sichtbar
+    for (let ty = Math.floor((p.y - 1) / T); ty <= Math.floor((p.y + p.h + 1) / T); ty++) for (let tx = Math.floor((p.x - 1) / T); tx <= Math.floor((p.x + p.w + 1) / T); tx++)
+      if (this.tile(tx, ty) === 'I') { this.tiles[ty][tx] = 'J'; this.ev('troll', tx * T, ty * T); this.num(tx * T + 8, ty * T - 2, 'HA!', '#ff7a8a'); this.burst(tx * T + 8, ty * T + 8, 10, 'spark', 1.5); }
+    // Verfolger: Flut/Lava von unten, Wurm/Einsturz von links
+    const ch = this.chase;
+    if (ch && !this.done && !p.dead) {
+      ch.t++;
+      if (ch.t > (ch.delay || 90)) {
+        if (ch.vert) { const gap = ch.pos - (p.y + p.h); ch.pos -= ch.speed * (gap > 200 ? 2.2 : 1); if (p.y + p.h > ch.pos + 4) { this.ev('drown'); this.kill('chase'); } }
+        else { const gap = p.x - ch.pos; ch.pos += ch.speed * (gap > 260 ? 2 : 1); if (p.x < ch.pos + 8) { this.ev('chomp'); this.kill('chase'); } if (this.frame % 20 === 0) this.shake = Math.max(this.shake, 1.5); }
+      }
+    }
+    if (this.timeLimit && !this.done && this.frame === this.timeLimit) this.ev('timeout');
   }
 
   contacts() {
@@ -527,7 +594,7 @@ export class Game {
         case 'door': if (!this.done) { this.done = true; this.exit = 'secret'; this.ev('win'); this.burst(e.x + 8, e.y + 12, 30, 'spark', 3, 0.05, 40); } break;
         case 'altar': if (!e.taken) { e.taken = true; this.ev('unlock', e.x, e.y, this.level.altar || 'urfunke'); this.burst(cx(e), e.y + 4, 40, 'fire', 3, -0.05, 50); this.shake = 8; } break;
         case 'apple': if (p.hp < p.maxhp) { e.dead = true; p.hp = Math.min(p.maxhp, p.hp + 2); this.ev('heal'); } break;
-        case 'lantern': if (!e.lit) { for (const o of this.ents) if (o.type === 'lantern') o.lit = false; e.lit = true; this.check = { x: e.x - 1, y: e.y }; this.ev('check'); this.burst(e.x + 4, e.y + 4, 14, 'spark', 1.5, 0, 24); } break;
+        case 'lantern': if (!e.lit) { for (const o of this.ents) if (o.type === 'lantern') o.lit = false; e.lit = true; if (!this.noCheck) this.check = { x: e.x - 1, y: e.y }; this.ev('check'); this.burst(e.x + 4, e.y + 4, 14, 'spark', 1.5, 0, 24); } break;
         case 'goal':
           // Easter Egg: auf der Fahnenspitze landen
           if (!this.flagBonus && p.vy > 0 && p.y + p.h <= e.y + 12 && !this.done) { this.flagBonus = true; this.gems += 100; this.ev('flag'); this.banner = { text: 'FAHNENSPITZE!', sub: '+100', col: '#7dffcf', t: 70 }; this.burst(e.x + 6, e.y, 30, 'gold', 3, 0.05, 40); }
@@ -535,6 +602,8 @@ export class Game {
         case 'sign': this.sign = e.text; break;
         case 'rock': if (!e.landed) { e.dead = true; this.hurtPlayer(1, sign(cx(p) - cx(e))); } break;
         case 'cog': if (p.safe <= 0) this.hurtPlayer(1, sign(cx(p) - cx(e))); break;
+        case 'saw': this.hurtPlayer(2, sign(cx(p) - cx(e)) || 1); break;
+        case 'icicle': if (e.state !== 'gone') { this.hurtPlayer(e.state === 'fall' ? 2 : 1, sign(cx(p) - cx(e)) || 1); if (e.state === 'fall') { e.state = 'gone'; e.t = 240; this.burst(cx(e), e.y + 10, 10, 'stone', 2); } } break;
         case 'eproj': if (p.safe <= 0 || e.kind === 'shock') { if (e.kind !== 'shock') e.dead = true; this.hurtPlayer(e.dmg, sign(cx(p) - cx(e))); } break;
         default:
           if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
@@ -590,6 +659,7 @@ function hurtFoe(g, e, dmg, dir, src) {
   if (dir && e !== g.boss) e.vx = dir * 1.8;
   if (e.hp <= 0) {
     if (e === g.boss) return g.bossDefeated(e);
+    if (e.elite === 'teilt' && !e.mini && MAKERS[e.type]) for (const d of [-1, 1]) { const m = MAKERS[e.type](e.x + d * 6, e.y - 4); m.mini = true; m.hp = 1; m.vx = d * 1.5; m.vy = -2; m.loot = 4; g.add(m); }
     e.dead = true; g.kills++; g.freeze = Math.max(g.freeze, 5); g.ev(e.golden ? 'golden' : 'poof', e.x, e.y); g.addRush(e.golden ? 40 : 12);
     if (e.golden) { g.banner = { text: 'GOLDENER GEGNER!', col: '#ffd84a', t: 60 }; g.burst(e.x + e.w / 2, e.y, 30, 'gold', 3, 0.05, 40); }
     g.burst(e.x + e.w / 2, e.y + e.h / 2, 14, 'poof', 2, 0.02, 24);
@@ -613,6 +683,25 @@ function beetle(x, y) {
       }
       if (e.y > g.h * T + 20) e.dead = true;
     } });
+}
+// Fallstachel: hängt an der Decke, zittert, wenn du darunter bist, und stürzt herab
+function icicle(x, y) {
+  return { type: 'icicle', x, y, w: 10, h: 14, ox: x, oy: y, vy: 0, state: 'hang', t: 0,
+    update(g, e) {
+      const p = g.p;
+      if (e.state === 'hang' && Math.abs(cx(p) - (e.x + 5)) < 20 && p.y > e.y && p.y - e.y < 170) { e.state = 'shake'; e.t = 24; g.ev('crack', e.x, e.y); }
+      else if (e.state === 'shake' && --e.t <= 0) { e.state = 'fall'; e.vy = 0; }
+      else if (e.state === 'fall') {
+        e.vy = Math.min(7, e.vy + GRAV); e.y += e.vy;
+        if (g.solid(Math.floor((e.x + 5) / T), Math.floor((e.y + e.h) / T)) || e.y > g.h * T) { e.state = 'gone'; e.t = 240; g.burst(e.x + 5, e.y + 12, 10, 'stone', 2); g.ev('crack', e.x, e.y); }
+      } else if (e.state === 'gone' && --e.t <= 0) { e.state = 'hang'; e.x = e.ox; e.y = e.oy; }
+    } };
+}
+// Kreissäge auf Schiene: fährt 3 Kacheln hin und her
+function saw(x, y, axis) {
+  const ph = (x / T) * 0.7 + (y / T) * 0.3;
+  return { type: 'saw', axis, ox: x, oy: y, x, y, w: 14, h: 14, rot: 0,
+    update(g, e) { const t = g.frame * 0.03 + ph; if (axis === 'x') e.x = e.ox + Math.sin(t) * 48; else e.y = e.oy + Math.sin(t) * 48; e.rot += 0.3; if (g.frame % 4 === 0) g.parts.push({ x: e.x + 7, y: e.y + 13, vx: (Math.random() - 0.5) * 2, vy: -1, life: 10, col: 'spark', grav: 0.15 }); } };
 }
 // Springkröte: lauert und springt dem Helden entgegen
 function toad(x, y) {
@@ -809,7 +898,7 @@ function kuckuck(x, y) {
     } });
 }
 function eproj(x, y, vx, vy, kind) {
-  const sz = { shock: [12, 10], gear: [12, 12], bolt: [4, 8], spore: [7, 7] }[kind];
+  const sz = { shock: [12, 10], gear: [12, 12], bolt: [4, 8], spore: [7, 7], arrow: [10, 3] }[kind];
   return { type: 'eproj', kind, x, y, w: sz[0], h: sz[1], vx, vy, dmg: 1, life: kind === 'gear' ? 300 : 160, bounces: 0,
     update(g, e) {
       if (--e.life <= 0) { e.dead = true; return; }
@@ -818,6 +907,7 @@ function eproj(x, y, vx, vy, kind) {
         if (g.solid(Math.floor((e.x + 3) / T), Math.floor((e.y + 6) / T))) { e.dead = true; g.burst(e.x + 3, e.y + 4, 8, 'spore', 1.4); }
         return;
       }
+      if (kind === 'arrow') { e.x += e.vx; if (g.solid(Math.floor((e.vx > 0 ? e.x + e.w : e.x) / T), Math.floor((e.y + 1) / T))) { e.dead = true; g.burst(e.x + 5, e.y + 1, 5, 'spark', 1.2); g.ev('clink'); } return; }
       if (kind === 'bolt') { e.y += e.vy; if (g.solid(Math.floor((e.x + 2) / T), Math.floor((e.y + e.h) / T))) { e.dead = true; g.burst(e.x + 2, e.y + 6, 5, 'spark', 1.2); } return; }
       if (kind === 'shock') { g.moveX(e); if (e.hitWall) { e.dead = true; g.burst(e.x + 6, e.y + 6, 8, 'dust', 1.5); } if (g.frame % 2) g.parts.push({ x: e.x + 2 + g.rand() * 8, y: e.y + 8, vx: 0, vy: -1.2, life: 12, col: 'spark', grav: 0.05 }); return; }
       e.vy = Math.min(MAXFALL, e.vy + GRAV * 0.8); const vy = e.vy;
@@ -931,3 +1021,5 @@ export function countFakeGroups(tiles) {
   }
   return n;
 }
+
+const MAKERS = { beetle, blorb, toad, snail, bat, knight, kuckuck, spitter, wisp };

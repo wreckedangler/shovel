@@ -12,7 +12,7 @@ const DEF = {
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
   cheatsKnown: {}, cheatsOn: {}, seenSplash: false,
-  endless: { seed: 0, depth: 1, best: 0, runs: 0, coins: 0 },
+  endless: { seed: 0, depth: 1, best: 0, runs: 0, coins: 0, curses: {}, hc: { on: false, seed: 0, depth: 1, best: 0 } },
   relics: {}, relicSlots: [null, null, null], cosmetics: {}, look: { spur: null, farbe: null, aura: null }, shards: 0,
   keys: { holz: 1, eisen: 0, gold: 0, urlicht: 0 }, loot: { pity: 0, opened: 0 }, keyLog: {},
   coins: {}, secrets: {}, secretOpen: {}, ach: {}, ranks: {}, daily: { last: '', streak: 0 }, scarf: 'auto', retro: false,

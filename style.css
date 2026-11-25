@@ -339,3 +339,7 @@ h3.sub{margin:12px 0 6px;color:var(--mute);font-size:12px;letter-spacing:.24em;t
 canvas.mini{width:100%;height:34px;image-rendering:pixelated;border:1px solid #2a2218;background:#000}
 .seedbox{margin-top:10px;padding:6px 10px}
 @media (max-width:640px){.dcards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wtab.qual{color:#ff7a6a}.wtab.qual.on{color:#ffb0a0;border-bottom-color:#c84030;background:linear-gradient(0deg,rgba(200,64,48,.2),transparent)}
+.card.qualcard{--c1:rgba(200,64,48,.25)}
+.curses{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.icard.curse.on{border-image-source:var(--fr-line-hi);box-shadow:0 0 14px rgba(200,64,48,.35)}

@@ -87,7 +87,7 @@ export class Atmo {
 
   /* ---------- Licht ---------- */
   light(x, g, cx, cy, t) {
-    const a = this.dark; if (!a) return;
+    const fin = g.curse && g.curse.finsternis, a = fin ? 0.97 : this.dark; if (!a) return;
     const W = this.W, H = this.H;
     if (!this.lc || this.lc.width !== W || this.lc.height !== H) this.lc = mk(W, H);
     const L = this.lc.getContext('2d');
@@ -102,7 +102,7 @@ export class Atmo {
       if (col) glows.push([sx, sy, r, col]);
     };
     const p = g.p, fl = 1 + Math.sin(t / 5) * 0.03 + Math.sin(t / 13) * 0.04;
-    if (!p.dead) hole(p.x + 5, p.y + 6, 74 * fl, 1, '255,190,110');
+    if (!p.dead) hole(p.x + 5, p.y + 6, (fin ? 44 : 74) * fl, 1, '255,190,110');
     for (const e of g.ents) {
       if (e.dead) continue;
       switch (e.type) {

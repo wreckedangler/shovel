@@ -40,7 +40,7 @@ class Grid {
 const diffOf = depth => Math.min(1, depth / 40);
 
 /* ---------- Waagrechte Bauarten ---------- */
-function horizontal(r, bio, style, depth) {
+function horizontal(r, bio, style, depth, chased = false) {
   const d = diffOf(depth), H = 14, W = ri(r, 90, 110) + Math.round(d * 50);
   const g = new Grid(W + 60, H);
   const cave = style === 'hoehle', abyss = style === 'abgrund';
@@ -115,11 +115,24 @@ function horizontal(r, bio, style, depth) {
       if (!coin(x + 5, gy + 1)) g.set(x + 5, gy + 1, 'T'); g.set(x + 1, gy + 1, 'G');
       x += w;
     },
+    // Fallen (ab Tiefe 6)
+    icicles() { const w = 8; putGround(x, x + w); if (gy >= 6) { for (let k = 1; k < w - 1; k++) g.set(x + k, gy - 5, '#'); g.set(x + 2, gy - 4, 'L'); g.set(x + 5, gy - 4, 'L'); } x += w; },
+    saws() { const w = 9; putGround(x, x + w); g.set(x + 4, gy - 1, 'Z'); gems(x + 3, x + 6, gy - 3); x += w; },
+    arrows() { const w = 10; putGround(x, x + w); g.set(x + w - 1, gy - 1, 'A'); if (r() < 0.5) gems(x + 2, x + 6, gy - 2); x += w; },
+    flips() { const w = ri(r, 3, 5); for (let k = 0; k < w; k++) g.set(x + k, gy, 'K'); arc(x, w, gy - 2, 1); x += w; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw; },
+    troll() { const w = 2; g.set(x + 1, gy - 4, 'I'); arc(x - 1, w + 2, gy - 2, 2); x += w; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw; },
     arc() { const w = 6; putGround(x, x + w); g.set(x + 2, gy - 2, 'H'); if (!coin(x + 2, gy - 4)) g.set(x + 2, gy - 4, 'G'); x += w; },
   };
   const pool = { ...bio.chunks };
   if (abyss) { pool.gap = (pool.gap || 1) * 2; pool.bridge = (pool.bridge || 1) * 2.5; pool.flat = 1; pool.dirt = 0; }
   if (cave) { pool.shroom = 0; pool.vent = 0; pool.dirt = (pool.dirt || 1) + 2; }
+  if (chased) { pool.mover = 0; pool.vent = 0; pool.pocket = 0; pool.dirt = 0; pool.cog = 0; }
+  const tw = Math.max(0, Math.min(3, (depth - 5) / 6));
+  if (tw > 0) {
+    const caveB = ['hoehle', 'grotte', 'bau'].includes(bio.id), mech = ['uhrturm', 'glocke', 'bau'].includes(bio.id);
+    pool.icicles = tw * (caveB || cave ? 1.5 : 0.5); pool.saws = tw * (mech ? 1.6 : 0.7); pool.arrows = tw * (bio.id === 'dornen' ? 1.8 : 0.8); pool.flips = tw * (mech || bio.id === 'wald' ? 1.2 : 0.6);
+    if (depth >= 25) pool.troll = 0.5;
+  }
   while (x < W - 10) {
     if (sinceCheck > 38 && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); x += 4; sinceCheck = 0; continue; }
     let name = pickW(r, pool); if (name === last && r() < 0.7) name = pickW(r, pool);
@@ -194,11 +207,16 @@ function generateOnce(seed, depth, tryN) {
   const bio = BIOMES[Math.floor(r() * BIOMES.length)];
   let style = pickW(r, bio.styles);
   if (depth < 3 && style === 'schacht') style = 'lauf';
-  const map = style === 'schacht' ? shaft(r, bio, depth) : horizontal(r, bio, style, depth);
+  // Verfolgung wird vorab gewürfelt, damit das Level dazu passt (keine Warte-Bausteine)
+  let chase = null;
+  if (style === 'schacht' && depth >= 6 && r() < 0.35) chase = { kind: ['bau', 'moder', 'uhrturm'].includes(bio.id) ? 'lava' : 'flut', speed: Math.min(0.55, 0.3 + depth * 0.005), delay: 150 };
+  else if (style !== 'schacht' && depth >= 12 && r() < 0.2) chase = { kind: style === 'hoehle' ? 'decke' : 'wurm', speed: Math.min(1.55, 1.05 + depth * 0.008), delay: 120 };
+  const map = style === 'schacht' ? shaft(r, bio, depth) : horizontal(r, bio, style, depth, !!chase);
   const noun = NOUN[style][Math.floor(r() * NOUN[style].length)];
   let adj = ADJ[Math.floor(r() * ADJ.length)]; if (noun in masc) adj = adj.replace(/e$/, 'er');
   const width = map[0].length, par = Math.round(style === 'schacht' ? 30 + map.length * 0.9 : 20 + width * 0.42);
-  return { id: `∞${depth}-${seed}`, name: `${adj} ${noun}`, theme: bio.id, biome: bio.name, style, par, map, signs: [], gen: true, seed, depth };
+  const elite = depth >= 15 ? Math.min(0.35, (depth - 14) * 0.015) : 0;
+  return { id: `∞${depth}-${seed}`, name: `${adj} ${noun}`, theme: bio.id, biome: bio.name, style, par: chase ? Math.round(par * 0.8) : par, map, signs: [], gen: true, seed, depth, chase, elite };
 }
 // Seeds der endlosen Tiefen: aus dem Welt-Seed und der Tiefe
 export const STYLE_NAME = { lauf: 'Pfad', hoehle: 'Höhle', abgrund: 'Abgrund', schacht: 'Schacht' };
@@ -206,13 +224,13 @@ export const STYLE_NAME = { lauf: 'Pfad', hoehle: 'Höhle', abgrund: 'Abgrund', 
 /* ---------- Erreichbarkeit (statisch, ohne Gegner) ----------
    Prüft auf dem Kachelraster, ob Start → Ziel und alle Münzen erreichbar sind.
    Konservativ: Sprung ≤ 3 Kacheln weit und ≤ 2 hoch, Pilz 3 hoch, Dampf 5 hoch. */
-const SOLIDS = new Set(['#', 'D', 'S', 'B', '^', 'V', 'R', 'F', 'c', 'J']);
+const SOLIDS = new Set(['#', 'D', 'S', 'B', '^', 'V', 'R', 'F', 'c', 'J', 'A', 'K', 'I']);
 export function reachable(map) {
   const H = map.length, W = map[0].length;
   const at = (x, y) => (x < 0 || x >= W ? '#' : y < 0 ? '.' : y >= H ? '.' : map[y][x]);
   // Erde und falsche Wände gelten als durchlässig (graben/zerschlagen), H als Luft
   const blocks = (x, y) => { const c = at(x, y); return SOLIDS.has(c) && c !== 'D' && c !== 'F'; };
-  const floor = (x, y) => { const c = at(x, y + 1); return SOLIDS.has(c) || c === '=' || c === 'm'; };
+  const floor = (x, y) => { const c = at(x, y + 1); return (SOLIDS.has(c) && c !== 'I') || c === '=' || c === 'm'; };
   const standable = (x, y) => y >= 0 && y < H && !blocks(x, y) && at(x, y) !== '^' && floor(x, y) && at(x, y + 1) !== '^';
   let start, goal; const coins = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = map[y][x]; if (c === 'P') start = [x, y]; if (c === 'E') goal = [x, y]; if (c === 'O') coins.push([x, y]); }
@@ -242,11 +260,16 @@ export function reachable(map) {
       else ok = (clearCol(x, y, peak) && rowClear(peak, x + step, nx) && clearCol(nx, peak, ny))
         || (clearCol(x, y, y - 1) && rowClear(Math.min(y, ny) - 1 < peak ? y - 1 : y - 1, x + step, nx) && clearCol(nx, peak, y - 1) && clearCol(nx, peak, ny))
         || (dy > 0 && rowClear(y, x + step, x + step) && clearCol(x + step, y, ny) && rowClear(ny, x + step, nx));
-      if (ok) { push([nx, ny]); for (let k = 0; k <= 3; k++) visitedAir.add(key(nx, ny - k)); }
+      if (ok) {
+        push([nx, ny]); for (let k = 0; k <= 3; k++) visitedAir.add(key(nx, ny - k));
+        // Flugbahn markieren: Münzen in der Luft über Lücken sind erreichbar
+        for (let cx = x; cx !== nx + (step || 1); cx += step || 1) for (let yy = Math.min(y, ny) - 2; yy <= Math.max(y, ny); yy++) if (!blocks(cx, yy)) visitedAir.add(key(cx, yy));
+      }
     }
     // Schwebeplattform: trägt bis zu 3 Kacheln seitlich
     if (under === 'm') for (let dx = -6; dx <= 6; dx++) push(fall(x + dx, y));
   }
+  if (globalThis.__DBG) globalThis.__SEEN = [...seen];
   const reach = p => seen.has(key(...p)) || visitedAir.has(key(...p));
   const ok = reach(goal), coinsOk = coins.filter(reach).length;
   return { ok, coins: coinsOk, coinTotal: coins.length, why: ok ? '' : 'Ziel unerreichbar' };

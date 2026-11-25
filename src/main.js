@@ -13,11 +13,13 @@ import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
 import { relicMods, SHARD_PRICE, CHESTS } from './loot.js';
-import { generateLevel, BIOMES, STYLE_NAME } from './gen.js';
+import { generateLevel, BIOMES, STYLE_NAME as STYLE_NAME0 } from './gen.js';
+const STYLE_NAME = { ...STYLE_NAME0, arena: 'Wächter' };
+const bioName = L => L.biome || (BIOMES.find(b => b.id === L.theme) || {}).name || '';
 import { darkness } from './atmo.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
-import { SECRET_WORLD } from './levels.js';
+import { SECRET_WORLD, QUAL_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
 
 const $ = s => document.querySelector(s);
@@ -104,7 +106,9 @@ function tick() {
     if (e.name === 'unlock') unlockWeapon(e.v, true);
     if (e.name === 'check') moment('LATERNE ENTZÜNDET', 'Hier kehrst du zurück', 'gold', 2.6);
     if (e.name === 'bossDie') moment('GROSSER FEIND BEZWUNGEN', level.name, 'gold', 4.6);
-    if (e.name === 'die') moment('DU BIST GEFALLEN', '', 'death', 2.8);
+    if (e.name === 'die') moment(hcRun(level) ? 'DER LAUF ENDET' : 'DU BIST GEFALLEN', '', 'death', 2.8);
+    if (e.name === 'die' && hcRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') hcEnd(); }, 1100); }
+    if (e.name === 'timeout') { moment('ZEIT ABGELAUFEN', 'Die Tiefe beginnt neu', 'death', 2.4); const lv = level; setTimeout(() => { if (level === lv && mode === 'play') startLevel(lv.id, curCodes); }, 1200); }
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
     if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); checkAch(); }
     const st = D.stats;
@@ -167,7 +171,7 @@ function drawMenuBg() {
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D) });
+  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -179,7 +183,7 @@ async function startLevel(id, ghostCodes = []) {
   setSpace(darkness(level) >= 0.6 ? 'cave' : ['uhrturm', 'glocke', 'pendel', 'bau'].includes(level.theme) ? 'hall' : 'open');
   goFullscreen();
   const wn = ALLW().find(w => w.levels.includes(id));
-  const sub = level.gen ? `Tiefe ${level.depth} · ${BIOMES.find(b => b.id === level.theme).name} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
+  const sub = level.gen ? `Tiefe ${level.depth} · ${bioName(level)} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
   setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true); show(`
@@ -196,7 +200,7 @@ async function finish() {
   const viaSecret = game.exit === 'secret';
   const cheated = playCheats(D).length > 0;
   if (cheated) game.coins = [];
-  const bonus = first ? (level.boss ? 300 : level.secret ? 250 : 100) : 0;
+  const bonus = first ? (level.qual ? 1000 : level.boss ? 300 : level.secret ? 250 : 100) : 0;
   // Sterne: geschafft · unter Zielzeit · ohne Tod. Jeder neue Stern bringt 50.
   const got = [true, frames <= level.par * 60, game.deaths === 0];
   const had = D.stars[id] || [false, false, false];
@@ -212,7 +216,7 @@ async function finish() {
   const earned = game.gems + bonus + starGems + coinGems;
   D.gems += earned; D.earned += earned; D.cleared[id] = true;
   const li = LEVELS.findIndex(l => l.id === id);
-  if (!level.secret) D.unlocked = Math.max(D.unlocked, li + 2);
+  if (!level.secret && !level.qual) D.unlocked = Math.max(D.unlocked, li + 2);
   // Geheimausgang
   let secretMsg = '';
   if (viaSecret && level.secretExit && !D.secretOpen[level.secretExit]) { D.secretOpen[level.secretExit] = true; secretMsg = `Geheimlevel entdeckt: ${levelById(level.secretExit).name}`; }
@@ -234,7 +238,8 @@ async function finish() {
   // Schlüssel für die Schatzkammer (jeder Anlass zählt nur einmal pro Level)
   let keyHtml = '';
   const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
-  if (first) award('clear', level.boss ? 'urlicht' : level.secret ? 'gold' : 'holz', level.boss ? 'Boss bezwungen' : level.secret ? 'Geheimer Ort' : 'Erstmals geschafft');
+  if (first) award('clear', level.boss || level.qual ? 'urlicht' : level.secret ? 'gold' : 'holz', level.qual ? 'Qualpfad bezwungen' : level.boss ? 'Boss bezwungen' : level.secret ? 'Geheimer Ort' : 'Erstmals geschafft');
+  if (first && level.qual) { D.gems += 1500; D.earned += 1500; }
   if (!level.secret && D.stars[id] && D.stars[id].every(Boolean)) award('stars', 'eisen', 'Alle drei Sterne');
   if (info.coins && D.coins[id].length >= info.coins) award('coins', 'eisen', 'Alle Münzen');
   if (D.ranks[id] === 'S') award('rankS', 'gold', 'S-Rang');
@@ -244,7 +249,7 @@ async function finish() {
   if (record && online() && D.name) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
   stopMusic(); sfx('win');
   mode = 'result';
-  const next = viaSecret && level.secretExit ? levelById(level.secretExit) : level.secret ? null : LEVELS.slice(li + 1).find(l => !l.secret);
+  const next = viaSecret && level.secretExit ? levelById(level.secretExit) : level.secret ? null : level.qual ? null : LEVELS.slice(li + 1).find(l => !l.secret && !l.qual);
   const starLbl = ['Geschafft', `Unter ${level.par} s`, 'Ohne Tod'];
   const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${D.coins[id].includes(k) ? 'on' : ''} ${newCoins.includes(k) ? 'new' : ''}"></i>`).join('');
   show(`<div class="panel small result">
@@ -488,10 +493,41 @@ function cheatbook(msg = '') {
   </div>`);
   const inp = $('#cheatcode'); inp.addEventListener('keydown', e => { if (e.key === 'Enter') ui.querySelector('[data-a=cheatenter]').click(); });
 }
+/* ---------- Flüche und Läufe ohne Wiederkehr ---------- */
+const CURSES = [
+  { id: 'einherz', name: 'Einherz', desc: 'Nur ein Herz.', mul: 1 },
+  { id: 'finsternis', name: 'Finsternis', desc: 'Fast völlige Dunkelheit, kleiner Lichtkreis.', mul: 0.5 },
+  { id: 'flut', name: 'Gegnerflut', desc: 'Doppelt so viele Gegner.', mul: 0.6 },
+  { id: 'zeitdruck', name: 'Zeitdruck', desc: 'Über der Zielzeit beginnt die Tiefe neu.', mul: 0.5 },
+  { id: 'elite', name: 'Elite', desc: 'Jeder Gegner ist ein Elitegegner.', mul: 0.8 },
+];
+const cursesOpen = () => D.endless.best >= 10;
+const hcRun = L => L && L.gen && D.endless.hc && D.endless.hc.on && L.seed === D.endless.hc.seed && L.depth === D.endless.hc.depth;
+const mainRun = L => L && L.gen && L.seed === D.endless.seed && L.depth === D.endless.depth;
+const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => D.endless.curses && D.endless.curses[c.id]).map(c => [c.id, true])) : {};
+const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
+function runOpts(L) {
+  if (!L.gen) return {};
+  const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
+  if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
+  if (hcRun(L)) o.noCheck = true;
+  return o;
+}
+function hcEnd() {
+  const H = D.endless.hc, dep = H.depth - 1;
+  H.on = false; H.best = Math.max(H.best || 0, dep); save.write();
+  stopMusic(); mode = 'result';
+  show(`<div class="panel small result">
+    <h2>Ohne Wiederkehr</h2>
+    <p class="lvl">Der Lauf endet in Tiefe ${H.depth}</p>
+    <div class="stats"><div><small>Geschafft</small><b>${dep}</b><em>Tiefen</em></div><div><small>Rekord</small><b>${H.best}</b><em>ohne Wiederkehr</em></div><div><small>Samen</small><b>${H.seed}</b></div></div>
+    <div class="row"><button class="big" data-a="hcstart">Neuer Lauf</button><button data-a="endless">Übersicht</button></div>
+  </div>`);
+}
 /* ---------- Abstieg: nahtloser Übergang zur nächsten Tiefe ---------- */
 let desc = null;
 function startDescent(info) {
-  const next = levelById(genId(D.endless.seed, D.endless.depth));
+  const next = levelById(info.nextId);
   desc = { ...info, t: 0, from: level, next, parts: [] };
   mode = 'descent'; touchEl.hidden = true; pauseBtn.hidden = true; stopMusic(); stopAmbience(); setIntensity(0);
   sfx('whoosh'); haptic('win');
@@ -536,7 +572,8 @@ function drawDescent() {
 const endlessOpen = () => !!D.cleared['1-1'];
 const eSeed = () => { if (!D.endless.seed) { D.endless.seed = 1 + Math.floor(Math.random() * 999999); save.write(); } return D.endless.seed; };
 const genId = (seed, depth) => `∞${depth}-${seed}`;
-const STYLE_IC = { lauf: '▶', hoehle: '▬', abgrund: '◇', schacht: '▲' };
+const E0 = () => D.endless;
+const STYLE_IC = { lauf: '▶', hoehle: '▬', abgrund: '◇', schacht: '▲', arena: '♛' };
 function miniMap(L) {
   // Kachelkarte im Kleinformat: zeigt, wie verschieden die Levels sind
   const th = THEMES[L.theme], H = L.map.length, W = L.map[0].length, vert = H > W;
@@ -555,11 +592,11 @@ function endless(msg = '') {
   playMusic(THEMES.karte.music);
   const seed = eSeed(), E = D.endless, cards = [];
   for (let k = 0; k < 4; k++) {
-    const dep = E.depth + k, L = generateLevel(seed, dep), bio = BIOMES.find(b => b.id === L.theme);
+    const dep = E.depth + k, L = levelById(genId(seed, dep)), bio = { name: bioName(L) };
     cards.push(`<button class="dcard th-${L.theme} ${k ? 'later' : 'now'}" ${k ? 'data-a="nope"' : `data-a="eplay" data-id="${genId(seed, dep)}"`}>
       <span class="no">Tiefe ${dep}${dep % 5 === 0 ? ` · ${ic('lock')}` : ''}</span><b>${esc(L.name)}</b>
       <canvas class="mini" data-mini="${dep}"></canvas>
-      <small>${esc(bio.name)} · ${STYLE_IC[L.style]} ${STYLE_NAME[L.style]}</small></button>`);
+      <small>${esc(bio.name)} · ${STYLE_IC[L.style]} ${STYLE_NAME[L.style]}${L.chase ? ` · <span style="color:#ff7a6a">${{ wurm: 'Wurm jagt dich', decke: 'Einsturz', flut: 'Flut steigt', lava: 'Lava steigt' }[L.chase.kind]}</span>` : ''}</small></button>`);
   }
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Endlose Tiefen</h2><span class="gems">Rekord ${E.best} · ${ic('gem')} ${D.gems}</span></div>
@@ -567,6 +604,11 @@ function endless(msg = '') {
     <div class="dcards">${cards.join('')}</div>
     <div class="row"><button class="big" data-a="eplay" data-id="${genId(seed, E.depth)}">Tiefe ${E.depth} betreten</button></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
+    ${cursesOpen() ? `<div class="seedbox inset"><h3 class="sub">Flüche · Belohnung ×${curseMul().toFixed(1)}</h3><div class="curses">${CURSES.map(c => `<button class="icard curse ${E.curses && E.curses[c.id] ? 'on' : ''}" data-a="curse" data-id="${c.id}"><div><b>${esc(c.name)}</b><small>${esc(c.desc)} +${Math.round(c.mul * 100)} %</small></div></button>`).join('')}</div></div>`
+      : `<p class="note">Ab Tiefe 10 kannst du Flüche wählen: schwerer, aber mehr Beute. Wächter warten auf jeder zehnten Tiefe.</p>`}
+    <div class="seedbox inset hcbox"><h3 class="sub">Ohne Wiederkehr</h3>
+      <p class="note">Neue Welt ab Tiefe 1, Laternen leuchten nur noch. Der erste Tod beendet den Lauf. Beute ×1,5. Rekord: <b>${(E.hc && E.hc.best) || 0}</b></p>
+      <div class="row">${E.hc && E.hc.on ? `<button class="big" data-a="eplay" data-id="${genId(E.hc.seed, E.hc.depth)}">Lauf fortsetzen · Tiefe ${E.hc.depth}</button>` : '<button class="danger" data-a="hcstart">Lauf beginnen</button>'}</div></div>
     <div class="seedbox inset">
       <label class="field">Weltsamen (teilen = dieselbe Welt)<input id="eseed" inputmode="numeric" maxlength="9" value="${seed}"></label>
       <div class="row"><button data-a="eseed">Samen übernehmen</button><button data-a="ereroll">Neu würfeln</button></div>
@@ -574,14 +616,15 @@ function endless(msg = '') {
     </div>
   </div>`);
   for (const cv of ui.querySelectorAll('[data-mini]')) {
-    const L = generateLevel(seed, +cv.dataset.mini), m = miniMap(L);
+    const L = levelById(genId(+(cv.dataset.seed || seed), +cv.dataset.mini)), m = miniMap(L);
     cv.width = m.width; cv.height = m.height; cv.getContext('2d').drawImage(m, 0, 0);
   }
 }
 async function finishEndless() {
-  const E = D.endless, dep = level.depth, main = level.seed === E.seed && dep === E.depth;
+  const E = D.endless, dep = level.depth, hc = hcRun(level), main = mainRun(level) && !hc;
   const coins = game.coins.length, info = { coins: (level.map.join('').match(/O/g) || []).length };
-  const bonus = 40 + dep * 12, coinGems = coins * 60, earned = game.gems + bonus + coinGems;
+  const mul = (main || hc ? curseMul() : 1) * (hc ? 1.5 : 1) * (level.bossTier ? 2 : 1);
+  const bonus = Math.round((40 + dep * 12) * mul), coinGems = coins * 60, earned = Math.round(game.gems * mul) + bonus + coinGems;
   D.gems += earned; D.earned += earned; E.runs++; E.coins += coins;
   let keyHtml = '';
   if (main) {
@@ -589,13 +632,15 @@ async function finishEndless() {
     const award = (kind, why) => { const k = 'E' + dep + ':' + E.seed; if (playCheats(D).length || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
     if (rec && dep % 25 === 0) award('urlicht', `Tiefe ${dep}`); else if (rec && dep % 10 === 0) award('gold', `Tiefe ${dep}`); else if (dep % 5 === 0) award(dep % 10 === 0 ? 'eisen' : 'holz', `Tiefe ${dep}`);
   }
+  if (hc) { E.hc.depth = dep + 1; E.hc.best = Math.max(E.hc.best || 0, dep); if (dep % 5 === 0 && !D.keyLog['H' + dep + ':' + E.hc.seed]) { D.keyLog['H' + dep + ':' + E.hc.seed] = true; keyHtml += grantKey(dep % 10 === 0 ? 'gold' : 'eisen', 1, `Ohne Wiederkehr ${dep}`); } }
   save.write(); checkAch();
-  if (main) return startDescent({ dep, earned, coins, coinTotal: info.coins, keyHtml, rec: dep === E.best });
+  if (hc) return startDescent({ dep, earned, coins, coinTotal: info.coins, keyHtml, rec: dep === E.hc.best, nextId: genId(E.hc.seed, E.hc.depth) });
+  if (main) return startDescent({ dep, earned, coins, coinTotal: info.coins, keyHtml, rec: dep === E.best, nextId: genId(E.seed, E.depth) });
   stopMusic(); sfx('win'); mode = 'result';
   const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${game.coins.includes(k) ? 'on new' : ''}"></i>`).join('');
   show(`<div class="panel small result">
     <h2>Tiefe ${dep} bezwungen</h2>
-    <p class="lvl">${esc(level.name)} · ${esc(BIOMES.find(b => b.id === level.theme).name)}</p>
+    <p class="lvl">${esc(level.name)} · ${esc(bioName(level))}</p>
     ${main && dep === E.best ? '<p class="secretmsg">Neuer Tiefenrekord!</p>' : ''}
     ${keyHtml ? `<div class="keys">${keyHtml}</div>` : ''}
     <div class="coinrow">${coinRow}<small>Münzen ${coins}/${info.coins}</small></div>
@@ -638,9 +683,10 @@ function title() {
 }
 
 let curWorld = 0;
-const worldOpen = wi => wi === WORLDS.length ? true : WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
-const levelOpen = id => { const l = levelById(id); return l.secret ? !!D.secretOpen[id] : LEVELS.findIndex(x => x.id === id) < D.unlocked; };
-const ALLW = () => [...WORLDS, SECRET_WORLD];
+const worldOpen = wi => wi >= WORLDS.length ? true : WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
+const qualOpen = n => WORLDS[n - 1].levels.some(id => D.ranks[id] === 'S');
+const levelOpen = id => { const l = levelById(id); if (l.qual) return qualOpen(l.qual); return l.secret ? !!D.secretOpen[id] : LEVELS.findIndex(x => x.id === id) < D.unlocked; };
+const ALLW = () => [...WORLDS, SECRET_WORLD, QUAL_WORLD];
 function installTip() {
   const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
   if (!isTouch || standalone || window.__SH_BUNDLE) return '';
@@ -656,9 +702,11 @@ function map(sel, wi) {
   const nSec = SECRET_WORLD.levels.filter(id => D.secretOpen[id]).length;
   const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' ' + ic('lock')}</button>`).join('')
     + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`
+    + `<button class="wtab qual ${curWorld === WORLDS.length + 1 ? 'on' : ''}" data-a="world" data-w="${WORLDS.length + 1}">Qual ${QUAL_WORLD.levels.filter(id => D.cleared[id]).length}/${QUAL_WORLD.levels.length}</button>`
     + `<button class="wtab inf ${endlessOpen() ? '' : 'locked'}" data-a="${endlessOpen() ? 'endless' : 'nope'}">∞ Tiefen${endlessOpen() ? (D.endless.best ? ' ' + D.endless.best : '') : ' ' + ic('lock')}</button>`;
   const cards = w.levels.map(id => {
     const l = levelById(id), open = levelOpen(id), best = D.best[id], info = LEVEL_INFO[id], rk = D.ranks[id];
+    if (l.qual && !open) return `<button class="card locked qualcard" data-a="nope"><span class="no">${esc(id)}</span><b>${esc(l.name)}</b><small>Ein S-Rang in Welt ${l.qual} öffnet diesen Pfad.</small></button>`;
     if (l.secret && !open) return `<button class="card locked secretcard" data-a="nope"><span class="no">???</span><b>???</b>
       <small>${l.coinsNeeded ? `Öffnet sich bei ${l.coinsNeeded} Schaufelmünzen (${totalCoins(D)})` : `Irgendwo in ${esc(l.from)} …`}</small></button>`;
     const coins = Array.from({ length: info.coins }, (_, k) => `<i class="${(D.coins[id] || []).includes(k) ? 'on' : ''}"></i>`).join('');
@@ -669,7 +717,7 @@ function map(sel, wi) {
       <small>${open ? (best ? fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
   }).join('');
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${ic('scroll')} ${completion(D)} % ${ic('gem')} ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' || w.id === 'Q' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${ic('scroll')} ${completion(D)} % ${ic('gem')} ${D.gems}</span></div>
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
@@ -781,7 +829,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.12</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.13</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -806,6 +854,8 @@ ui.addEventListener('click', async e => {
     case 'endless': return endlessOpen() ? endless() : sfx('nope');
     case 'eplay': goFullscreen(); return startLevel(id);
     case 'eseed': { const v = parseInt($('#eseed').value, 10); if (!(v > 0)) return endless('Bitte eine Zahl eingeben.'); if (v !== D.endless.seed) { D.endless.seed = v; D.endless.depth = 1; save.write(); } return endless(`Weltsamen ${v} gesetzt.`); }
+    case 'curse': { if (!cursesOpen()) return; E0().curses = E0().curses || {}; E0().curses[id] = !E0().curses[id]; save.write(); sfx(E0().curses[id] ? 'troll' : 'click'); return endless(); }
+    case 'hcstart': D.endless.hc = { on: true, seed: 1 + Math.floor(Math.random() * 999999), depth: 1, best: (D.endless.hc && D.endless.hc.best) || 0 }; save.write(); goFullscreen(); return startLevel(genId(D.endless.hc.seed, 1));
     case 'ereroll': D.endless.seed = 1 + Math.floor(Math.random() * 999999); D.endless.depth = 1; save.write(); return endless('Eine neue Welt wurde erschaffen.');
     case 'collection': return collection();
     case 'map': goFullscreen(); return map();

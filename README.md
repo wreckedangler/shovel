@@ -238,3 +238,13 @@ Ab 1-1 gibt es im Kartenmenü den Tab **∞ Tiefen**. Jede Tiefe wird aus dem *W
 - **Wetter:** pro Level fest gewürfelt (Regen mit Blitzen, Laub, Blüten, Glühwürmchen, Tropfen, Staub, Wind, Glut, Funken, Schnee, Sporen, Leuchtteilchen, Nebel) plus Lichtstrahlen in hellen Gebieten.
 - **Ton:** Hall je nach Ort, Umgebungsklang pro Biom (Wind, Vögel, Tropfen, Brummen, Ticken, Glocken, Blubbern), Schritte je nach Untergrund, Spannungsschicht in der Musik bei nahen Gegnern und Bossen, gedämpfte Musik in der Pause, Herzschlag bei einem Herz.
 - **Abstieg:** In den endlosen Tiefen fällt der Held nach dem Ziel durch einen Schacht direkt in die nächste Tiefe (Antippen überspringt). Tiefenanzeige im Spiel.
+
+## Härte (v0.13)
+
+**Neue Fallen:** `L` Fallstachel (zittert, dann Absturz, kommt nach 4 s wieder), `Z`/`U` Kreissäge auf Schiene, `A` Pfeilwerfer (Klick und rotes Glühen vor dem Schuss), `K` Kippboden (wackelt, kippt, klappt zurück), `I` Trollblock (unsichtbar und fest, nur ein seltenes Glitzern; die Spürschaufel zeigt ihn rot).
+
+**Verfolgung:** `chase: { kind: 'wurm' | 'decke' | 'flut' | 'lava', speed, delay }` an einem Level. Laternen setzen den Verfolger beim Neustart zurück. Roter Rand warnt, wenn er nahe ist.
+
+**Qualpfade (Tab „Qual“):** Q-1 Die Nadelkammer (dunkle Fallenhöhle), Q-2 Wurmgrund (Wurm-Verfolgung), Q-3 Der Glutschlund (Schacht mit steigender Lava). Öffnen sich mit einem S-Rang in Welt 1/2/3. Erster Abschluss: Urlicht-Schlüssel und 2500 Edelsteine.
+
+**Endlose Tiefen:** Fallen ab Tiefe 6, Verfolgungen ab Tiefe 6 (Schacht) bzw. 12, Elitegegner ab Tiefe 15 (schnell, zäh oder teilend), **Wächter** alle 10 Tiefen (Boss-Arena, jedes Mal mehr Leben und schneller), **Flüche** ab Rekord 10 (Einherz, Finsternis, Gegnerflut, Zeitdruck, Elite, jeweils mehr Beute), **Ohne Wiederkehr** (neue Welt, Laternen ohne Rücksetzpunkt, erster Tod beendet den Lauf, Beute ×1,5).

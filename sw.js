@@ -1,5 +1,5 @@
 // Offline-Cache. Bei jeder Veröffentlichung VERSION erhöhen.
-const VERSION = 'schaufelheld-0.12.0';
+const VERSION = 'schaufelheld-0.13.0';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'src/main.js', 'src/game.js', 'src/levels.js', 'src/themes.js', 'src/gear.js', 'src/render.js', 'src/sprites.js',
   'src/audio.js', 'src/input.js', 'src/ghost.js', 'src/save.js', 'src/online.js', 'src/config.js', 'src/weapons.js', 'src/heroart.js', 'src/progress.js', 'src/ui-skin.js', 'src/cheats.js', 'src/loot.js', 'src/treasury.js', 'src/gen.js', 'src/atmo.js'];
