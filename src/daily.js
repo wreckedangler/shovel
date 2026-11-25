@@ -1,6 +1,6 @@
 // Tagesschacht: ein gemeinsamer Abstieg pro Tag für alle. Ein Versuch, ein Leben.
 // Blutflecken (Todesstellen) und Botschaften anderer liegen im Schacht; ihre Seelen kann man bergen und tiefer tragen.
-import { hashSeed } from './gen.js';
+import { hashSeed, GEN_VERSION } from './gen.js';
 
 const EPOCH = Date.UTC(2026, 10, 25); // Tagesschacht #1 = 25.11.2026
 export function dayKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -18,7 +18,7 @@ export const msgText = (a, b) => `${MSG_A[a] || '?'} ${MSG_B[b] || ''}`.trim();
 
 // Kurzer Teilen-Code: Name, Tag, Todesstufe und Stelle, optional eine Botschaft
 export function encodeMark(m) {
-  const s = JSON.stringify([m.date, m.name, m.k, Math.round(m.x), Math.round(m.y), m.ma ?? -1, m.mb ?? -1, m.mx ?? 0, m.my ?? 0, m.mk ?? 0]);
+  const s = JSON.stringify([m.date, m.name, m.k, Math.round(m.x), Math.round(m.y), m.ma ?? -1, m.mb ?? -1, m.mx ?? 0, m.my ?? 0, m.mk ?? 0, GEN_VERSION]);
   return 'SHT.' + btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 export function decodeMark(code) {
@@ -27,7 +27,7 @@ export function decodeMark(code) {
     const b = m[1].replace(/-/g, '+').replace(/_/g, '/');
     const a = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4)))));
     if (!Array.isArray(a) || typeof a[0] !== 'string') return null;
-    return { date: a[0], name: String(a[1]).slice(0, 16), k: +a[2], x: +a[3], y: +a[4], ma: +a[5], mb: +a[6], mx: +a[7], my: +a[8], mk: +a[9] };
+    return { date: a[0], name: String(a[1]).slice(0, 16), k: +a[2], x: +a[3], y: +a[4], ma: +a[5], mb: +a[6], mx: +a[7], my: +a[8], mk: +a[9], v: +(a[10] || 1) };
   } catch { return null; }
 }
 

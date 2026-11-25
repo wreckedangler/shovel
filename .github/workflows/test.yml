@@ -1,0 +1,16 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node tools/test.mjs
+      - run: node tools/gentest.mjs 1000
+      - name: Suchbot-Stichprobe (Qualpfad 1, generiertes Level)
+        run: |
+          BEAM=40 timeout 600 node tools/solve.mjs Q-1 4 4
+          GEN=1000:1 BEAM=30 timeout 600 node tools/solve.mjs gen
+      - run: node tools/bundle.mjs

@@ -2,6 +2,9 @@
 import { COSMETICS } from './loot.js';
 const COSMETIC_COL = Object.fromEntries(COSMETICS.filter(c => c.col).map(c => [c.id, c.col]));
 const COSMETIC_FILTER = Object.fromEntries(COSMETICS.filter(c => c.filter).map(c => [c.id, c.filter]));
+const COSMETIC_TINT = Object.fromEntries(COSMETICS.filter(c => c.tint).map(c => [c.id, c.tint]));
+// Ältere Browser (z. B. Safari vor iOS 18) kennen ctx.filter nicht: dann färben wir über einen Zwischenpuffer
+const FILTER_OK = (() => { try { const c = document.createElement('canvas').getContext('2d'); c.filter = 'blur(1px)'; return c.filter === 'blur(1px)'; } catch { return false; } })();
 import { T } from './game.js';
 import { Atmo } from './atmo.js';
 import { THEMES } from './themes.js';
@@ -32,8 +35,8 @@ export class Renderer {
     this.t++;
     const tg = this.target(g);
     this.cam.x += (tg.x - this.cam.x) * 0.14; this.cam.y += (tg.y - this.cam.y) * 0.1;
-    const sh = g.shake ? (Math.random() - 0.5) * g.shake : 0;
-    const cx = Math.round(this.cam.x + sh), cy = Math.round(this.cam.y + (g.shake ? (Math.random() - 0.5) * g.shake : 0));
+    const sk = g.shake * (this.shakeMul ?? 1), sh = sk ? (Math.random() - 0.5) * sk : 0;
+    const cx = Math.round(this.cam.x + sh), cy = Math.round(this.cam.y + (sk ? (Math.random() - 0.5) * sk : 0));
 
     // Kulisse
     const bg = S.backdrop(th, H);
@@ -158,6 +161,7 @@ export class Renderer {
   }
 
   ent(g, e, th) {
+    if (e.elite && !e.dead && this.symbols) S.drawText(this.x, { schnell: '>>', zaeh: '+', teilt: '%' }[e.elite], Math.round(e.x + e.w / 2), Math.round(e.y) - 8, '#ffffff', 1, 'center');
     if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
     if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
     this.ent0(g, e, th);
@@ -356,8 +360,14 @@ export class Renderer {
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
     const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
     const tint = this.look && this.look.farbe && COSMETIC_FILTER[this.look.farbe];
-    if (tint) this.x.filter = tint;
-    try { this.playerBody(g, p, hs); } finally { this.x.filter = 'none'; }
+    if (tint && FILTER_OK) { this.x.filter = tint; try { this.playerBody(g, p, hs); } finally { this.x.filter = 'none'; } return; }
+    if (!tint) return this.playerBody(g, p, hs);
+    // Ersatzweg: Held in einen Puffer zeichnen, Farbe darüberlegen
+    const B = this.tintBuf || (this.tintBuf = document.createElement('canvas')); const bw = 96, bh = 80; B.width = bw; B.height = bh;
+    const bx = B.getContext('2d'), old = this.x, ox = Math.round(p.x) - bw / 2, oy = Math.round(p.y) - bh / 2;
+    bx.save(); bx.translate(-ox, -oy); this.x = bx; try { this.playerBody(g, p, hs); } finally { this.x = old; bx.restore(); }
+    bx.globalCompositeOperation = 'source-atop'; bx.globalAlpha = 0.45; bx.fillStyle = COSMETIC_TINT[this.look.farbe] || '#ffffff'; bx.fillRect(0, 0, bw, bh); bx.globalAlpha = 1; bx.globalCompositeOperation = 'source-over';
+    old.drawImage(B, ox, oy);
   }
   playerBody(g, p, hs) {
     if (g.idle > 900 && !p.dead) {

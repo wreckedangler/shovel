@@ -8,7 +8,7 @@ import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
 import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
-import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter } from './online.js';
+import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter , cloudSave, cloudLoad, uploadDeaths } from './online.js';
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
@@ -17,6 +17,9 @@ import { generateLevel, BIOMES, STYLE_NAME as STYLE_NAME0 } from './gen.js';
 const STYLE_NAME = { ...STYLE_NAME0, arena: 'Wächter' };
 const bioName = L => L.biome || (BIOMES.find(b => b.id === L.theme) || {}).name || '';
 import { darkness } from './atmo.js';
+import { cleanName } from './names.js';
+import { CONFIG } from './config.js';
+import { GEN_VERSION } from './gen.js';
 import { dayKey, dayNumber, daySeed, stageDepth, depthStage, msUntilTomorrow, MSG_A, MSG_B, msgText, encodeMark, decodeMark, shareText } from './daily.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
@@ -32,6 +35,7 @@ const R = new Renderer(ctx);
 let VH = 180, VW = 320;
 const D = save.d;
 let lastMenu = 'title';
+const T_ = 16;
 setAudio(D.sfx, D.music);
 initSkin();
 
@@ -75,6 +79,7 @@ pauseBtn.addEventListener('click', () => mode === 'play' && pause());
 /* ---------- Hauptschleife ---------- */
 let last = performance.now(), acc = 0;
 function loop(now) {
+  autoQuality(now - last);
   acc += Math.min(100, now - last); last = now;
   const spd = mode === 'play' || mode === 'won' ? (D.cheatsOn.espresso ? 1.5 : D.cheatsOn.zeitlupe ? 0.5 : 1) : 1;
   const stepMs = 1000 / 60 / spd;
@@ -113,6 +118,7 @@ function tick() {
     if (e.name === 'die' && hcRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') hcEnd(); }, 1100); }
     if (e.name === 'timeout') { moment('ZEIT ABGELAUFEN', 'Die Tiefe beginnt neu', 'death', 2.4); const lv = level; setTimeout(() => { if (level === lv && mode === 'play') startLevel(lv.id, curCodes); }, 1200); }
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
+    if (e.name === 'die' && !level.gen) { const dm = D.deathMap[level.id] = D.deathMap[level.id] || []; dm.push(Math.round(game.p.x / T_)); if (dm.length > 120) dm.shift(); }
     if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); checkAch(); }
     const st = D.stats;
     switch (e.name) {
@@ -130,6 +136,7 @@ function tick() {
   if (mode === 'won' && ++doneT === 80) finish();
 }
 function draw() {
+  if (R.atmo) { R.atmo.noFlash = !D.a11y.flash; if (D.quality !== 'auto') R.atmo.low = D.quality === 'niedrig'; }
   R.look = D.look; R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
   const playing = game && mode !== 'menu';
   canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
@@ -192,6 +199,7 @@ async function startLevel(id, ghostCodes = []) {
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true); show(`
   <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
   ${tsRun(level) && !D.ts.msg ? '<button data-a="tsmsg">Botschaft hinterlassen</button>' : ''}
+  ${tsRun(level) ? '<p class="warn">Verlassen beendet deinen Tagesschacht.</p>' : ''}
   <button class="big" data-a="resume">Weiter</button>
   <button data-a="restart">Neu starten</button>
   <button data-a="map">Zur Karte</button>
@@ -199,6 +207,7 @@ function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true
 function resume() { setMuffle(false); hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isTouch; pauseBtn.hidden = false; }
 
 async function finish() {
+  cloudBackup(false);
   if (level.gen) return finishEndless();
   const id = level.id, frames = game.frame, first = !D.cleared[id];
   const viaSecret = game.exit === 'secret';
@@ -347,6 +356,13 @@ function wardrobe(msg = '') {
 
 /* ---------- Tagesschatz ---------- */
 function dailyReady() { return D.daily.last !== today(); }
+let updateReady = false;
+const cloudToken = () => { if (!D.cloudToken) { const a = new Uint8Array(18); crypto.getRandomValues(a); D.cloudToken = [...a].map(b => b.toString(16).padStart(2, '0')).join(''); save.write(); } return D.cloudToken; };
+let lastCloud = 0;
+async function cloudBackup(force) {
+  if (!online() || (!force && Date.now() - lastCloud < 10 * 60000)) return false;
+  lastCloud = Date.now(); return cloudSave(cloudToken(), await save.exportCode());
+}
 const keyCount = () => Object.values(D.keys).reduce((a, b) => a + b, 0);
 function grantKey(kind, n = 1, why = '') {
   D.keys[kind] = (D.keys[kind] || 0) + n; save.write();
@@ -512,7 +528,7 @@ const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => 
 const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
 function runOpts(L) {
   if (!L.gen) return {};
-  if (tsRun(L)) { const k = D.ts.k; return { elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
+  if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
   const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
   if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
   if (hcRun(L)) o.noCheck = true;
@@ -529,6 +545,24 @@ function hcEnd() {
     <div class="row"><button class="big" data-a="hcstart">Neuer Lauf</button><button data-a="endless">Übersicht</button></div>
   </div>`);
 }
+/* ---------- Zugänglichkeit und Grafik ---------- */
+function applyA11y() {
+  const A = D.a11y;
+  document.documentElement.style.setProperty('--ui-scale', A.uiScale || 1);
+  document.body.classList.toggle('bigui', A.uiScale > 1);
+  R.shakeMul = A.shake; R.symbols = A.symbols;
+  const at = R.atmo; if (at) { at.noFlash = !A.flash; if (D.quality !== 'auto') at.low = D.quality === 'niedrig'; }
+  const a = touchEl.querySelector('.a'), b = touchEl.querySelector('.b');
+  if (a && b) { a.dataset.k = A.swapAB ? 'attack' : 'jump'; b.dataset.k = A.swapAB ? 'jump' : 'attack'; a.innerHTML = A.swapAB ? 'B<em>Schaufel</em>' : 'A<em>Sprung</em>'; b.innerHTML = A.swapAB ? 'A<em>Sprung</em>' : 'B<em>Schaufel</em>'; }
+}
+// Automatische Grafikstufe: dauerhaft langsame Bilder schalten Wetter, Vordergrund und Farblicht zurück
+let frameEma = 16, slowFrames = 0, fastFrames = 0;
+function autoQuality(dt) {
+  frameEma += (dt - frameEma) * 0.05;
+  const at = R.atmo; if (!at || D.quality !== 'auto' || mode !== 'play') return;
+  if (frameEma > 21) { if (++slowFrames > 120 && !at.low) { at.low = true; slowFrames = 0; } } else slowFrames = 0;
+  if (frameEma < 13) { if (++fastFrames > 600 && at.low) { at.low = false; fastFrames = 0; } } else fastFrames = 0;
+}
 /* ---------- Tagesschacht ---------- */
 let tsServer = { date: '', marks: [] };
 function tsToday() {
@@ -543,6 +577,7 @@ function tsAllMarks() { const own = D.ts.marks[D.ts.date] || []; return [...(tsS
 function tsMarksFor(k) {
   const out = [];
   for (const m of tsAllMarks()) {
+    if ((m.v || m.gv || 1) !== GEN_VERSION) continue;
     if (m.k === k && m.x) out.push({ type: 'stain', x: m.x, y: m.y, name: m.name, tail: m.tail });
     if (m.ma >= 0 && m.mk === k) out.push({ type: 'msg', x: m.mx, y: m.my, name: m.name, text: msgText(m.ma, m.mb) });
   }
@@ -557,11 +592,19 @@ function tsShare() {
   else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Kopiert', 'Ergebnis in der Zwischenablage.'), () => {});
   return txt;
 }
+function tsAbandoned() {
+  // Wer eine Stufe verlässt (Menü, App geschlossen), hat sie nicht überlebt
+  const T = D.ts;
+  if (!T.inStage || T.done || T.date !== dayKey() || (mode === 'play' && tsRun(level))) return false;
+  T.done = true; T.end = { k: T.k, x: 0, y: 0, frames: 0, tail: [], abandoned: true }; T.history[T.date] = T.k; T.inStage = 0; save.write();
+  if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', device: D.device, gv: GEN_VERSION, k: T.k, frames: T.frames, x: 0, y: 0, tail: [], carried: T.carried, ...(T.msg || {}) });
+  return true;
+}
 function tsDeath() {
-  const T = D.ts, p = game.p;
+  const T = D.ts, p = game.p; T.inStage = 0;
   T.done = true; T.end = { k: T.k, x: Math.round(p.x), y: Math.round(p.y), frames: game.frame, tail: game.rec.slice(-90) };
   T.history[T.date] = T.k; T.carried += game.carried.length; save.write();
-  if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', k: T.k, frames: T.frames + game.frame, x: T.end.x, y: T.end.y, tail: T.end.tail, carried: T.carried, ...(T.msg || {}) })
+  if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', device: D.device, gv: GEN_VERSION, k: T.k, frames: T.frames + game.frame, x: T.end.x, y: T.end.y, tail: T.end.tail, carried: T.carried, ...(T.msg || {}) })
     .then(() => dailyBetter(T.date, T.k)).then(b => { T.better = b; save.write(); if (document.querySelector('.tsresult')) tagesschacht(); });
   tagesschacht();
 }
@@ -569,6 +612,7 @@ function tagesschacht(msg = '') {
   stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'tagesschacht';
   playMusic(THEMES.karte.music);
   const mo = $('#moment'); if (mo) mo.className = '';
+  const abandoned = tsAbandoned(); if (abandoned && !msg) msg = 'Du hast den Schacht mitten in einer Stufe verlassen. Das zählt als Tod.';
   const T = tsToday(), num = dayNumber(), left = msUntilTomorrow(), hh = Math.floor(left / 36e5), mm = Math.floor(left / 6e4) % 60;
   if (online() && tsServer.date !== T.date) fetchDailyMarks(T.date).then(ms => { tsServer = { date: T.date, marks: ms }; if (document.querySelector('.ts')) tagesschacht(msg); });
   const marks = tsAllMarks(), stains = marks.filter(m => m.x).length, hist = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const v = T.history[dayKey(d)]; return `<i class="${v ? 'on' : ''}" title="${dayKey(d)}">${v || ''}</i>`; }).join('');
@@ -576,7 +620,7 @@ function tagesschacht(msg = '') {
   show(`<div class="panel ts ${T.done ? 'tsresult' : ''}">
     <div class="top"><button class="back" data-a="title">‹</button><h2>Tagesschacht #${num}</h2><span class="gems">Serie ${tsStreak()} ${ic('flame')}</span></div>
     ${T.done ? `
-      <div class="tsend"><p class="rar">Der Schacht hat dich verschlungen</p>
+      <div class="tsend"><p class="rar">${T.end.abandoned ? 'Mitten in der Stufe verlassen' : 'Der Schacht hat dich verschlungen'}</p>
         <div class="tsbig">${serifImg('Stufe ' + T.end.k, 16, 'red', 3)}</div>
         <p class="note">${T.path.length} ${T.path.length === 1 ? 'Stufe' : 'Stufen'} bezwungen · ${fmtTime(T.frames + T.end.frames)}${T.carried ? ` · ${T.carried} ${T.carried === 1 ? 'Seele' : 'Seelen'} getragen` : ''}${T.better != null ? ` · besser als ${T.better} %` : ''}</p>
         <p class="tspath">${T.path.map(p => ({ n: '⛏️', boss: '👑', chase: '🌊', lava: '🔥', dark: '🌑' }[p])).join('')}💀</p>
@@ -703,7 +747,7 @@ function endless(msg = '') {
 }
 async function finishEndless() {
   if (tsRun(level)) {
-    const T = D.ts, k = T.k, earned = Math.round(game.gems * 1.3) + 60 + k * 30;
+    const T = D.ts, k = T.k, earned = Math.round(game.gems * 1.3) + 60 + k * 30; T.inStage = 0;
     D.gems += earned; D.earned += earned; T.path.push(pathKind(level)); T.frames += game.frame; T.carried += game.carried.length; T.k = k + 1; T.history[T.date] = Math.max(T.history[T.date] || 0, k);
     let keyHtml = ''; const kk = 'T' + T.date + ':' + k;
     if ((k === 5 || k === 10) && !D.keyLog[kk]) { D.keyLog[kk] = true; keyHtml = grantKey(k === 10 ? 'urlicht' : 'gold', 1, `Tagesschacht Stufe ${k}`); }
@@ -747,7 +791,8 @@ async function finishEndless() {
 }
 function splash() {
   mode = 'menu';
-  show(`<div class="splash" data-a="title">${logoImg()}<div class="press">Tippe, um zu beginnen</div></div>`);
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  show(`<div class="splash" data-a="title">${logoImg()}<div class="press">Tippe, um zu beginnen</div>${ios ? '<div class="note" style="margin-top:-12px">Kein Ton? Stummschalter prüfen.</div>' : ''}</div>`);
 }
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
@@ -759,7 +804,9 @@ function title() {
     <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
     <div class="menu">
       <button class="big" data-a="map">Abenteuer</button>
-      <button class="tsbtn" data-a="tagesschacht">Tagesschacht #${dayNumber()} ${D.ts.date === dayKey() && D.ts.done ? `<small>Stufe ${D.ts.end.k} ✓</small>` : '<span class="badge">!</span>'}</button>
+      ${updateReady ? '<button class="big" data-a="reload">Neue Version laden</button>' : ''}
+      ${D.playDays >= 3 && Date.now() - (D.lastBackup || 0) > 7 * 864e5 ? '<button class="warnbtn" data-a="options">Spielstand sichern! (Optionen)</button>' : ''}
+      ${(tsAbandoned(), '')}<button class="tsbtn" data-a="tagesschacht">Tagesschacht #${dayNumber()} ${D.ts.date === dayKey() && D.ts.done ? `<small>Stufe ${D.ts.end.k} ✓</small>` : '<span class="badge">!</span>'}</button>
       ${endlessOpen() ? `<button data-a="endless">∞ Endlose Tiefen${D.endless.best ? ` <small style="color:var(--mute)">${D.endless.best}</small>` : ''}</button>` : ''}
       <button class="treasurebtn" data-a="treasury">${ic('lock')} Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button>
       <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
@@ -913,17 +960,44 @@ function gearReveal(kind, t) {
 
 function options(msg = '') {
   mode = 'menu';
+  const A = D.a11y, ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   show(`<div class="panel small">
-    <div class="top"><button class="back" data-a="map">‹</button><h2>Optionen</h2><span></span></div>
-    <label class="field">Dein Name (für Geister)<input id="name" maxlength="16" value="${esc(D.name)}" placeholder="z. B. Raphi"></label>
+    <div class="top"><button class="back" data-a="${lastMenu === 'title' ? 'title' : 'map'}">‹</button><h2>Optionen</h2><span></span></div>
+    <label class="field">Dein Name (sichtbar für andere)<input id="name" maxlength="16" value="${esc(D.name)}" placeholder="z. B. Raphi"></label>
     ${toggles()}
-    <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
+    <h3 class="sub">Grafik und Zugänglichkeit</h3>
+    <div class="row toggles">
+      <button data-a="quality">Grafik: ${{ auto: 'Automatisch', hoch: 'Hoch', niedrig: 'Sparsam' }[D.quality]}</button>
+      <button data-a="a11y" data-id="symbols" class="${A.symbols ? 'on' : ''}">Symbole statt nur Farben ${A.symbols ? 'an' : 'aus'}</button>
+      <button data-a="a11y" data-id="shake" class="${A.shake < 1 ? 'on' : ''}">Bildwackeln ${A.shake >= 1 ? 'voll' : A.shake > 0 ? 'wenig' : 'aus'}</button>
+      <button data-a="a11y" data-id="flash" class="${!A.flash ? 'on' : ''}">Blitze ${A.flash ? 'an' : 'aus'}</button>
+      <button data-a="a11y" data-id="uiScale">Schrift ${A.uiScale > 1 ? 'gross' : 'normal'}</button>
+      ${isTouch ? `<button data-a="a11y" data-id="swapAB" class="${A.swapAB ? 'on' : ''}">A/B ${A.swapAB ? 'getauscht' : 'normal'}</button>` : ''}
+    </div>
+    <h3 class="sub">Spielstand sichern</h3>
+    <p class="note">${save.loadedFrom === 'sicherung' ? '<b style="color:#ff9a80">Der Spielstand wurde aus der Notfall-Kopie wiederhergestellt.</b> ' : ''}Der Browser kann gespeicherte Daten löschen (Safari nach 7 Tagen ohne Besuch). Sichere deinen Spielstand als Code, z. B. in deinen Notizen.${D.lastBackup ? ` Letzte Sicherung: ${new Date(D.lastBackup).toLocaleDateString('de-CH')}.` : ' Noch nie gesichert.'}</p>
+    <div class="row"><button class="big" data-a="exportsave">Spielstand als Code</button></div>
+    <label class="field">Spielstand-Code laden<textarea id="savecode" rows="2" placeholder="SHSAVE.…"></textarea></label>
+    <button data-a="importsave">Laden (ersetzt den aktuellen Stand)</button>
+    ${ios && !standalone ? '<p class="note"><b>iPhone:</b> Für Vollbild und sicheren Speicher: Teilen-Symbol antippen, dann „Zum Home-Bildschirm“. Kein Ton? Stummschalter an der Seite prüfen.</p>' : ''}
+    ${online() ? `<h3 class="sub">Cloud</h3>
+    <p class="note">Automatische Sicherung beim Spielen. Mit dem Cloud-Schlüssel holst du den Stand auf ein anderes Gerät. Schlüssel geheim halten!</p>
+    <div class="row"><button data-a="cloudsave">Jetzt sichern</button><button data-a="cloudkey">Schlüssel zeigen</button></div>
+    <label class="field">Cloud-Schlüssel eines anderen Geräts<input id="cloudkey" autocomplete="off" placeholder="…"></label>
+    <button data-a="cloudload">Aus der Cloud laden</button>` : ''}
+    <h3 class="sub">Geister</h3>
+    <label class="field">Geist-Code importieren<textarea id="code" rows="2" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.14</p>
+    <p class="note">${online() ? 'Online: verbunden.' : 'Online: aus (wird mit Supabase aktiv).'} Version ${CONFIG.version} · Generator ${GEN_VERSION}</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
-  $('#name').addEventListener('change', e => { D.name = e.target.value.trim().slice(0, 16); save.write(); });
+  $('#name').addEventListener('change', e => {
+    const r = cleanName(e.target.value);
+    if (!r.ok) { e.target.value = D.name; return options('Dieser Name ist nicht erlaubt. Bitte einen anderen wählen.'); }
+    D.name = r.name; save.write();
+  });
 }
 const toggles = () => `<div class="row toggles">
   <button data-a="sfx" class="${D.sfx ? 'on' : ''}">Effekte ${D.sfx ? 'an' : 'aus'}</button>
@@ -942,6 +1016,7 @@ ui.addEventListener('click', async e => {
     case 'title': return title();
     case 'treasury': return treasury();
     case 'tagesschacht': return tagesschacht();
+    case 'reload': location.reload(); return;
     case 'tsshare': tsShare(); return;
     case 'tsmsg': return tsMessage();
     case 'tsmsgset': { const p = game.p; D.ts.msg = { ma: +$('#ma').value, mb: +$('#mb').value, mx: Math.round(p.x), my: Math.round(p.y), mk: D.ts.k }; save.write(); sfx('secret'); return resume(); }
@@ -999,6 +1074,17 @@ ui.addEventListener('click', async e => {
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
     case 'vibrate': D.vibrate = !D.vibrate; save.write(); haptic('hit'); b.outerHTML = toggles().match(/<button data-a="vibrate".*?<\/button>/s)[0]; return;
+    case 'quality': D.quality = { auto: 'hoch', hoch: 'niedrig', niedrig: 'auto' }[D.quality] || 'auto'; save.write(); applyA11y(); return options();
+    case 'a11y': { const A = D.a11y;
+      if (id === 'shake') A.shake = A.shake >= 1 ? 0.4 : A.shake > 0 ? 0 : 1; else if (id === 'uiScale') A.uiScale = A.uiScale > 1 ? 1 : 1.18; else A[id] = !A[id];
+      save.write(); applyA11y(); return options(); }
+    case 'exportsave': { const c = await save.exportCode(); let ok = false; try { if (navigator.share) { await navigator.share({ text: c }); ok = true; } else if (navigator.clipboard) { await navigator.clipboard.writeText(c); ok = true; } } catch {}
+      options(ok ? 'Code geteilt bzw. kopiert. Gut aufbewahren!' : 'Code unten markieren und kopieren.'); if (!ok) { $('#savecode').value = c; $('#savecode').select(); } return; }
+    case 'importsave': { try { await save.importCode($('#savecode').value); applyA11y(); return options('Spielstand geladen.'); } catch (err) { return options(esc(err.message)); } }
+    case 'cloudsave': { const ok = await cloudBackup(true); return options(ok ? 'In der Cloud gesichert.' : 'Sicherung fehlgeschlagen. Internet?'); }
+    case 'cloudkey': return options(`Dein Cloud-Schlüssel: <b style="user-select:all;-webkit-user-select:all">${esc(cloudToken())}</b>`);
+    case 'cloudload': { const t = ($('#cloudkey').value || '').trim(); if (t.length < 24) return options('Schlüssel zu kurz.'); const row = await cloudLoad(t); if (!row) return options('Unter diesem Schlüssel liegt nichts.');
+      try { await save.importCode(row.data); D.cloudToken = t; save.write(); applyA11y(); return options(`Spielstand vom ${new Date(row.updated_at).toLocaleString('de-CH')} geladen.`); } catch (err) { return options(esc(err.message)); } }
     case 'fullscreen': D.fullscreen = !D.fullscreen; save.write(); if (!D.fullscreen && document.fullscreenElement) document.exitFullscreen().catch(() => {}); b.outerHTML = toggles().match(/<button data-a="fullscreen".*?<\/button>/s)[0]; return;
     case 'sfx': D.sfx = !D.sfx; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="sfx".*?<\/button>/)[0]; return;
     case 'music': D.music = !D.music; save.write(); setAudio(D.sfx, D.music); b.outerHTML = toggles().match(/<button data-a="music".*?<\/button>/)[0]; return;
@@ -1028,10 +1114,22 @@ function goFullscreen() {
 }
 
 
-if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__SH_BUNDLE) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__SH_BUNDLE) {
+  const hadCtl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(r => setInterval(() => r.update().catch(() => {}), 30 * 60000)).catch(() => {});
+  // Neue Version: nicht mitten im Spiel neu laden, sondern Bescheid geben
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadCtl) return; updateReady = true; toast('Neue Version bereit', 'Im Titelmenü antippen zum Aktualisieren.', 'ach'); if (mode === 'menu' && document.querySelector('.title')) title(); });
+}
 
 if (location.search.includes('debug')) window.__sh = { get game() { return game; } };
 
+if (D.lastDay !== dayKey()) {
+  D.lastDay = dayKey(); D.playDays = (D.playDays || 0) + 1; save.write();
+  if (online()) uploadDeaths(D.deathMap).then(ok => { if (ok) { D.deathMap = {}; save.write(); } });
+}
+// Handy-Tastatur: Eingabefeld sichtbar halten
+document.addEventListener('focusin', e => { if (e.target.matches('input, textarea, select')) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300); });
+applyA11y();
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
 if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id) };

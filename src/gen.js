@@ -2,6 +2,9 @@
 // Biom (Optik, Gegner, Mechaniken) × Bauart (Lauf, Höhle, Abgrund, Schacht) × Bausteine sorgen für Abwechslung.
 // Alle Bausteine halten die Sprungregeln ein: Lücke ≤ 3 Kacheln, Stufe ≤ 2 Kacheln, Pilz = 4 Kacheln.
 
+// Erhöhen, sobald sich erzeugte Levels ändern: Blutflecken älterer Versionen werden dann ausgeblendet.
+export const GEN_VERSION = 1;
+
 export function rng(seed) {
   let s = (seed >>> 0) || 1;
   return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };

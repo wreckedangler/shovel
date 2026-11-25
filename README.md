@@ -276,3 +276,14 @@ Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k
 - **Botschaften:** in der Pause aus festen Wortbausteinen, eine pro Tag; andere lesen sie an derselben Stelle.
 - **Teilen:** Emoji-Zeile (⛏️ Stufe, 🌑 Höhle, 👑 Wächter, 🌊 Verfolgung, 🔥 Lava, 💀 Tod), getragene Seelen und ein Code `SHT.…`, den Freunde einfügen, damit dein Fleck in ihrem Schacht liegt.
 - **Ohne Server** funktioniert alles über die Codes. **Mit Supabase** (Tabelle `daily_runs`, siehe oben) liegen die Flecken und Botschaften aller Spieler im Schacht, mit Geister-Wiederholung, und das Ergebnis zeigt „besser als X %“.
+
+## Härtung (v0.15)
+
+- **Spielstand:** Versionsnummer mit Umwandlung alter Stände, Reparatur unplausibler Werte, Notfall-Kopie (zweiter Speicherplatz), Bitte um dauerhaften Speicher, Export/Import als Code mit Prüfsumme (Optionen), Erinnerung zum Sichern nach 3 Spieltagen, mit Supabase automatische Cloud-Sicherung und Cloud-Schlüssel für den Gerätewechsel.
+- **Tagesschacht:** Generator-Version in Codes und Server-Einträgen (`GEN_VERSION` in `src/gen.js` erhöhen, wenn sich erzeugte Levels ändern), Verlassen mitten in der Stufe zählt als Tod, Namensfilter (`src/names.js`, zusätzlich in der Datenbank), ein Lauf pro Gerät und Tag, Plausibilitätsregeln in `supabase/schema.sql`.
+- **Leistung:** vorgerechnete Lichtkreise statt Farbverläufen pro Bild, automatische Grafikstufe (Wetter, Vordergrund, Farblicht werden bei Ruckeln reduziert), Färbungen funktionieren auch ohne `ctx.filter` (ältere iPhones).
+- **Zugänglichkeit:** Symbole für Seltenheiten und Elitegegner, Bildwackeln voll/wenig/aus, Blitze aus, grössere Schrift, A/B tauschen.
+- **iPhone:** Ton-Hinweis beim Start, Anleitung zum Installieren in den Optionen, Eingabefelder bleiben über der Tastatur sichtbar.
+- **Aktualisierung:** Neue Versionen werden erkannt und im Titelmenü angeboten statt mitten im Spiel neu zu laden.
+- **Tests auf GitHub:** `.github/workflows/test.yml` prüft bei jedem Push alle Levels, 1000 generierte Levels, zwei Suchbot-Stichproben und baut die Einzeldatei.
+- **Supabase:** Anleitung in `SUPABASE.md`, komplettes Schema in `supabase/schema.sql`.

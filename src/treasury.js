@@ -1,5 +1,5 @@
 // Schatzkammer: Truhen kaufen und öffnen, Sammlung (Relikte und Aussehen).
-import { CHESTS, RAR, PITY, RELICS, COSMETICS, ITEMS, itemById, openChest, RELIC_ART, RELIC_PAL } from './loot.js';
+import { rarName, CHESTS, RAR, PITY, RELICS, COSMETICS, ITEMS, itemById, openChest, RELIC_ART, RELIC_PAL } from './loot.js';
 
 let C; // Kontext aus main.js: { D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back, checkAch }
 export function initTreasury(ctx) { C = ctx; }
@@ -77,7 +77,7 @@ export function treasury(msg = '') {
     return `<div class="chestcard rar-${ch.id}" style="--cc:${ch.col}">
       <div class="chimg">${canvasImg(chestCanvas(ch, 3))}</div>
       <div class="chinfo"><b>${C.serifImg(ch.name, 11, ch.id === 'urlicht' ? 'pale' : 'gold', 2)}</b>
-        <div class="odds">${ch.odds.map((o, k) => o ? `<span style="color:${RAR[k].col}">${RAR[k].name} ${o}%</span>` : '').join('')}</div>
+        <div class="odds">${ch.odds.map((o, k) => o ? `<span style="color:${RAR[k].col}">${rarName(k, C.D.a11y.symbols)} ${o}%</span>` : '').join('')}</div>
         ${ch.up ? `<small class="upn">${Math.round(ch.up * 100)}% Chance auf Aufwertung beim Öffnen</small>` : '<small class="upn">Nur mit Schlüssel. Bosse und Rekorde bringen ihn.</small>'}
         <div class="chbtns">
           ${keys ? `<button class="big" data-t="open" data-c="${ch.id}" data-key="1">${ic('lock')} Schlüssel · ${keys}</button>` : ''}
@@ -146,7 +146,7 @@ function revealOne(r, fromId) {
     if (shown) return; shown = true; f = Math.max(f, burstAt + 1);
     card.hidden = false;
     card.style.setProperty('--rc', rar.col); card.style.setProperty('--rg', rar.glow);
-    card.innerHTML = `<p class="rar">${r.pity ? 'Garantie eingelöst · ' : ''}${rar.name}${it.kind === 'relikt' ? 'es Relikt' : ''}</p>
+    card.innerHTML = `<p class="rar">${r.pity ? 'Garantie eingelöst · ' : ''}${rarName(r.rar, C.D.a11y.symbols)}${it.kind === 'relikt' ? 'es Relikt' : ''}</p>
       <div class="lic">${canvasImg(itemIcon(it.id, 4))}</div>
       ${C.serifImg(it.name, it.name.length > 14 ? 12 : 14, ['pale', 'pale', 'pale', 'gold'][r.rar], 2, 'rname')}
       <p class="ldesc">${itemDesc(it, r)}</p><p class="lstat">${statusLine(r)}</p>
@@ -226,7 +226,7 @@ function revealMany(rs, fromId) {
     if (k >= order.length) return end();
     const r = order[k], it = itemById(r.item), c = cards[k];
     c.classList.add('open', 'r' + r.rar);
-    c.innerHTML = `${canvasImg(itemIcon(it.id, 2))}<b>${C.esc(it.name)}</b><small>${r.isNew ? '<span class="new">NEU</span>' : r.levelUp ? `Stufe ${r.levelUp}` : `+${r.shards} ${C.ic('dia')}`}</small>`;
+    c.innerHTML = `${canvasImg(itemIcon(it.id, 2))}<b>${C.D.a11y.symbols ? RAR[r.rar].sym + ' ' : ''}${C.esc(it.name)}</b><small>${r.isNew ? '<span class="new">NEU</span>' : r.levelUp ? `Stufe ${r.levelUp}` : `+${r.shards} ${C.ic('dia')}`}</small>`;
     C.sfx(r.rar >= 2 ? 'burst' : 'rarStep', r.rar); if (r.rar >= 2) C.haptic(r.rar === 3 ? 'bossDie' : 'unlock'); else C.haptic('hit');
     if (r.upgraded) c.classList.add('upg');
     k++;
@@ -235,7 +235,7 @@ function revealMany(rs, fromId) {
   };
   const end = () => {
     if (finished) return; finished = true; clearTimeout(timer);
-    while (k < order.length) { const r = order[k], it = itemById(r.item); cards[k].classList.add('open', 'r' + r.rar); cards[k].innerHTML = `${canvasImg(itemIcon(it.id, 2))}<b>${C.esc(it.name)}</b><small>${r.isNew ? '<span class="new">NEU</span>' : r.levelUp ? `Stufe ${r.levelUp}` : `+${r.shards} ${C.ic('dia')}`}</small>`; k++; }
+    while (k < order.length) { const r = order[k], it = itemById(r.item); cards[k].classList.add('open', 'r' + r.rar); cards[k].innerHTML = `${canvasImg(itemIcon(it.id, 2))}<b>${C.D.a11y.symbols ? RAR[r.rar].sym + ' ' : ''}${C.esc(it.name)}</b><small>${r.isNew ? '<span class="new">NEU</span>' : r.levelUp ? `Stufe ${r.levelUp}` : `+${r.shards} ${C.ic('dia')}`}</small>`; k++; }
     const nNew = rs.filter(r => r.isNew).length, sh = rs.reduce((a, r) => a + (r.shards || 0), 0), best = Math.max(...rs.map(r => r.rar));
     const s = el.querySelector('.lsum'); s.hidden = false;
     s.innerHTML = `<p>${nNew} neu · ${rs.filter(r => r.levelUp).length} aufgestuft · +${sh} Splitter · beste: <b style="color:${RAR[best].col}">${RAR[best].name}</b></p><div class="row"><button class="big" data-l="close">Weiter</button></div>`;
@@ -258,11 +258,11 @@ export function collection(msg = '') {
   const relic = r => {
     const l = D.relics[r.id] || 0, on = D.relicSlots.includes(r.id);
     return l ? `<button class="icard r${r.rar} ${on ? 'on' : ''}" data-t="slot" data-id="${r.id}">${canvasImg(itemIcon(r.id, 2))}<div><b>${esc(r.name)}</b><small>${esc(r.desc(l))}</small><span class="pips">${[1, 2, 3].map(k => `<i class="${k <= l ? 'on' : ''}"></i>`).join('')}</span></div></button>`
-      : `<div class="icard r${r.rar} unk">${canvasImg(itemIcon(r.id, 2, true))}<div><b>???</b><small style="color:${RAR[r.rar].col}">${RAR[r.rar].name}</small></div></div>`;
+      : `<div class="icard r${r.rar} unk">${canvasImg(itemIcon(r.id, 2, true))}<div><b>???</b><small style="color:${RAR[r.rar].col}">${rarName(r.rar, C.D.a11y.symbols)}</small></div></div>`;
   };
   const cos = kind => COSMETICS.filter(c => c.kind === kind).map(c => D.cosmetics[c.id]
-    ? `<button class="icard r${c.rar} ${D.look[kind] === c.id ? 'on' : ''}" data-t="look" data-k="${kind}" data-id="${c.id}">${canvasImg(itemIcon(c.id, 2))}<div><b>${esc(c.name)}</b><small style="color:${RAR[c.rar].col}">${RAR[c.rar].name}</small></div></button>`
-    : `<div class="icard r${c.rar} unk">${canvasImg(itemIcon(c.id, 2, true))}<div><b>???</b><small style="color:${RAR[c.rar].col}">${RAR[c.rar].name}</small></div></div>`).join('');
+    ? `<button class="icard r${c.rar} ${D.look[kind] === c.id ? 'on' : ''}" data-t="look" data-k="${kind}" data-id="${c.id}">${canvasImg(itemIcon(c.id, 2))}<div><b>${esc(c.name)}</b><small style="color:${RAR[c.rar].col}">${rarName(c.rar, C.D.a11y.symbols)}</small></div></button>`
+    : `<div class="icard r${c.rar} unk">${canvasImg(itemIcon(c.id, 2, true))}<div><b>???</b><small style="color:${RAR[c.rar].col}">${rarName(c.rar, C.D.a11y.symbols)}</small></div></div>`).join('');
   const have = ITEMS.filter(i => i.kind === 'relikt' ? D.relics[i.id] : D.cosmetics[i.id]).length;
   C.show(`<div class="panel">
     <div class="top"><button class="back" data-a="treasury">‹</button><h2>Sammlung</h2><span class="gems">${have} / ${ITEMS.length} · ${ic('dia')} ${D.shards}</span></div>

@@ -1,10 +1,10 @@
 // Truhen, Relikte, Aussehen und Splitter. Reine Daten und Würfel-Logik, ohne DOM (Node-testbar).
 
 export const RAR = [
-  { id: 'gewoehnlich', name: 'Gewöhnlich', col: '#cfc4ae', glow: '#8a8170', shards: 5 },
-  { id: 'selten', name: 'Selten', col: '#5ab8ff', glow: '#2a78d0', shards: 15 },
-  { id: 'episch', name: 'Episch', col: '#c58bff', glow: '#7a3ad0', shards: 40 },
-  { id: 'legendaer', name: 'Legendär', col: '#ffcf4a', glow: '#d08a10', shards: 120 },
+  { id: 'gewoehnlich', sym: '●', name: 'Gewöhnlich', col: '#cfc4ae', glow: '#8a8170', shards: 5 },
+  { id: 'selten', sym: '◆', name: 'Selten', col: '#5ab8ff', glow: '#2a78d0', shards: 15 },
+  { id: 'episch', sym: '▲', name: 'Episch', col: '#c58bff', glow: '#7a3ad0', shards: 40 },
+  { id: 'legendaer', sym: '★', name: 'Legendär', col: '#ffcf4a', glow: '#d08a10', shards: 120 },
 ];
 
 // odds: Gewöhnlich / Selten / Episch / Legendär in Prozent. up: Chance, dass die Truhe beim Öffnen eine Stufe aufsteigt.
@@ -38,11 +38,11 @@ export const COSMETICS = [
   { id: 'spur-flammen', kind: 'spur', name: 'Flammenschritt', rar: 2 },
   { id: 'spur-schatten', kind: 'spur', name: 'Schattenschleier', rar: 2 },
   { id: 'spur-regenbogen', kind: 'spur', name: 'Regenbogenpfad', rar: 3 },
-  { id: 'farbe-purpur', kind: 'farbe', name: 'Purpurpatina', rar: 0, filter: 'hue-rotate(260deg) saturate(1.2)' },
-  { id: 'farbe-smaragd', kind: 'farbe', name: 'Smaragdglanz', rar: 1, filter: 'hue-rotate(100deg) saturate(1.3)' },
-  { id: 'farbe-frost', kind: 'farbe', name: 'Frostbiss', rar: 1, filter: 'hue-rotate(170deg) saturate(.8) brightness(1.15)' },
-  { id: 'farbe-schatten', kind: 'farbe', name: 'Aschegestalt', rar: 2, filter: 'grayscale(1) brightness(.75) contrast(1.3)' },
-  { id: 'farbe-gold', kind: 'farbe', name: 'Königsgold', rar: 3, filter: 'sepia(1) saturate(3.2) brightness(1.15)' },
+  { id: 'farbe-purpur', kind: 'farbe', name: 'Purpurpatina', rar: 0, filter: 'hue-rotate(260deg) saturate(1.2)', tint: '#a040ff' },
+  { id: 'farbe-smaragd', kind: 'farbe', name: 'Smaragdglanz', rar: 1, filter: 'hue-rotate(100deg) saturate(1.3)', tint: '#30d080' },
+  { id: 'farbe-frost', kind: 'farbe', name: 'Frostbiss', rar: 1, filter: 'hue-rotate(170deg) saturate(.8) brightness(1.15)', tint: '#80d0ff' },
+  { id: 'farbe-schatten', kind: 'farbe', name: 'Aschegestalt', rar: 2, filter: 'grayscale(1) brightness(.75) contrast(1.3)', tint: '#2a2430' },
+  { id: 'farbe-gold', kind: 'farbe', name: 'Königsgold', rar: 3, filter: 'sepia(1) saturate(3.2) brightness(1.15)', tint: '#ffc830' },
   { id: 'aura-glut', kind: 'aura', name: 'Glutschein', rar: 1, col: '255,140,40' },
   { id: 'aura-frost', kind: 'aura', name: 'Frostlicht', rar: 2, col: '120,210,255' },
   { id: 'aura-urlicht', kind: 'aura', name: 'Urlicht', rar: 3, col: '255,236,170' },
@@ -106,3 +106,5 @@ export const RELIC_ART = {
   phoenix: ['k...k...k', 'kOk.k.kOk', '.kOkYkOk.', '.kOYWYOk.', '..kOYOk..', '...kOk...', '..kOkOk..', '..k...k..'],
 };
 export const RELIC_PAL = { k: '#120c08', R: '#d04030', B: '#5ab8ff', Y: '#ffd84a', W: '#fff2cf', G: '#2a2018', O: '#ff8a2a' };
+
+export const rarName = (k, sym) => (sym ? RAR[k].sym + ' ' : '') + RAR[k].name;

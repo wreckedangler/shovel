@@ -359,3 +359,6 @@ canvas.mini{width:100%;height:34px;image-rendering:pixelated;border:1px solid #2
 .tshist i{flex:1;height:26px;display:grid;place-items:center;font-style:normal;font-size:12px;color:#070605;border:1px solid #3a3020;background:#0c0a08}
 .tshist i.on{background:linear-gradient(#c58bff,#7a3ad0);color:#fff;border-color:#c58bff}
 .field select{font:16px "Pixelify Sans",sans-serif;padding:8px;color:var(--ink);border:6px solid transparent;border-image:var(--fr-line) 4 / 6px;background:#050403 padding-box}
+.warnbtn{color:#ff9a80!important}
+body.bigui #ui{font-size:calc(15px * var(--ui-scale,1))}
+body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * var(--ui-scale,1))!important}

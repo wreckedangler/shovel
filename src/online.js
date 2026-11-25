@@ -46,3 +46,24 @@ export async function dailyBetter(date, k) {
   if (!online()) return null;
   try { const all = await count(`date=eq.${encodeURIComponent(date)}`), lower = await count(`date=eq.${encodeURIComponent(date)}&k=lt.${k}`); return all > 1 ? Math.round(lower / all * 100) : null; } catch { return null; }
 }
+
+/* ---------- Cloud-Sicherung ---------- */
+const saveHeaders = token => ({ ...headers(), 'x-save-token': token });
+export async function cloudSave(token, data) {
+  if (!online()) return false;
+  try {
+    const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/saves?on_conflict=token`, { method: 'POST', headers: { ...saveHeaders(token), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ token, data, updated_at: new Date().toISOString() }) });
+    return r.ok;
+  } catch { return false; }
+}
+export async function cloudLoad(token) {
+  if (!online()) return null;
+  try { const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/saves?token=eq.${encodeURIComponent(token)}&select=data,updated_at`, { headers: saveHeaders(token) }); const a = r.ok ? await r.json() : []; return a[0] || null; } catch { return null; }
+}
+/* ---------- Anonyme Todesstellen ---------- */
+export async function uploadDeaths(map) {
+  if (!online()) return false;
+  const rows = Object.entries(map).filter(([, xs]) => xs.length).map(([level, xs]) => ({ level, xs: xs.slice(-200), version: CONFIG.version }));
+  if (!rows.length) return true;
+  try { const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/deaths_anon`, { method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(rows) }); return r.ok; } catch { return false; }
+}

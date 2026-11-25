@@ -21,19 +21,30 @@ const WEATHER = {
 };
 export const weatherOf = level => { const opts = WEATHER[level.theme] || ['staub']; return opts[hashStr(level.id) % opts.length]; };
 
+// Vorgerechnete Lichtkreise statt neuer Farbverläufe in jedem Bild
+const stamps = new Map();
+function stamp(r, s, col) {
+  r = Math.max(4, Math.round(r / 4) * 4); const key = r + '|' + s + '|' + (col || '');
+  let c = stamps.get(key); if (c) return c;
+  c = mk(r * 2, r * 2); const x = c.getContext('2d'), g = x.createRadialGradient(r, r, col ? 0 : r * 0.15, r, r, col ? r * 0.7 : r);
+  g.addColorStop(0, col ? `rgba(${col},${s})` : `rgba(0,0,0,${s})`); g.addColorStop(1, col ? `rgba(${col},0)` : 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, r * 2, r * 2); stamps.set(key, c); return c;
+}
 export class Atmo {
-  constructor() { this.parts = []; this.level = null; this.lc = null; this.drops = []; }
+  constructor() { this.parts = []; this.level = null; this.lc = null; this.drops = []; this.low = false; }
   reset(level, W, H) { this.level = level; this.kind = weatherOf(level); this.parts = []; this.drops = []; this.dark = darkness(level); this.W = W; this.H = H; this.flash = 0; }
 
   /* ---------- Wetter (Bildschirmraum, mit leichter Parallaxe) ---------- */
   weather(x, g, cx, cy, t, front) {
     const W = this.W, H = this.H, k = this.kind, P = this.parts;
-    const want = { regen: 90, blaetter: 22, gluehwuermchen: 26, tropfen: 6, staub: 40, wind: 14, bluete: 18, glut: 30, funken: 10, schnee: 60, sporen: 40, leuchten: 34, nebel: 0 }[k] || 0;
+    const q = this.low ? 0.4 : 1;
+    const want0 = { regen: 90, blaetter: 22, gluehwuermchen: 26, tropfen: 6, staub: 40, wind: 14, bluete: 18, glut: 30, funken: 10, schnee: 60, sporen: 40, leuchten: 34, nebel: 0 }[k] || 0, want = Math.round(want0 * q);
     if (!front) {
       while (P.length < want) P.push(this.spawn(k, true));
       if (k === 'nebel') this.fog(x, cx, t);
       if (k === 'regen' && Math.random() < 0.002) this.flash = 10;
     }
+    if (this.flash > 0 && front && this.noFlash) this.flash = 0;
     if (this.flash > 0 && front) { x.fillStyle = `rgba(220,230,255,${this.flash / 30})`; x.fillRect(0, 0, W, H); this.flash--; }
     for (let i = P.length - 1; i >= 0; i--) {
       const q = P[i]; if (!!q.front !== !!front) continue;
@@ -97,9 +108,8 @@ export class Atmo {
     const glows = [];
     const hole = (px, py, r, s = 1, col = null) => {
       const sx = px - cx, sy = py - cy; if (sx < -r || sy < -r || sx > W + r || sy > H + r) return;
-      const gr = L.createRadialGradient(sx, sy, r * 0.15, sx, sy, r); gr.addColorStop(0, `rgba(0,0,0,${s})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      L.fillStyle = gr; L.fillRect(sx - r, sy - r, r * 2, r * 2);
-      if (col) glows.push([sx, sy, r, col]);
+      const st = stamp(r, s); L.drawImage(st, Math.round(sx - st.width / 2), Math.round(sy - st.height / 2));
+      if (col && !this.low) glows.push([sx, sy, r, col]);
     };
     const p = g.p, fl = 1 + Math.sin(t / 5) * 0.03 + Math.sin(t / 13) * 0.04;
     if (!p.dead) hole(p.x + 5, p.y + 6, (fin ? 44 : 74) * fl, 1, '255,190,110');
@@ -132,15 +142,13 @@ export class Atmo {
     x.drawImage(this.lc, 0, 0);
     // warmes Farblicht obendrauf
     x.globalCompositeOperation = 'lighter';
-    for (const [sx, sy, r, col] of glows) {
-      const gr = x.createRadialGradient(sx, sy, 0, sx, sy, r * 0.7); gr.addColorStop(0, `rgba(${col},${0.16 * a + 0.04})`); gr.addColorStop(1, `rgba(${col},0)`);
-      x.fillStyle = gr; x.fillRect(sx - r, sy - r, r * 2, r * 2);
-    }
+    const ga = Math.round((0.16 * a + 0.04) * 20) / 20;
+    for (const [sx, sy, r, col] of glows) { const st = stamp(r, ga, col); x.drawImage(st, Math.round(sx - st.width / 2), Math.round(sy - st.height / 2)); }
     x.globalCompositeOperation = 'source-over';
   }
   // Lichtstrahlen von oben in offenen, hellen Gebieten
   rays(x, cx, t, theme) {
-    if (!['wald', 'glocke', 'dornen', 'pilz'].includes(theme) || this.kind === 'regen') return;
+    if (this.low || !['wald', 'glocke', 'dornen', 'pilz'].includes(theme) || this.kind === 'regen') return;
     const W = this.W, H = this.H;
     x.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 4; k++) {
@@ -153,6 +161,7 @@ export class Atmo {
 
   /* ---------- Vordergrund: dunkle Silhouetten, die schneller vorbeiziehen ---------- */
   fore(x, theme, cx, cy, H) {
+    if (this.low) return;
     const strip = foreStrip(theme, H); if (!strip) return;
     const ox = -Math.round(cx * 1.35) % strip.width;
     for (let k = ox - strip.width; k < this.W; k += strip.width) x.drawImage(strip, k, -20);
