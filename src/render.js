@@ -395,6 +395,14 @@ export class Renderer {
 
   hud(g, ghosts) {
     const x = this.x, W = this.W, p = g.p;
+    // Eiserne Plakette hinter der Anzeige oben links
+    {
+      const per0 = W < 220 ? 6 : 10, rows = Math.ceil(p.maxhp / per0), pw = Math.max(58, Math.min(per0, p.maxhp) * 8 + 8), ph = 40 + (rows - 1) * 7;
+      x.fillStyle = 'rgba(20,12,28,0.62)'; x.fillRect(2, 2, pw, ph);
+      x.fillStyle = K; x.fillRect(2, 1, pw, 1); x.fillRect(2, ph + 2, pw, 1); x.fillRect(1, 2, 1, ph); x.fillRect(pw + 2, 2, 1, ph);
+      x.fillStyle = '#7a7488'; x.fillRect(2, 2, pw, 1); x.fillStyle = '#3a3446'; x.fillRect(2, ph + 1, pw, 1);
+      for (const [a, b] of [[3, 3], [pw - 1, 3], [3, ph - 1], [pw - 1, ph - 1]]) { x.fillStyle = '#c8901c'; x.fillRect(a, b, 1, 1); }
+    }
     const per = W < 220 ? 6 : 10;
     for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % per) * 8, 6 + Math.floor(i / per) * 7);
     const gy0 = Math.floor((p.maxhp - 1) / per) * 7;

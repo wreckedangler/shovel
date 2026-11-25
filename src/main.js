@@ -10,6 +10,7 @@ import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts } from './online.js';
 import * as S from './sprites.js';
+import { initSkin, ic, logoImg, refreshLogo } from './ui-skin.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
@@ -23,7 +24,9 @@ const R = new Renderer(ctx);
 let VH = 180, VW = 320;
 const D = save.d;
 setAudio(D.sfx, D.music);
+initSkin();
 
+const embers = [];
 let curCodes = [], mode = 'menu', game = null, ghosts = [], level = null, doneT = 0, menuT = 0;
 
 // Auflösung je nach Gerät:
@@ -107,6 +110,19 @@ function drawMenuBg() {
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
   const hs = S.hero(D.armor, D.shovel, D.weapon);
   R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8, null, 0, 16, 2, 0);
+  // Funkenflug und Glut wie aus einer Schmiede
+  if (embers.length < 40 && t % 3 === 0) embers.push({ x: Math.random() * VW, y: VH + 2, vx: (Math.random() - 0.5) * 0.3, vy: -0.3 - Math.random() * 0.6, life: 160 + Math.random() * 120, ph: Math.random() * 6 });
+  for (const e of embers) {
+    e.x += e.vx + Math.sin((t + e.ph * 40) / 30) * 0.15; e.y += e.vy; e.life--;
+    ctx.fillStyle = e.life > 120 ? '#fff2a0' : e.life > 60 ? '#ffb020' : '#c04010';
+    ctx.globalAlpha = Math.min(1, e.life / 40); ctx.fillRect(Math.round(e.x), Math.round(e.y), e.life > 140 ? 2 : 1, e.life > 140 ? 2 : 1);
+  }
+  ctx.globalAlpha = 1;
+  for (let k = embers.length - 1; k >= 0; k--) if (embers[k].life <= 0 || embers[k].y < -4) embers.splice(k, 1);
+  // Vignette
+  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.3, VW / 2, VH / 2, VW * 0.7);
+  vg.addColorStop(0, 'rgba(10,5,18,0)'); vg.addColorStop(1, 'rgba(10,5,18,0.7)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
 }
 
 /* ---------- Spielen ---------- */
@@ -181,7 +197,7 @@ async function finish() {
     <h2>${viaSecret ? 'Geheimer Ausgang!' : level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
     <p class="lvl">${esc(level.id)} · ${esc(level.name)}</p>
     ${secretMsg ? `<p class="secretmsg">${esc(secretMsg)}</p>` : ''}
-    ${level.secret ? '' : `<div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s"><span>★</span><small>${starLbl[i]}</small></div>`).join('')}</div>`}
+    ${level.secret ? '' : `<div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s">${ic(D.stars[id][i] ? 'star' : 'starOff')}<small>${starLbl[i]}</small></div>`).join('')}</div>`}
     <div class="coinrow">${coinRow}<small>Schaufelmünzen ${D.coins[id].length}/${info.coins}${info.secrets ? ` · Geheimnisse ${Math.min(D.secrets[id], info.secrets)}/${info.secrets}` : ''}</small></div>
     <div class="stats">
       <div><small>Zeit</small><b>${fmtTime(frames)}</b>${record ? '<em>Neue Bestzeit!</em>' : `<em>Best ${fmtTime(old)}</em>`}</div>
@@ -217,7 +233,7 @@ function toast(title, text, kind = '') {
   let box = $('#toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const el = document.createElement('div'); el.className = 'toast ' + kind;
-  el.innerHTML = `<b>${esc(title)}</b><span>${esc(text)}</span>`;
+  el.innerHTML = `<b>${ic(kind === 'ach' ? 'trophy' : 'scroll')} ${esc(title)}</b><span>${text}</span>`;
   box.appendChild(el);
   setTimeout(() => el.classList.add('out'), 2800); setTimeout(() => el.remove(), 3300);
 }
@@ -225,7 +241,7 @@ function checkAch() {
   for (const a of ACH) {
     if (D.ach[a.id] || !a.test(D)) continue;
     D.ach[a.id] = true; D.gems += a.gems; D.earned += a.gems;
-    toast('Erfolg: ' + a.name, `${a.desc} +${a.gems} ◆`, 'ach'); sfx('achieve'); haptic('unlock');
+    toast('Erfolg: ' + a.name, `${esc(a.desc)} +${a.gems} ${ic('gem')}`, 'ach'); sfx('achieve'); haptic('unlock');
   }
   save.write();
 }
@@ -235,7 +251,7 @@ function achs() {
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Erfolge</h2><span class="gems">${n} / ${ACH.length}</span></div>
     <div class="bar"><i style="width:${n / ACH.length * 100}%"></i></div>
-    <div class="achgrid">${ACH.map(a => `<div class="achc ${D.ach[a.id] ? 'on' : ''}"><b>${D.ach[a.id] ? '★' : '☆'} ${esc(a.name)}</b><small>${esc(a.desc)}</small><em>+${a.gems} ◆</em></div>`).join('')}</div>
+    <div class="achgrid">${ACH.map(a => `<div class="achc ${D.ach[a.id] ? 'on' : ''}"><b>${ic(D.ach[a.id] ? 'trophy' : 'lock')} ${esc(a.name)}</b><small>${esc(a.desc)}</small><em>+${a.gems} ${ic('gem')}</em></div>`).join('')}</div>
   </div>`);
 }
 function wardrobe(msg = '') {
@@ -272,7 +288,7 @@ function claimDaily() {
   const el = document.createElement('div'); el.className = 'reveal gear';
   el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:#ffd84a;--g:#ffb020">
     <p class="rar">Tagesschatz · Tag ${D.daily.streak}</p>
-    <div class="dchest">◆</div><h2>+${gems} Edelsteine</h2>
+    <div class="dchest">${ic('gem', 'huge')}</div><h2>+${gems} Edelsteine</h2>
     <p class="perk">${D.daily.streak % 7 === 0 ? 'Wochenbonus! +500 extra.' : `Morgen gibt es mehr: Tag ${D.daily.streak + 1} bringt ${50 * Math.min(7, D.daily.streak + 1)}.`}</p>
     <div class="row"><button class="big" data-r="close">Einsacken</button></div></div>`;
   document.body.appendChild(el);
@@ -351,13 +367,13 @@ function armory(msg = '') {
       <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.secret ? 'Ein Gerücht erzählt von einem Glimmen in grosser Höhe …' : w.hint)}</p></div></div>`;
     return `<div class="wcard ${w.rar} ${on ? 'on' : ''}" style="--c:${r.col}"><div class="wi"><canvas data-icon="${w.id}"></canvas></div>
       <div><small style="color:${r.col}">${r.name}</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
-      <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ✓' : 'Ausrüsten'}</button></div></div>`;
+      <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ' + ic('check') : 'Ausrüsten'}</button></div></div>`;
   }).join('');
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Waffenkammer</h2><span class="gems">${n} / ${WEAPONS.length}</span></div>
     <p class="note">Diese Waffen kann man nicht kaufen. Jede verlangt eine besondere Tat. Sie nutzen Schaden und Reichweite deiner Schaufel-Stufe und legen ihre Kraft obendrauf.</p>
     <div class="wgrid">${cards}</div>
-    <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Normale Schaufel nehmen' : 'Normale Schaufel ausgerüstet ✓'}</button></div>
+    <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Normale Schaufel nehmen' : 'Normale Schaufel ausgerüstet'}</button></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
   for (const cv of document.querySelectorAll('[data-icon]')) drawIcon(cv, cv.dataset.icon, 3);
@@ -371,12 +387,15 @@ function title() {
   mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
   playMusic(THEMES.karte.music);
   show(`<div class="title">
-    <h1 data-a="logo">Schaufel<span>held</span></h1>
-    <p>Grabe. Springe. Schmiede dich nach oben.</p>
-    <button class="big" data-a="map">Spielen</button>
-    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer</button><button data-a="options">Optionen</button></div>
-    <p class="gems">◆ ${D.gems} · ${completion(D)} % erkundet</p>
-    ${dailyReady() ? `<button class="daily" data-a="daily">Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : `<p class="note">Tagesschatz geholt · Serie ${D.daily.streak} ${D.daily.streak === 1 ? 'Tag' : 'Tage'}</p>`}
+    <div data-a="logo">${logoImg()}</div>
+    <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
+    <div class="menu">
+      <button class="big" data-a="map">Abenteuer</button>
+      <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
+      ${dailyReady() ? `<button class="daily" data-a="daily">${ic('trophy')} Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : ''}
+    </div>
+    <p class="gems">${ic('gem')} ${D.gems} &nbsp; ${ic('coin')} ${totalCoins(D)} &nbsp; ${ic('scroll')} ${completion(D)} %</p>
+    ${dailyReady() ? '' : `<p class="note">Tagesschatz geholt · Serie ${D.daily.streak} ${D.daily.streak === 1 ? 'Tag' : 'Tage'}</p>`}
     ${installTip()}
   </div>`);
 }
@@ -398,7 +417,7 @@ function map(sel, wi) {
   else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
   const w = ALLW()[curWorld];
   const nSec = SECRET_WORLD.levels.filter(id => D.secretOpen[id]).length;
-  const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' 🔒'}</button>`).join('')
+  const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' ' + ic('lock')}</button>`).join('')
     + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`;
   const cards = w.levels.map(id => {
     const l = levelById(id), open = levelOpen(id), best = D.best[id], info = LEVEL_INFO[id], rk = D.ranks[id];
@@ -407,12 +426,12 @@ function map(sel, wi) {
     const coins = Array.from({ length: info.coins }, (_, k) => `<i class="${(D.coins[id] || []).includes(k) ? 'on' : ''}"></i>`).join('');
     return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme} ${l.secret ? 'secretcard' : ''}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
       <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>${rk ? `<span class="rank r${rk}">${rk}</span>` : ''}
-      ${l.secret ? '' : `<span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => `<em class="${v ? 'on' : ''}">★</em>`).join('')}</span>`}
+      ${l.secret ? '' : `<span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => ic(v ? 'star' : 'starOff')).join('')}</span>`}
       <span class="ccoins">${coins}</span>
-      <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
+      <small>${open ? (best ? fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
   }).join('');
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${completion(D)} % · ◆ ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${ic('scroll')} ${completion(D)} % ${ic('gem')} ${D.gems}</span></div>
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
@@ -458,15 +477,15 @@ function forge(msg = '') {
     const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx];
     const chips = TIERS.map((t, i) => `<canvas class="gi ${i === cur ? 'cur' : ''} ${i <= cur ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" title="${esc(t.name)}"></canvas>`).join('');
     return `<div class="gear">
-      <div class="gh"><b>${name}: <span style="color:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
+      <div class="gh"><b>${name}: <span class="tn" style="--c:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
       <div class="chips">${chips}</div>
-      ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
-        ${can ? `<button class="${D.gems >= price ? 'big' : 'off'}" data-a="buy" data-k="${key}">◆ ${price}</button>` : '<span class="lockt">ab Welt 3</span>'}</div>` : '<div class="next">Maximum erreicht.</div>'}
+      ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b class="tn" style="--c:${TIERS[nx].light}">${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
+        ${can ? `<button class="${D.gems >= price ? 'big' : 'off'}" data-a="buy" data-k="${key}">${ic('gem')} ${price}</button>` : '<span class="lockt">ab Welt 3</span>'}</div>` : '<div class="next">Maximum erreicht.</div>'}
     </div>`;
   };
   const nA = Math.min(D.armor + 1, TIERS.length - 1), nS = Math.min(D.shovel + 1, TIERS.length - 1);
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">◆ ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">${ic('gem')} ${D.gems}</span></div>
     <div class="forge"><div class="pv"><canvas id="preview" width="216" height="120"></canvas><small>Jetzt <span>→</span> nächste Stufe</small></div>
       <div class="rows">${row('shovel', 'Schaufel', SHOVEL)}${row('armor', 'Rüstung', ARMOR)}
       <div class="gear"><div class="gh"><b>Waffe: ${D.weapon ? esc(weaponById(D.weapon).name) : 'keine (normale Schaufel)'}</b><small>Legendäre und mythische Waffen findest du nicht im Laden.</small></div><div class="next"><span></span><button data-a="armory">Waffenkammer</button></div></div>
@@ -524,7 +543,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.7</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.8</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -609,4 +628,5 @@ if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__
 if (location.search.includes('debug')) window.__sh = { get game() { return game; } };
 
 title();
+refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); });
 requestAnimationFrame(loop);
