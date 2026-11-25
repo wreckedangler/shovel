@@ -16,8 +16,8 @@ export const TIERS = [
   { id: 'urlicht',        name: 'Urlicht',        dark: '#ff9f3a', light: '#ffffff' },
 ];
 
-export const AVAILABLE = 6;           // Welt 1: bis Stahl · Welt 2: Titan, Adamantium
-export const PRICE = [0, 150, 450, 1100, 2400, 4200, 7000, 11000, 16000, 23000, 32000, 45000];
+export const AVAILABLE = 12;          // Stufen 7–12 brauchen zusätzlich Splitter aus Truhen (loot.js SHARD_PRICE)
+export const PRICE = [0, 150, 450, 1100, 2400, 4200, 5000, 6200, 7500, 9000, 11000, 14000];
 
 // dmg: Schaden · reach: Reichweite in px · stone: zerschlägt Stein · pogo: Abprall-Faktor
 export const SHOVEL = [
@@ -27,12 +27,12 @@ export const SHOVEL = [
   { dmg: 3, reach: 19, pogo: 1.12, stone: true, perk: 'Mehr Reichweite, höherer Abpraller' },
   { dmg: 4, reach: 19, pogo: 1.12, stone: true, pogoDmg: 2, perk: 'Schaufel-Sprung trifft doppelt' },
   { dmg: 5, reach: 20, pogo: 1.15, stone: true, pogoDmg: 2, ore: true, perk: 'Gräbt violettes Erz' },
-  { dmg: 5, reach: 22, pogo: 1.18, stone: true, perk: 'Federleicht: schnellere Hiebe' },
-  { dmg: 6, reach: 22, pogo: 1.18, stone: true, perk: 'Sternenhieb (Projektil)' },
-  { dmg: 7, reach: 24, pogo: 1.20, stone: true, perk: 'Feuerspur beim Abpraller' },
-  { dmg: 8, reach: 24, pogo: 1.22, stone: true, perk: 'Gleitet kurz durch Wände' },
-  { dmg: 9, reach: 26, pogo: 1.24, stone: true, perk: 'Zeitlupe beim Abpraller' },
-  { dmg: 12, reach: 28, pogo: 1.28, stone: true, perk: 'Alles leuchtet' },
+  { dmg: 5, reach: 22, pogo: 1.18, stone: true, fast: true, perk: 'Federleicht: schnellere Hiebe' },
+  { dmg: 6, reach: 22, pogo: 1.18, stone: true, fast: true, stars: true, perk: 'Sternenhieb beim Abpraller' },
+  { dmg: 7, reach: 24, pogo: 1.20, stone: true, fast: true, stars: true, fire: true, perk: 'Feuerhieb' },
+  { dmg: 8, reach: 24, pogo: 1.22, stone: true, area: true, perk: 'Flächenhieb: gräbt drei Blöcke' },
+  { dmg: 9, reach: 26, pogo: 1.24, stone: true, gem: 1.5, perk: 'Edelsteine ×1,5' },
+  { dmg: 12, reach: 28, pogo: 1.28, stone: true, gem: 1.5, seer: true, perk: 'Alles leuchtet: Geheimnisse sichtbar' },
 ];
 
 // hp: Herzen · kb: Rückstoss-Faktor · spike: Schaden durch Stacheln
@@ -43,10 +43,10 @@ export const ARMOR = [
   { hp: 10, kb: 0.5, spike: 1, perk: '+2 Herzen, Stacheln halb so schlimm' },
   { hp: 11, kb: 0.5, spike: 1, inv: 110, perk: 'Längerer Schutz nach Treffer' },
   { hp: 12, kb: 0.0, spike: 1, inv: 110, perk: 'Kein Rückstoss mehr' },
-  { hp: 12, kb: 0.0, spike: 1, inv: 110, perk: 'Lava-fest' },
-  { hp: 13, kb: 0.0, spike: 1, inv: 110, perk: 'Doppelsprung' },
-  { hp: 14, kb: 0.0, spike: 0, inv: 110, perk: 'Stacheln egal' },
-  { hp: 15, kb: 0.0, spike: 0, inv: 110, perk: 'Unsichtbar für Fledermäuse' },
-  { hp: 16, kb: 0.0, spike: 0, inv: 110, perk: 'Rückspulen bei Absturz' },
-  { hp: 20, kb: 0.0, spike: 0, inv: 130, perk: 'Ewiger Glanz' },
+  { hp: 12, kb: 0.0, spike: 1, inv: 110, ward: true, perk: 'Erster Treffer pro Level verpufft' },
+  { hp: 13, kb: 0.0, spike: 1, inv: 110, ward: true, air: 1, perk: 'Doppelsprung' },
+  { hp: 14, kb: 0.0, spike: 0, inv: 110, ward: true, air: 1, perk: 'Stacheln egal' },
+  { hp: 15, kb: 0.0, spike: 0, inv: 110, ward: true, air: 1, magnet: 1, perk: 'Edelsteine fliegen zu dir' },
+  { hp: 16, kb: 0.0, spike: 0, inv: 110, ward: true, air: 1, magnet: 1, rewind: true, perk: 'Rückspulen bei Absturz' },
+  { hp: 20, kb: 0.0, spike: 0, inv: 130, ward: true, air: 2, magnet: 1, rewind: true, perk: 'Dreifachsprung, ewiger Glanz' },
 ];

@@ -1,4 +1,7 @@
 // Zeichnet einen Game-Zustand in eine kleine Pixel-Leinwand (z. B. 320×180).
+import { COSMETICS } from './loot.js';
+const COSMETIC_COL = Object.fromEntries(COSMETICS.filter(c => c.col).map(c => [c.id, c.col]));
+const COSMETIC_FILTER = Object.fromEntries(COSMETICS.filter(c => c.filter).map(c => [c.id, c.filter]));
 import { T } from './game.js';
 import { THEMES } from './themes.js';
 import { TIERS } from './gear.js';
@@ -229,10 +232,44 @@ export class Renderer {
     }
   }
 
+  // Aussehen aus Truhen: Spur, Aura, Färbung (this.look = { spur, farbe, aura } aus main)
+  lookFx(g, p) {
+    const L = this.look || {}, x = this.x, t = this.t;
+    if (!this.trail || this.trailG !== g) { this.trail = []; this.trailG = g; }
+    if (L.spur && (Math.abs(p.vx) > 0.4 || Math.abs(p.vy) > 1) && t % 2 === 0)
+      this.trail.push({ x: p.x + 5 + (Math.random() - 0.5) * 6, y: p.y + 10 + (Math.random() - 0.5) * 6, life: 28, vy: L.spur === 'spur-flammen' ? -0.4 : L.spur === 'spur-blaetter' ? 0.3 : 0, ph: Math.random() * 6 });
+    for (let k = this.trail.length - 1; k >= 0; k--) {
+      const q = this.trail[k]; q.life--; q.y += q.vy; if (L.spur === 'spur-blaetter') q.x += Math.sin((t + q.ph * 20) / 6) * 0.4;
+      if (q.life <= 0) { this.trail.splice(k, 1); continue; }
+      const a = q.life / 28; x.globalAlpha = a;
+      switch (L.spur) {
+        case 'spur-blaetter': x.fillStyle = ['#d0702a', '#e8a838', '#a8401c'][Math.floor(q.ph) % 3]; x.fillRect(Math.round(q.x), Math.round(q.y), 2, 1); break;
+        case 'spur-funken': x.fillStyle = q.life > 18 ? '#fff2a0' : '#ff8a2a'; x.fillRect(Math.round(q.x), Math.round(q.y + (28 - q.life) * 0.3), 1, 1); break;
+        case 'spur-sterne': x.fillStyle = (t + q.ph * 9) % 8 < 4 ? '#ffffff' : '#9ad8ff'; x.fillRect(Math.round(q.x), Math.round(q.y), 1, 1); if (q.life > 20) { x.fillRect(Math.round(q.x) - 1, Math.round(q.y), 3, 1); x.fillRect(Math.round(q.x), Math.round(q.y) - 1, 1, 3); } break;
+        case 'spur-flammen': x.fillStyle = q.life > 20 ? '#fff2a0' : q.life > 10 ? '#ff9a2a' : '#c03010'; x.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); break;
+        case 'spur-schatten': x.globalAlpha = a * 0.6; x.fillStyle = '#1a0e28'; x.fillRect(Math.round(q.x) - 1, Math.round(q.y) - 1, 3, 3); break;
+        case 'spur-regenbogen': x.fillStyle = `hsl(${(t * 6 + q.life * 12) % 360},90%,62%)`; x.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); break;
+      }
+    }
+    x.globalAlpha = 1;
+    const au = L.aura && COSMETIC_COL[L.aura];
+    if (au) {
+      const r = 14 + Math.sin(t / 12) * 2, gr = x.createRadialGradient(p.x + 5, p.y + 8, 2, p.x + 5, p.y + 8, r);
+      gr.addColorStop(0, `rgba(${au},0.45)`); gr.addColorStop(1, `rgba(${au},0)`);
+      x.fillStyle = gr; x.fillRect(p.x + 5 - r, p.y + 8 - r, r * 2, r * 2);
+      if (t % 6 === 0) g.parts.push({ x: p.x + Math.random() * 10, y: p.y + 14, vx: 0, vy: -0.5, life: 26, col: L.aura === 'aura-urlicht' ? 'gold' : L.aura === 'aura-frost' ? 'ice' : 'fire', grav: 0 });
+    }
+  }
   player(g) {
     const p = g.p; if (p.dead) return;
+    this.lookFx(g, p);
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
     const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
+    const tint = this.look && this.look.farbe && COSMETIC_FILTER[this.look.farbe];
+    if (tint) this.x.filter = tint;
+    try { this.playerBody(g, p, hs); } finally { this.x.filter = 'none'; }
+  }
+  playerBody(g, p, hs) {
     if (g.idle > 900 && !p.dead) {
       // Easter Egg: der Held schläft ein
       if (this.t % 40 === 0) g.parts.push({ x: p.x + (p.face > 0 ? 8 : 0), y: p.y - 6, vx: 0.15 * p.face, vy: -0.35, life: 60, col: 'zzz', grav: 0, z: 1 });
@@ -488,6 +525,7 @@ function partCol(c, th, g, q) {
     case 'star': return alt ? '#d8c8ff' : '#ffffff';
     case 'ore': return alt ? '#b04cff' : '#f0c0ff';
     case 'gold': return alt ? '#ffd84a' : '#fff6b0';
+    case 'ice': return alt ? '#9ad8ff' : '#e8f8ff';
     case 'crumble': return alt ? '#c86a8a' : '#ffb0c8';
     case 'zzz': return '#ffffff';
     case 'confetti': return ['#ff4f7a', '#ffd84a', '#4fd2ff', '#7dffa0', '#c58bff'][(Math.floor(q.x * 3 + q.y * 7) % 5 + 5) % 5];

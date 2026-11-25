@@ -21,6 +21,17 @@ export class Game {
     this.ar = ARMOR[gear.armor];
     this.gear = gear;
     this.mod = weaponMods(gear.weapon);
+    // Schmiede-Perks der hohen Stufen (kumulativ) und Relikte
+    const m = this.mod, R = this.relic = opt.relics || {};
+    for (let k = 0; k <= gear.shovel; k++) { const s = SHOVEL[k]; if (s.fast) m.atkLen = Math.min(m.atkLen, 12); if (s.stars) m.stars = true; if (s.fire) m.fire = true; if (s.area) m.area = true; if (s.seer) m.seer = true; }
+    if (this.sh.gem) m.gemMul *= this.sh.gem;
+    if (R.gier) m.gemMul *= [1, 1.15, 1.3, 1.5][R.gier];
+    if (R.sprint) m.run *= 1 + R.sprint * 0.05;
+    this.magnet = Math.max(22, [0, 36, 52, 72][R.magnet || 0], this.ar.magnet ? 60 : 0);
+    this.rushMul = [1, 1.3, 1.6, 2][R.rausch || 0];
+    this.pogoMul = 1 + (R.feder || 0) * 0.06;
+    this.airJumps = this.ar.air || 0;
+    this.ward = !!this.ar.ward; this.shieldT = 0; this.phoenix = R.phoenix || 0;
     this.dmg = Math.round(this.sh.dmg * this.mod.dmgMul);
     this.reach = this.sh.reach + this.mod.reach;
     // Statistiken für Sterne und Waffen-Bedingungen
@@ -96,7 +107,7 @@ export class Game {
     // Münzen in fester Reihenfolge nummerieren (für den Spielstand)
     this.ents.filter(e => e.type === 'coin').sort((a, b) => a.x - b.x || a.y - b.y).forEach((c, i) => { c.idx = i; });
     // Seltene goldene Gegner (deterministisch pro Level)
-    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat', 'spitter', 'kuckuck'].includes(e.type) && (this.rand() < 0.07 || this.cheat.midas)) {
+    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat', 'spitter', 'kuckuck'].includes(e.type) && (this.rand() < [0.07, 0.14, 0.2, 0.28][this.relic.glueck || 0] || this.cheat.midas)) {
       e.golden = true; e.hp += 2; e.loot = 60;
     }
     this.coinTotal = this.ents.filter(e => e.type === 'coin').length;
@@ -104,7 +115,7 @@ export class Game {
     this.check = { ...this.spawn };
     const p = this.p = {
       type: 'player', x: this.spawn.x, y: this.spawn.y, w: 10, h: 14, vx: 0, vy: 0,
-      face: 1, hp: this.ar.hp, maxhp: this.ar.hp, atk: 0, atkCd: 0, pogo: false,
+      face: 1, hp: this.ar.hp + (R.herz || 0), maxhp: this.ar.hp + (R.herz || 0), airLeft: 0, atk: 0, atkCd: 0, pogo: false,
       inv: 0, hurt: 0, safe: 0, coyote: 0, jbuf: 0, jumping: false, dead: 0, drop: 0, anim: 0,
       land: 0, dash: 0, dashUsed: false,
     };
@@ -143,7 +154,7 @@ export class Game {
   }
   addRush(n) {
     if (this.rushT > 0) return;
-    this.rush = Math.max(0, Math.min(100, this.rush + n));
+    this.rush = Math.max(0, Math.min(100, this.rush + (n > 0 ? n * this.rushMul : n)));
     if (this.rush >= 100) { this.rushT = 600; this.rush = 100; this.ev('rush'); this.banner = { text: 'RAUSCH!', sub: 'ALLES ZÄHLT DOPPELT', col: '#ffd84a', t: 70 }; this.freeze = Math.max(this.freeze, 12); }
   }
   ventOn(v) { return (this.frame + v.tx * 23) % 120 < 70; }
@@ -235,7 +246,7 @@ export class Game {
     this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : c === 'R' ? 'ore' : 'dirt', 2.2);
     this.shake = Math.max(this.shake, 3);
     this.ev(c === 'S' ? 'crack' : 'dig', tx * T, ty * T);
-    this.dropGems(tx * T + 8, ty * T + 8, c === 'R' ? 45 : c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul);
+    this.dropGems(tx * T + 8, ty * T + 8, (c === 'R' ? 45 : c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul) + (this.relic.spaten || 0));
   }
 
   step(inp) {
@@ -295,9 +306,13 @@ export class Game {
       else { p.vx *= p.onGround ? 0.68 : 0.93; if (Math.abs(p.vx) < 0.05) p.vx = 0; }
     }
     p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
+    if (p.onGround) p.airLeft = this.airJumps;
+    if (p.onGround && !p.plat && p.groundC !== 'c' && this.frame % 10 === 0) this.lastSafe = { x: p.x, y: p.y };
+    if (this.relic.schild && this.shieldT > 0) this.shieldT--;
     p.jbuf = i.jumpP ? 7 : Math.max(0, p.jbuf - 1);
     if (p.jbuf && p.onGround && i.down && (p.groundC === '=' || p.plat)) { p.drop = 10; p.y += 2; p.jbuf = 0; p.onGround = false; p.plat = null; }
-    else if (p.jbuf && (p.coyote || this.cheat.wolken) && p.hurt <= 0) {
+    else if (p.jbuf && (p.coyote || this.cheat.wolken || (p.airLeft > 0 && !p.onGround)) && p.hurt <= 0) {
+      if (!p.coyote && !this.cheat.wolken) { p.airLeft--; this.burst(cx(p), p.y + p.h, 8, 'spark', 1.2, 0, 14); }
       p.vy = -this.mod.jump; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.jumping = true; this.ev('jump');
       this.burst(cx(p), p.y + p.h, 4, 'dust', 0.8, 0, 14);
     } else if (i.jumpP && this.mod.dash && !p.onGround && !p.dashUsed && p.hurt <= 0) {
@@ -381,14 +396,14 @@ export class Game {
       this.burst(cx(p), p.y + p.h, 16, 'dust', 2.5, 0.05, 18); this.shake = Math.max(this.shake, 4);
     }
     if (hit) {
-      p.vy = -BOUNCE * sh.pogo; p.jumping = false; p.safe = 10; p.dashUsed = false;
+      p.vy = -BOUNCE * sh.pogo * this.pogoMul; p.jumping = false; p.airLeft = this.airJumps; p.safe = 10; p.dashUsed = false;
       this.chain++; this.maxChain = Math.max(this.maxChain, this.chain); this.addRush(5);
       this.freeze = Math.max(this.freeze, 3);
       this.ev('bounce', p.x, p.y, this.chain);
       this.burst(cx(p), p.y + p.h, 6, 'spark', 1.6, 0.05, 14);
       // Pogo-Kette: ab 3 in Folge gibt es Bonus-Edelsteine, die mit der Kette wachsen
       if (this.chain >= 3) {
-        const bonus = Math.min(20, (this.chain - 2) * 2);
+        const bonus = Math.min(20, (this.chain - 2) * 2) * ((this.relic.kette || 0) + 1);
         this.num(cx(p), p.y - 6, `KETTE ×${this.chain}`, this.chain >= 8 ? '#ff7ae0' : '#ffd84a');
         this.dropGems(cx(p), p.y + p.h, bonus);
       }
@@ -438,6 +453,13 @@ export class Game {
   hurtPlayer(dmg, dir, spike) {
     const p = this.p;
     if (p.inv > 0 || p.dead || this.done || this.cheat.gott) { if (spike) { p.vy = -6; p.onGround = false; } return; }
+    if (this.ward || (this.relic.schild && this.shieldT <= 0)) {
+      if (this.ward) this.ward = false; else this.shieldT = [0, 40, 30, 20][this.relic.schild] * 60;
+      p.inv = 60; this.freeze = Math.max(this.freeze, 6); this.ev('shield', p.x, p.y);
+      this.burst(cx(p), p.y + 7, 20, 'spark', 2.2, 0, 22); this.num(cx(p), p.y - 6, 'GEBLOCKT', '#7ad0ff');
+      if (spike) { p.vy = -6; p.onGround = false; }
+      return;
+    }
     p.hp -= dmg; this.hurtCount++; this.bossHurt++; if (!this.rushT) this.rush = Math.max(0, this.rush - 45);
     p.inv = this.ar.inv || 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
@@ -447,6 +469,17 @@ export class Game {
   kill(fell) {
     const p = this.p;
     if (p.dead) return;
+    if (fell && this.ar.rewind && p.hp > 1 && this.lastSafe) {
+      p.x = this.lastSafe.x; p.y = this.lastSafe.y; p.vx = p.vy = 0; p.hp--; p.inv = 90; this.ev('revive'); this.freeze = 12;
+      this.num(cx(p), p.y - 6, 'ZURÜCKGESPULT', '#ffd84a'); this.burst(cx(p), p.y + 7, 18, 'gold', 2, 0, 24); return;
+    }
+    if (this.phoenix && !this.phoenixUsed && !this.cheat.gott) {
+      this.phoenixUsed = true;
+      if (fell) { p.x = this.check.x; p.y = this.check.y; p.vx = p.vy = 0; }
+      p.hp = Math.min(p.maxhp, this.phoenix * 2); p.inv = 120; p.hurt = 0;
+      this.burst(cx(p), p.y + 7, 36, 'fire', 2.8, -0.06, 44); this.ev('revive'); this.freeze = 20; this.shake = 6;
+      this.banner = { text: 'AUS DER ASCHE', col: '#ff8a2a', t: 90 }; return;
+    }
     if (this.mod.soul && !this.soulUsed) {
       // Seelenschaufel: einmal auferstehen
       this.soulUsed = true;

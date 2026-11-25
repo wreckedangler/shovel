@@ -33,5 +33,16 @@ for (const L of LEVELS) {
     bad(`${L.id} Geist-Code nicht verlustfrei`);
   else console.log(`     Geist-Code ${code.length} Zeichen, ok`);
 }
+// Truhen: Verteilung, Garantie und Duplikate prüfen
+{
+  const { openChest, PITY, ITEMS } = await import('../src/loot.js');
+  const D = { relics: {}, relicSlots: [null, null, null], cosmetics: {}, shards: 0, loot: { pity: 0, opened: 0 } };
+  let s = 1; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const cnt = [0, 0, 0, 0]; let maxDry = 0, dry = 0;
+  for (let i = 0; i < 4000; i++) { const r = openChest(D, 'holz', rnd); cnt[r.rar]++; dry = r.rar === 3 ? 0 : dry + 1; maxDry = Math.max(maxDry, dry); }
+  if (maxDry >= PITY) throw new Error('Garantie greift nicht: ' + maxDry);
+  const all = ITEMS.every(i => i.kind === 'relikt' ? D.relics[i.id] === 3 : D.cosmetics[i.id]);
+  console.log(`Truhen: 4000 Holz → ${cnt.join('/')} · längste Durststrecke ${maxDry} · alles gesammelt ${all} · Splitter ${D.shards} · Slots ${D.relicSlots.join(',')}`);
+}
 console.log(fail ? `${fail} Fehler` : 'Alles ok');
 process.exit(fail ? 1 : 0);

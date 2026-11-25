@@ -51,6 +51,12 @@ const SFX = {
   chainEnd: (n = 3) => [0, 4, 7, 12].slice(0, Math.min(4, n - 1)).forEach((s, i) => osc('square', 523 * 2 ** (s / 12), 523 * 2 ** (s / 12), 0.1, 0.07, i * 0.05)),
   dash: () => { noise(0.18, 0.25, 4000); osc('sine', 900, 300, 0.2, 0.12); },
   wave: () => { noise(0.25, 0.3, 500); osc('triangle', 140, 60, 0.2, 0.2); },
+  shield: () => { osc('triangle', 880, 1320, 0.12, 0.12); osc('sine', 1760, 1760, 0.2, 0.06, 0.04); },
+  // Truhen: Klopfen, aufsteigende Stufen, Aufbruch je Seltenheit
+  knock: v => osc('square', 90 + (v || 0) * 10, 60, 0.08, 0.14),
+  rarStep: v => { const n = [392, 523, 659, 880][v || 0]; osc('triangle', n, n, 0.25, 0.12); osc('square', n * 2, n * 2, 0.08, 0.04); },
+  upgrade: () => [523, 659, 784, 1047, 1319].forEach((n, i) => osc('square', n, n, 0.09, 0.08, i * 0.05)),
+  burst: v => { noise(0.35, 0.18); const base = [262, 330, 392, 523][v || 0]; [1, 1.25, 1.5, 2, 2.5].slice(0, 3 + (v || 0)).forEach((m, i) => osc('triangle', base * m, base * m, 0.5, 0.1, 0.05 + i * 0.07)); },
   revive: () => [262, 330, 392, 523, 659, 784].forEach((n, i) => osc('triangle', n, n, 0.3, 0.12, i * 0.08)),
   legend: () => {
     [392, 523, 659, 784, 1047].forEach((n, i) => osc('square', n, n, 0.18, 0.09, i * 0.09));

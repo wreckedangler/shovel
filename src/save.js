@@ -12,12 +12,14 @@ const DEF = {
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
   cheatsKnown: {}, cheatsOn: {}, seenSplash: false,
+  relics: {}, relicSlots: [null, null, null], cosmetics: {}, look: { spur: null, farbe: null, aura: null }, shards: 0,
+  keys: { holz: 1, eisen: 0, gold: 0, urlicht: 0 }, loot: { pity: 0, opened: 0 }, keyLog: {},
   coins: {}, secrets: {}, secretOpen: {}, ach: {}, ranks: {}, daily: { last: '', streak: 0 }, scarf: 'auto', retro: false,
   stats: { dug: 0, bestChain: 0, golden: 0, rush: 0, legendChest: 0, flag: 0, sleep: 0, bossClean: 0, retro: 0 },
 };
 const fresh = () => JSON.parse(JSON.stringify(DEF));
 const data = fresh();
-try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); Object.assign(data, o, { stats: { ...data.stats, ...(o.stats || {}) }, daily: { ...data.daily, ...(o.daily || {}) } }); } } catch {}
+try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); Object.assign(data, o, { stats: { ...data.stats, ...(o.stats || {}) }, daily: { ...data.daily, ...(o.daily || {}) }, keys: { ...data.keys, ...(o.keys || {}) }, loot: { ...data.loot, ...(o.loot || {}) }, look: { ...data.look, ...(o.look || {}) } }); } } catch {}
 
 export const save = {
   get d() { return data; },

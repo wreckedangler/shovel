@@ -202,3 +202,19 @@ Mit spielverändernden Cheats zählen Ränge, Rekorde, Sterne, Münzen und Erfol
 | ESPRESSO / ZEITLUPE | Tempo ×1.5 / ×0.5 | Erfolg Meisterlich / Hartnäckig |
 | UNVERWUNDBAR | kein Schaden (Abgründe bleiben tödlich) | Erfolg Unberührbar |
 | RETRO | Gameboy-Farben | – |
+
+## Schatzkammer (v0.10)
+
+Truhen kosten Edelsteine oder einen Schlüssel. Schlüssel gibt es für den ersten Abschluss eines Levels (Boss: Urlicht, Geheimlevel: Gold), alle drei Sterne, alle Münzen, den S-Rang und den Tagesschatz.
+
+| Truhe | Preis | Gewöhnlich / Selten / Episch / Legendär | Aufwertung |
+|---|---|---|---|
+| Holz | 250 (10× 2250) | 68 / 26 / 5 / 1 | 12 % |
+| Eisen | 700 (10× 6300) | 35 / 45 / 16 / 4 | 10 % |
+| Gold | 1800 | 0 / 55 / 33 / 12 | 8 % |
+| Urlicht | nur Schlüssel | 0 / 0 / 60 / 40 | – |
+
+- Garantie: spätestens nach 30 Öffnungen ohne Legendär ist die nächste legendär.
+- Fehlende Gegenstände fallen doppelt so oft wie Duplikate. Duplikate werden zu Splittern.
+- Inhalte (`src/loot.js`): 11 Relikte (3 Plätze, Stufe 1–3), 6 Spuren, 5 Färbungen, 3 Auren.
+- Splitter + Edelsteine schmieden die Stufen 7–12 (Mithril bis Urlicht) mit echten Perks: schnellere Hiebe, Sternenhieb, Flächenhieb, Doppel-/Dreifachsprung, Schutz beim ersten Treffer, Edelstein-Magnet, Rückspulen bei Absturz.

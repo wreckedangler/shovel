@@ -12,6 +12,8 @@ import { online, uploadGhost, topGhosts } from './online.js';
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
+import { relicMods, SHARD_PRICE, CHESTS } from './loot.js';
+import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
@@ -24,6 +26,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in win
 const R = new Renderer(ctx);
 let VH = 180, VW = 320;
 const D = save.d;
+let lastMenu = 'title';
 setAudio(D.sfx, D.music);
 initSkin();
 
@@ -105,7 +108,7 @@ function tick() {
   if (mode === 'won' && ++doneT === 80) finish();
 }
 function draw() {
-  R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
+  R.look = D.look; R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
   const playing = game && mode !== 'menu';
   canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
   canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && D.cheatsOn.spiegel ? ' scaleX(-1)' : '');
@@ -149,7 +152,7 @@ function drawMenuBg() {
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])) });
+  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -209,6 +212,13 @@ async function finish() {
   if (id === '1-1' && frames < 25 * 60) unlockWeapon('blitzspaten');
   if (id === '1-2' && game.dirtTotal > 0 && game.dirtLeft() === 0) unlockWeapon('erdfresser');
   if (ghosts.some(g => !g.own && g.frames - frames >= 120)) unlockWeapon('geisterklinge');
+  // Schlüssel für die Schatzkammer (jeder Anlass zählt nur einmal pro Level)
+  let keyHtml = '';
+  const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
+  if (first) award('clear', level.boss ? 'urlicht' : level.secret ? 'gold' : 'holz', level.boss ? 'Boss bezwungen' : level.secret ? 'Geheimer Ort' : 'Erstmals geschafft');
+  if (!level.secret && D.stars[id] && D.stars[id].every(Boolean)) award('stars', 'eisen', 'Alle drei Sterne');
+  if (info.coins && D.coins[id].length >= info.coins) award('coins', 'eisen', 'Alle Münzen');
+  if (D.ranks[id] === 'S') award('rankS', 'gold', 'S-Rang');
   save.write();
   checkAch();
   let up = '';
@@ -224,6 +234,7 @@ async function finish() {
     <h2>${viaSecret ? 'Geheimer Ausgang!' : level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
     <p class="lvl">${esc(level.id)} · ${esc(level.name)}</p>
     ${secretMsg ? `<p class="secretmsg">${esc(secretMsg)}</p>` : ''}
+    ${keyHtml ? `<div class="keys">${keyHtml}</div>` : ''}
     ${level.secret ? '' : `<div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s">${ic(D.stars[id][i] ? 'star' : 'starOff')}<small>${starLbl[i]}</small></div>`).join('')}</div>`}
     <div class="coinrow">${coinRow}<small>Schaufelmünzen ${D.coins[id].length}/${info.coins}${info.secrets ? ` · Geheimnisse ${Math.min(D.secrets[id], info.secrets)}/${info.secrets}` : ''}</small></div>
     <div class="stats">
@@ -238,6 +249,7 @@ async function finish() {
       ${next ? `<button class="big" data-a="play" data-id="${next.id}">${viaSecret ? 'Geheimlevel!' : 'Weiter'}</button>` : ''}
       <button data-a="map">Karte</button>
     </div>
+    ${keyHtml ? `<div class="row"><button class="treasurebtn" data-a="treasury">Truhe öffnen</button></div>` : ''}
     <button class="ghostbtn" data-a="share" data-code="${esc(code)}">Diesen Lauf als Geist teilen</button>
   </div>`);
   // Edelsteine hochzählen
@@ -307,18 +319,25 @@ function wardrobe(msg = '') {
 
 /* ---------- Tagesschatz ---------- */
 function dailyReady() { return D.daily.last !== today(); }
+const keyCount = () => Object.values(D.keys).reduce((a, b) => a + b, 0);
+function grantKey(kind, n = 1, why = '') {
+  D.keys[kind] = (D.keys[kind] || 0) + n; save.write();
+  const ch = CHESTS.find(c => c.id === kind);
+  return `<p class="keygain" style="--cc:${ch.col}">${ic('lock')} ${n > 1 ? n + ' × ' : ''}Schlüssel: ${esc(ch.name)}${why ? ` <small>${esc(why)}</small>` : ''}</p>`;
+}
 function claimDaily() {
   if (!dailyReady()) return;
   D.daily.streak = D.daily.last === yesterday() ? D.daily.streak + 1 : 1;
   D.daily.last = today();
   const gems = 50 * Math.min(7, D.daily.streak) + (D.daily.streak % 7 === 0 ? 500 : 0);
   D.gems += gems; D.earned += gems; save.write(); checkAch();
+  const keyHtml = grantKey(D.daily.streak % 7 === 0 ? 'urlicht' : 'holz', 1);
   sfx('legend'); haptic('chest');
   const el = document.createElement('div'); el.className = 'reveal gear';
   el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:#ffd84a;--g:#ffb020">
     <p class="rar">Tagesschatz · Tag ${D.daily.streak}</p>
     <div class="dchest">${ic('gem', 'huge')}</div><h2>+${gems} Edelsteine</h2>
-    <p class="perk">${D.daily.streak % 7 === 0 ? 'Wochenbonus! +500 extra.' : `Morgen gibt es mehr: Tag ${D.daily.streak + 1} bringt ${50 * Math.min(7, D.daily.streak + 1)}.`}</p>
+    ${keyHtml}<p class="perk">${D.daily.streak % 7 === 0 ? 'Wochenbonus! +500 extra.' : `Morgen gibt es mehr: Tag ${D.daily.streak + 1} bringt ${50 * Math.min(7, D.daily.streak + 1)}.`}</p>
     <div class="row"><button class="big" data-r="close">Einsacken</button></div></div>`;
   document.body.appendChild(el);
   el.addEventListener('click', e => { if (e.target.closest('[data-r]')) { el.remove(); title(); } });
@@ -457,13 +476,14 @@ function splash() {
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
 function title() {
-  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
+  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
   show(`<div class="title">
     <div data-a="logo">${logoImg()}</div>
     <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
     <div class="menu">
       <button class="big" data-a="map">Abenteuer</button>
+      <button class="treasurebtn" data-a="treasury">${ic('lock')} Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button>
       <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
       <button data-a="cheats">${ic('scroll')} Schummelbuch</button>
       ${dailyReady() ? `<button class="daily" data-a="daily">${ic('trophy')} Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : ''}
@@ -485,7 +505,7 @@ function installTip() {
   return `<p class="tip">${ios ? 'Tipp: Teilen → „Zum Home-Bildschirm“ für Vollbild ohne Browserleisten.' : 'Tipp: Menü ⋮ → „App installieren“ für Vollbild und Offline-Spielen.'}</p>`;
 }
 function map(sel, wi) {
-  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
+  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'map';
   playMusic(THEMES.karte.music);
   if (wi != null) curWorld = wi;
   else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
@@ -509,7 +529,7 @@ function map(sel, wi) {
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
-    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="wardrobe">Garderobe</button><button data-a="options">Optionen</button></div>
+    <div class="row"><button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button><button data-a="forge">Schmiede</button><button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="wardrobe">Garderobe</button><button data-a="options">Optionen</button></div>
     <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · Welt 4 · Kristallmagen — in Arbeit</p>
   </div>`);
   if (sel) detail(sel);
@@ -548,22 +568,22 @@ let forgeAnim = 0;
 function forge(msg = '') {
   mode = 'menu';
   const row = (key, name, table) => {
-    const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx];
+    const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx], sp = SHARD_PRICE[nx] || 0, afford = D.gems >= price && D.shards >= sp;
     const chips = TIERS.map((t, i) => `<canvas class="gi ${i === cur ? 'cur' : ''} ${i <= cur ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" title="${esc(t.name)}"></canvas>`).join('');
     return `<div class="gear">
       <div class="gh"><b>${name}: <span class="tn" style="--c:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
       <div class="chips">${chips}</div>
       ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b class="tn" style="--c:${TIERS[nx].light}">${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
-        ${can ? `<button class="${D.gems >= price ? 'big' : 'off'}" data-a="buy" data-k="${key}">${ic('gem')} ${price}</button>` : '<span class="lockt">ab Welt 3</span>'}</div>` : '<div class="next">Maximum erreicht.</div>'}
+        ${can ? `<button class="${afford ? 'big' : 'off'}" data-a="buy" data-k="${key}">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</button>` : ''}</div>` : '<div class="next">Maximum erreicht.</div>'}
     </div>`;
   };
   const nA = Math.min(D.armor + 1, TIERS.length - 1), nS = Math.min(D.shovel + 1, TIERS.length - 1);
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">${ic('gem')} ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>
     <div class="forge"><div class="pv"><canvas id="preview" width="216" height="120"></canvas><small>Jetzt <span>→</span> nächste Stufe</small></div>
       <div class="rows">${row('shovel', 'Schaufel', SHOVEL)}${row('armor', 'Rüstung', ARMOR)}
       <div class="gear"><div class="gh"><b>Waffe: ${D.weapon ? esc(weaponById(D.weapon).name) : 'keine (normale Schaufel)'}</b><small>Legendäre und mythische Waffen findest du nicht im Laden.</small></div><div class="next"><span></span><button data-a="armory">Waffenkammer</button></div></div>
-      <div class="gear soon"><div class="gh"><b>Relikt</b><small>Bald: Funkenrute, Flügelstiefel, Erdglocke …</small></div></div></div></div>
+      <div class="gear"><div class="gh"><b>Relikte: ${D.relicSlots.filter(Boolean).length} / 3 angelegt</b><small>Relikte, Spuren und Auren findest du in Truhen. Splitter ${ic('dia')} für die Stufen 7–12 auch.</small></div><div class="next"><span></span><button data-a="treasury">Schatzkammer</button><button data-a="collection">Sammlung</button></div></div></div></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
   for (const cv of document.querySelectorAll('[data-gi]')) {
@@ -617,7 +637,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.9</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.10</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -638,6 +658,8 @@ ui.addEventListener('click', async e => {
   if (a !== 'nope' && a !== 'buy') sfx('click');
   switch (a) {
     case 'title': return title();
+    case 'treasury': return treasury();
+    case 'collection': return collection();
     case 'map': goFullscreen(); return map();
     case 'forge': return forge();
     case 'armory': return armory();
@@ -672,8 +694,10 @@ ui.addEventListener('click', async e => {
     case 'restart': return startLevel(level.id, curCodes);
     case 'buy': {
       const k = b.dataset.k, nx = D[k] + 1, price = PRICE[nx];
+      const sp = SHARD_PRICE[nx] || 0;
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
-      D.gems -= price; D[k] = nx; save.write(); sfx('legend');
+      if (D.shards < sp) { sfx('nope'); return forge(`Dir fehlen noch ${sp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
+      D.gems -= price; D.shards -= sp; D[k] = nx; save.write(); sfx('legend');
       forge(); return gearReveal(k, nx);
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
@@ -711,6 +735,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__
 
 if (location.search.includes('debug')) window.__sh = { get game() { return game; } };
 
+initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
+ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
 splash();
 refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); else if (document.querySelector('.splash')) splash(); });
 requestAnimationFrame(loop);
