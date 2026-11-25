@@ -10,7 +10,8 @@ import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts } from './online.js';
 import * as S from './sprites.js';
-import { initSkin, ic, logoImg, refreshLogo } from './ui-skin.js';
+import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
+import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
@@ -67,18 +68,25 @@ pauseBtn.addEventListener('click', () => mode === 'play' && pause());
 let last = performance.now(), acc = 0;
 function loop(now) {
   acc += Math.min(100, now - last); last = now;
-  while (acc >= 1000 / 60) { acc -= 1000 / 60; tick(); }
+  const spd = mode === 'play' || mode === 'won' ? (D.cheatsOn.espresso ? 1.5 : D.cheatsOn.zeitlupe ? 0.5 : 1) : 1;
+  const stepMs = 1000 / 60 / spd;
+  while (acc >= stepMs) { acc -= stepMs; tick(); }
   draw();
   requestAnimationFrame(loop);
 }
 function tick() {
   if (mode !== 'play' && mode !== 'won') { menuT++; return; }
-  const inp = mode === 'play' ? pollInput() : { };
+  let inp = mode === 'play' ? pollInput() : { };
+  if (D.cheatsOn.spiegel && mode === 'play') inp = { ...inp, left: inp.right, right: inp.left };
+  if (game.sign) for (const c of CHEATS) if (!D.cheatsKnown[c.id] && game.sign.includes(c.code)) learnCheat(c);
   game.step(inp);
   for (const e of game.events) {
     sfx(e.name, e.v);
     haptic(e.name);
     if (e.name === 'unlock') unlockWeapon(e.v, true);
+    if (e.name === 'check') moment('LATERNE ENTZÜNDET', 'Hier kehrst du zurück', 'gold', 2.6);
+    if (e.name === 'bossDie') moment('GROSSER FEIND BEZWUNGEN', level.name, 'gold', 4.6);
+    if (e.name === 'die') moment('DU BIST GEFALLEN', '', 'death', 2.8);
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
     if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); checkAch(); }
     const st = D.stats;
@@ -97,7 +105,10 @@ function tick() {
   if (mode === 'won' && ++doneT === 80) finish();
 }
 function draw() {
-  R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || '');
+  R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
+  const playing = game && mode !== 'menu';
+  canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
+  canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && D.cheatsOn.spiegel ? ' scaleX(-1)' : '');
   if (game && mode !== 'menu') R.draw(game, ghosts); else drawMenuBg();
   if (D.retro) retroFilter();
 }
@@ -110,25 +121,35 @@ function drawMenuBg() {
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
   const hs = S.hero(D.armor, D.shovel, D.weapon);
   R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8, null, 0, 16, 2, 0);
-  // Funkenflug und Glut wie aus einer Schmiede
-  if (embers.length < 40 && t % 3 === 0) embers.push({ x: Math.random() * VW, y: VH + 2, vx: (Math.random() - 0.5) * 0.3, vy: -0.3 - Math.random() * 0.6, life: 160 + Math.random() * 120, ph: Math.random() * 6 });
+  // Abdunkeln, goldenes Licht von oben, Nebel und fallende Asche
+  ctx.fillStyle = 'rgba(7,6,5,0.55)'; ctx.fillRect(0, 0, VW, VH);
+  const lg = ctx.createRadialGradient(VW / 2, -VH * 0.25, 10, VW / 2, -VH * 0.25, VH * 1.1);
+  lg.addColorStop(0, 'rgba(255,214,140,0.38)'); lg.addColorStop(0.5, 'rgba(212,160,80,0.10)'); lg.addColorStop(1, 'rgba(212,160,80,0)');
+  ctx.fillStyle = lg; ctx.fillRect(0, 0, VW, VH);
+  for (let k = 0; k < 3; k++) {
+    const fy = VH * (0.55 + k * 0.14), off = ((t * (0.15 + k * 0.08)) % (VW * 2)) - VW;
+    const fg = ctx.createLinearGradient(off, 0, off + VW * 1.6, 0);
+    fg.addColorStop(0, 'rgba(180,170,150,0)'); fg.addColorStop(0.5, `rgba(180,170,150,${0.07 + k * 0.03})`); fg.addColorStop(1, 'rgba(180,170,150,0)');
+    ctx.fillStyle = fg; ctx.fillRect(0, fy, VW, VH * 0.2);
+  }
+  if (embers.length < 60 && t % 2 === 0) embers.push({ x: Math.random() * VW * 1.2 - VW * 0.1, y: -4, vx: 0.15 + Math.random() * 0.25, vy: 0.15 + Math.random() * 0.3, life: 400, gold: Math.random() < 0.15, ph: Math.random() * 6 });
   for (const e of embers) {
-    e.x += e.vx + Math.sin((t + e.ph * 40) / 30) * 0.15; e.y += e.vy; e.life--;
-    ctx.fillStyle = e.life > 120 ? '#fff2a0' : e.life > 60 ? '#ffb020' : '#c04010';
-    ctx.globalAlpha = Math.min(1, e.life / 40); ctx.fillRect(Math.round(e.x), Math.round(e.y), e.life > 140 ? 2 : 1, e.life > 140 ? 2 : 1);
+    e.x += e.vx + Math.sin((t + e.ph * 50) / 40) * 0.12; e.y += e.vy; e.life--;
+    ctx.globalAlpha = Math.min(1, e.life / 60) * (e.gold ? 0.9 : 0.55);
+    ctx.fillStyle = e.gold ? ((t >> 3) + e.ph * 3) % 4 < 2 ? '#ffe6a0' : '#d4b46a' : '#c8beb0';
+    ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1);
   }
   ctx.globalAlpha = 1;
-  for (let k = embers.length - 1; k >= 0; k--) if (embers[k].life <= 0 || embers[k].y < -4) embers.splice(k, 1);
-  // Vignette
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.3, VW / 2, VH / 2, VW * 0.7);
-  vg.addColorStop(0, 'rgba(10,5,18,0)'); vg.addColorStop(1, 'rgba(10,5,18,0.7)');
+  for (let k = embers.length - 1; k >= 0; k--) if (embers[k].life <= 0 || embers[k].y > VH + 4) embers.splice(k, 1);
+  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.25, VW / 2, VH / 2, VW * 0.65);
+  vg.addColorStop(0, 'rgba(5,4,3,0)'); vg.addColorStop(1, 'rgba(5,4,3,0.85)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
 }
 
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7 });
+  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -137,9 +158,11 @@ async function startLevel(id, ghostCodes = []) {
   touchEl.hidden = !isTouch; pauseBtn.hidden = false;
   playMusic(THEMES[level.theme].music);
   goFullscreen();
+  const wn = ALLW().find(w => w.levels.includes(id));
+  setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '', level.secret ? 'jade' : 'gold', 3.2); }, 250);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); show(`
-  <div class="panel small"><h2>Pause</h2>
+  <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
   <button class="big" data-a="resume">Weiter</button>
   <button data-a="restart">Neu starten</button>
   <button data-a="map">Zur Karte</button>
@@ -149,12 +172,15 @@ function resume() { hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isT
 async function finish() {
   const id = level.id, frames = game.frame, first = !D.cleared[id];
   const viaSecret = game.exit === 'secret';
+  const cheated = playCheats(D).length > 0;
+  if (cheated) game.coins = [];
   const bonus = first ? (level.boss ? 300 : level.secret ? 250 : 100) : 0;
   // Sterne: geschafft · unter Zielzeit · ohne Tod. Jeder neue Stern bringt 50.
   const got = [true, frames <= level.par * 60, game.deaths === 0];
   const had = D.stars[id] || [false, false, false];
   const newStars = level.secret ? [false, false, false] : got.map((g, i) => g && !had[i]);
-  if (!level.secret) D.stars[id] = had.map((h, i) => h || got[i]);
+  if (cheated) newStars.fill(false);
+  if (!level.secret && !cheated) D.stars[id] = had.map((h, i) => h || got[i]);
   const starGems = newStars.filter(Boolean).length * 50;
   // Münzen und Geheimnisse dauerhaft speichern
   const prevCoins = new Set(D.coins[id] || []), newCoins = game.coins.filter(c => !prevCoins.has(c));
@@ -174,8 +200,8 @@ async function finish() {
   const info = LEVEL_INFO[id];
   const rank = rankFor(level, { frames, deaths: game.deaths, coinsGot: D.coins[id].length, coinsTotal: info.coins, secretsGot: D.secrets[id], secretsTotal: info.secrets });
   const oldRank = D.ranks[id], newRank = !oldRank || RANK_ORDER[rank] > RANK_ORDER[oldRank];
-  if (newRank) D.ranks[id] = rank;
-  const old = D.best[id], record = !old || frames < old;
+  if (newRank && !cheated) D.ranks[id] = rank;
+  const old = D.best[id], record = !cheated && (!old || frames < old);
   const code = await encodeGhost({ level: id, name: D.name || 'Ich', frames, gear: { shovel: D.shovel, armor: D.armor }, rec: game.rec });
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
   // Waffen-Bedingungen am Levelende
@@ -193,7 +219,8 @@ async function finish() {
   const starLbl = ['Geschafft', `Unter ${level.par} s`, 'Ohne Tod'];
   const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${D.coins[id].includes(k) ? 'on' : ''} ${newCoins.includes(k) ? 'new' : ''}"></i>`).join('');
   show(`<div class="panel small result">
-    <div class="rankbig r${rank} ${newRank ? 'new' : ''}">${rank}</div>
+    <div class="rankbig ${newRank && !cheated ? 'new' : ''}">${cheated ? '' : serifImg(rank, 30, { S: 'gold', A: 'jade', B: 'pale', C: 'dim' }[rank], 2)}</div>
+    ${cheated ? `<p class="warn">Schummelrunde: keine Ränge, Rekorde, Sterne oder Münzen.</p>` : ''}
     <h2>${viaSecret ? 'Geheimer Ausgang!' : level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
     <p class="lvl">${esc(level.id)} · ${esc(level.name)}</p>
     ${secretMsg ? `<p class="secretmsg">${esc(secretMsg)}</p>` : ''}
@@ -238,10 +265,12 @@ function toast(title, text, kind = '') {
   setTimeout(() => el.classList.add('out'), 2800); setTimeout(() => el.remove(), 3300);
 }
 function checkAch() {
+  if (playCheats(D).length && (mode === 'play' || mode === 'won')) return;
   for (const a of ACH) {
     if (D.ach[a.id] || !a.test(D)) continue;
     D.ach[a.id] = true; D.gems += a.gems; D.earned += a.gems;
     toast('Erfolg: ' + a.name, `${esc(a.desc)} +${a.gems} ${ic('gem')}`, 'ach'); sfx('achieve'); haptic('unlock');
+    const c = CHEATS.find(x => x.ach === a.id); if (c) setTimeout(() => learnCheat(c), 900);
   }
   save.write();
 }
@@ -329,7 +358,7 @@ function unlockWeapon(id, inGame) {
   reveals.push(id);
   const w = weaponById(id), r = RARITY[w.rar];
   if (inGame && game) {
-    game.banner = { sub: `${r.name.toUpperCase()}E WAFFE ENTDECKT`, text: w.name, col: r.col, t: 150 };
+    moment('WAFFE ERHALTEN', `${r.name}e Waffe · ${w.name}`, w.rar === 'mythisch' ? 'jade' : 'gold', 3.6);
     game.freeze = Math.max(game.freeze, 36); game.shake = 6;
     sfx('legend');
   }
@@ -380,7 +409,51 @@ function armory(msg = '') {
 }
 
 /* ---------- Menüs ---------- */
-function show(html) { ui.innerHTML = html; ui.hidden = false; }
+function show(html) {
+  ui.innerHTML = html; ui.hidden = false;
+  // Überschriften und Levelnamen in Pixel-Serifenschrift setzen
+  for (const h of ui.querySelectorAll('h2')) if (!h.querySelector('img')) h.innerHTML = serifImg(h.textContent.trim(), 13, h.closest('.reveal.mythisch') ? 'jade' : 'gold', 2);
+  for (const b of ui.querySelectorAll('.card b')) b.innerHTML = serifImg(b.textContent.trim(), b.textContent.trim().length > 14 ? 9 : 11, b.closest('.locked') ? 'dim' : 'pale', 2);
+}
+/* ---------- Grosse Momente ---------- */
+let momentT = 0;
+function moment(text, sub = '', kind = 'gold', dur = 3.2) {
+  let el = $('#moment');
+  if (!el) { el = document.createElement('div'); el.id = 'moment'; document.body.appendChild(el); }
+  el.className = ''; void el.offsetWidth;
+  const pal = kind === 'death' ? 'red' : kind;
+  el.innerHTML = `<div class="in"><div class="line"></div>${serifImg(text, text.length > 18 ? 13 : 16, pal, innerWidth < 500 ? 2 : 3)}${sub ? `<div class="sub">${esc(sub)}</div>` : ''}<div class="line"></div></div>`;
+  el.style.setProperty('--dur', dur + 's');
+  el.className = 'show ' + (kind === 'death' ? 'death' : '');
+  clearTimeout(momentT); momentT = setTimeout(() => { el.className = ''; }, dur * 1000);
+  if (kind === 'death') sfx('die');
+}
+/* ---------- Schummelbuch ---------- */
+function learnCheat(c) {
+  if (D.cheatsKnown[c.id]) return;
+  D.cheatsKnown[c.id] = true; save.write();
+  toast('Schummelwort gelernt', `<b style="color:#f3e3b3;letter-spacing:.2em">${esc(c.code)}</b> · ${esc(c.name)} – im Schummelbuch einschalten.`, 'ach'); sfx('secret');
+}
+function cheatbook(msg = '') {
+  mode = 'menu';
+  const on = playCheats(D).length;
+  show(`<div class="panel small">
+    <div class="top"><button class="back" data-a="title">‹</button><h2>Schummelbuch</h2><span class="gems">${Object.keys(D.cheatsKnown).length} / ${CHEATS.length}</span></div>
+    <p class="note">Schummelwörter verstecken sich auf Schildern an geheimen Orten und hinter Erfolgen. Wer sie kennt, darf sie hier eintragen.</p>
+    <label class="field">Schummelwort eintragen<input id="cheatcode" maxlength="24" autocomplete="off" autocapitalize="characters" placeholder="…"></label>
+    <div class="row"><button class="big" data-a="cheatenter">Einritzen</button></div>
+    ${msg ? `<p class="msg">${msg}</p>` : ''}
+    ${on ? `<p class="warn">Aktive Spielveränderungen: Ränge, Rekorde, Sterne und Münzen zählen nicht.</p>` : ''}
+    <div class="cheatlist">${CHEATS.map(c => D.cheatsKnown[c.id]
+      ? `<div class="cheat ${D.cheatsOn[c.id] ? 'on' : ''}"><div><b>${esc(c.name)}</b><small>${esc(c.desc)} · <i>${esc(c.code)}</i></small></div><button data-a="cheattoggle" data-id="${c.id}">${D.cheatsOn[c.id] ? 'An' : 'Aus'}</button></div>`
+      : `<div class="cheat unknown"><div><b>???</b><small>${esc(c.hint)}</small></div></div>`).join('')}</div>
+  </div>`);
+  const inp = $('#cheatcode'); inp.addEventListener('keydown', e => { if (e.key === 'Enter') ui.querySelector('[data-a=cheatenter]').click(); });
+}
+function splash() {
+  mode = 'menu';
+  show(`<div class="splash" data-a="title">${logoImg()}<div class="press">Tippe, um zu beginnen</div></div>`);
+}
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
 function title() {
@@ -392,6 +465,7 @@ function title() {
     <div class="menu">
       <button class="big" data-a="map">Abenteuer</button>
       <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
+      <button data-a="cheats">${ic('scroll')} Schummelbuch</button>
       ${dailyReady() ? `<button class="daily" data-a="daily">${ic('trophy')} Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : ''}
     </div>
     <p class="gems">${ic('gem')} ${D.gems} &nbsp; ${ic('coin')} ${totalCoins(D)} &nbsp; ${ic('scroll')} ${completion(D)} %</p>
@@ -543,7 +617,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.8</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.9</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -571,6 +645,16 @@ ui.addEventListener('click', async e => {
     case 'wardrobe': return wardrobe();
     case 'scarf': D.scarf = id; save.write(); sfx('buy'); return wardrobe(`${esc(SCARVES.find(x => x.id === id).name)} angezogen.`);
     case 'daily': return claimDaily();
+    case 'cheats': return cheatbook();
+    case 'cheatenter': {
+      const v = $('#cheatcode').value, c = cheatByCode(v);
+      if (!v.trim()) return;
+      if (/^(GAMEBOY|RETRO)$/i.test(v.trim())) { toggleRetro(); return cheatbook('Die Farben verblassen … oder kehren zurück.'); }
+      if (!c) { sfx('nope'); return cheatbook('Nichts geschieht. Das Wort hat keine Macht.'); }
+      D.cheatsKnown[c.id] = true; D.cheatsOn[c.id] = true; save.write(); sfx('legend');
+      return cheatbook(`${esc(c.name)} erwacht.`);
+    }
+    case 'cheattoggle': D.cheatsOn[id] = !D.cheatsOn[id]; save.write(); sfx(D.cheatsOn[id] ? 'secret' : 'click'); return cheatbook();
     case 'logo': { const now = Date.now(); logoTaps = logoTaps.filter(t => now - t < 3000); logoTaps.push(now); if (logoTaps.length >= 7) { logoTaps = []; toggleRetro(); } return; }
     case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
     case 'options': return options();
@@ -627,6 +711,6 @@ if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__
 
 if (location.search.includes('debug')) window.__sh = { get game() { return game; } };
 
-title();
-refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); });
+splash();
+refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); else if (document.querySelector('.splash')) splash(); });
 requestAnimationFrame(loop);

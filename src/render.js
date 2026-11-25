@@ -240,7 +240,10 @@ export class Renderer {
       return;
     }
     if (p.dash > 0) { this.x.globalAlpha = 0.6; }
+    const hsc = g.cheat.riese ? 2 : g.cheat.winzling ? 0.5 : 1;
+    if (hsc !== 1) { this.x.save(); this.x.translate(p.x + 5, p.y + 14); this.x.scale(hsc, hsc); this.x.translate(-(p.x + 5), -(p.y + 14)); }
     this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null, p.land, p.atkLen || 16, p.vx, p.vy);
+    if (hsc !== 1) this.x.restore();
     this.x.globalAlpha = 1;
     const wp = g.gear.weapon && weaponById(g.gear.weapon);
     if (wp && (this.t + p.anim) % 24 < 3) {
@@ -398,10 +401,9 @@ export class Renderer {
     // Eiserne Plakette hinter der Anzeige oben links
     {
       const per0 = W < 220 ? 6 : 10, rows = Math.ceil(p.maxhp / per0), pw = Math.max(58, Math.min(per0, p.maxhp) * 8 + 8), ph = 40 + (rows - 1) * 7;
-      x.fillStyle = 'rgba(20,12,28,0.62)'; x.fillRect(2, 2, pw, ph);
-      x.fillStyle = K; x.fillRect(2, 1, pw, 1); x.fillRect(2, ph + 2, pw, 1); x.fillRect(1, 2, 1, ph); x.fillRect(pw + 2, 2, 1, ph);
-      x.fillStyle = '#7a7488'; x.fillRect(2, 2, pw, 1); x.fillStyle = '#3a3446'; x.fillRect(2, ph + 1, pw, 1);
-      for (const [a, b] of [[3, 3], [pw - 1, 3], [3, ph - 1], [pw - 1, ph - 1]]) { x.fillStyle = '#c8901c'; x.fillRect(a, b, 1, 1); }
+      const pg = x.createLinearGradient(2, 0, pw + 2, 0); pg.addColorStop(0, 'rgba(5,4,3,0.78)'); pg.addColorStop(1, 'rgba(5,4,3,0.2)');
+      x.fillStyle = pg; x.fillRect(2, 2, pw, ph);
+      x.fillStyle = '#9a7a3c'; x.fillRect(2, ph + 2, pw - 10, 1); x.fillStyle = '#d4b46a'; x.fillRect(2, ph + 2, 3, 1); x.fillRect(3, ph + 1, 1, 3);
     }
     const per = W < 220 ? 6 : 10;
     for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % per) * 8, 6 + Math.floor(i / per) * 7);
@@ -428,8 +430,10 @@ export class Renderer {
     if (g.banner) {
       const b = g.banner, a = Math.min(1, b.t / 20), y0 = this.H / 2 - 30;
       x.globalAlpha = a;
-      x.fillStyle = 'rgba(20,12,28,0.78)'; x.fillRect(0, y0, W, 40);
-      x.fillStyle = b.col; x.fillRect(0, y0, W, 1); x.fillRect(0, y0 + 39, W, 1);
+      const bg = x.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, 'rgba(5,4,3,0)'); bg.addColorStop(0.2, 'rgba(5,4,3,0.85)'); bg.addColorStop(0.8, 'rgba(5,4,3,0.85)'); bg.addColorStop(1, 'rgba(5,4,3,0)');
+      x.fillStyle = bg; x.fillRect(0, y0, W, 40);
+      const ln = x.createLinearGradient(0, 0, W, 0); ln.addColorStop(0, 'rgba(212,180,106,0)'); ln.addColorStop(0.5, '#d4b46a'); ln.addColorStop(1, 'rgba(212,180,106,0)');
+      x.fillStyle = ln; x.fillRect(0, y0, W, 1); x.fillRect(0, y0 + 39, W, 1);
       if (b.sub) S.drawText(x, b.sub, W / 2, y0 + 6, b.col, 1, 'center');
       S.drawText(x, b.text, W / 2, y0 + (b.sub ? 16 : 13), (this.t >> 2) & 1 ? '#ffffff' : b.col, 2, 'center');
       x.globalAlpha = 1;
@@ -457,7 +461,7 @@ export class Renderer {
       x.fillStyle = K; x.fillRect(bx - 1, by - 1, bw + 2, 6); x.fillStyle = '#3a1010'; x.fillRect(bx, by, bw, 4);
       x.fillStyle = '#ff5a3a'; x.fillRect(bx, by, Math.round(bw * Math.max(0, b.hp) / b.maxhp), 4);
     }
-    if (g.frame < 150 && !g.done && !g.banner) {
+    if (!this.noIntro && g.frame < 150 && !g.done && !g.banner) {
       const a = g.frame < 120 ? 1 : (150 - g.frame) / 30;
       x.globalAlpha = a;
       x.fillStyle = 'rgba(20,12,28,0.7)'; x.fillRect(0, this.H / 2 - 22, W, 34);
@@ -486,6 +490,7 @@ function partCol(c, th, g, q) {
     case 'gold': return alt ? '#ffd84a' : '#fff6b0';
     case 'crumble': return alt ? '#c86a8a' : '#ffb0c8';
     case 'zzz': return '#ffffff';
+    case 'confetti': return ['#ff4f7a', '#ffd84a', '#4fd2ff', '#7dffa0', '#c58bff'][(Math.floor(q.x * 3 + q.y * 7) % 5 + 5) % 5];
     default: return '#fff';
   }
 }

@@ -182,3 +182,23 @@ Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für meh
 - **Etappe 3:** Endloser Schacht-Modus mit erzeugten Levels und Tages-Seed für faire Geister-Rennen.
 - **Etappe 4:** Level-Editor mit Teilen per Code.
 - Danach: weitere Welten (Pilzwald, Lavaschmiede, Wolkenwerft, Kristallmagen) bis zur Urlicht-Stufe.
+
+
+## Schummelbuch (Spoiler)
+
+Im Titelmenü unter *Schummelbuch*. Schummelwörter stehen auf Schildern in Geheimräumen oder werden durch Erfolge gelernt.
+Mit spielverändernden Cheats zählen Ränge, Rekorde, Sterne, Münzen und Erfolge nicht.
+
+| Wort | Wirkung | Fundort |
+|---|---|---|
+| KONFETTI | Konfetti bei Treffern und Edelsteinen | Geheimkammer 1-1 |
+| MONDSCHWERKRAFT | halbe Schwerkraft | 1-G Goldader |
+| SPIEGELWELT | gespiegelte Welt und Steuerung | Geheimkammer Zahnradgasse |
+| MAULWURFSKOENIG | gräbt durch jeden Boden | 2-G Tresor der Zeit |
+| RIESENWUCHS / WINZLING | Held gross / klein | 3-G Myzelnetz / Erfolg Nickerchen |
+| DISCOGRUFT | Farbwechsel | X-0 Schaufelgruft |
+| WOLKENLAEUFER | unbegrenzte Luftsprünge | Erfolg Flummi |
+| MIDAS | alle Gegner golden | Erfolg Goldfieber |
+| ESPRESSO / ZEITLUPE | Tempo ×1.5 / ×0.5 | Erfolg Meisterlich / Hartnäckig |
+| UNVERWUNDBAR | kein Schaden (Abgründe bleiben tödlich) | Erfolg Unberührbar |
+| RETRO | Gameboy-Farben | – |

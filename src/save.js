@@ -11,6 +11,7 @@ const DEF = {
   weapon: null,    // ausgerüstete Waffe (null = Schaufel)
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
+  cheatsKnown: {}, cheatsOn: {}, seenSplash: false,
   coins: {}, secrets: {}, secretOpen: {}, ach: {}, ranks: {}, daily: { last: '', streak: 0 }, scarf: 'auto', retro: false,
   stats: { dug: 0, bestChain: 0, golden: 0, rush: 0, legendChest: 0, flag: 0, sleep: 0, bossClean: 0, retro: 0 },
 };

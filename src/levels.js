@@ -400,7 +400,7 @@ export const LEVELS = [
     map: secrets(L1, [[74, 2, 'O'], [90, 6, 'O'], [11, 8, 'H'], [20, 11, 'F', '#'], [21, 11, 'F', '#'], ...room(17, 25, 12), [24, 12, 'O', '.'], [18, 12, 'i', '.'], [22, 12, 'G', '.']]),
     signs: ['◀ ▶ LAUFEN · A SPRINGEN',
             'B = SCHAUFEL. GRAB DIE ERDHAUFEN AUS!',
-            'DU HAST EINE GEHEIME KAMMER GEFUNDEN. RAPHI WAR SCHON HIER.',
+            'DU HAST EINE GEHEIME KAMMER GEFUNDEN. RAPHI WAR SCHON HIER UND FLÜSTERT: KONFETTI.',
             'IN DER LUFT ▼ HALTEN = SCHAUFEL-SPRUNG. SPRING SO AUF GEGNER!',
             'STEIN? DAFÜR BRAUCHST DU EINE EISEN-SCHAUFEL. KOMM SPÄTER WIEDER!'] },
   { id: '1-2', name: 'Wurzelhöhlen', theme: 'hoehle', par: 55, secretExit: '1-G',
@@ -416,7 +416,7 @@ export const LEVELS = [
     map: secrets(W21, [[103, 1, 'O'], [33, 7, 'O'], [50, 8, 'H'], [60, 11, 'F', '#'], [61, 11, 'F', '#'], ...room(58, 64, 12), [63, 12, 'O', '.'], [59, 12, 'i', '.']]),
     signs: ['ZAHNRITTER BLOCKEN VORNE MIT DEM SCHILD. SPRING DRAUF ODER TRIFF SIE VON HINTEN!',
             'SCHWEBEPLATTFORMEN TRAGEN DICH MIT. ▼ + A: DURCHFALLEN.',
-            'HIER UNTEN STEHT NUR DIESES SCHILD. UND JETZT DU. HALLO.',
+            'HIER UNTEN STEHT NUR DIESES SCHILD. UND JETZT DU. DREH DICH UM: SPIEGELWELT.',
             'DAMPFSTÖSSE HEBEN DICH HOCH. WARTE AUF DEN NÄCHSTEN STOSS!'] },
   { id: '2-2', name: 'Dampfschacht', theme: 'uhrturm', par: 50,
     map: secrets(W22, [[4, 3, 'O'], [6, 26, 'O'], [14, 23, 'O'], [9, 33, 'H']]),
@@ -436,13 +436,13 @@ export const LEVELS = [
   { id: '3-B', name: 'Die Morchelmutter', theme: 'moder', map: secrets(PB, [[15, 6, 'O'], [25, 6, 'O'], [11, 5, 'O']]), gate: 10, boss: true, par: 95, signs: [] },
   // Geheimlevels (nicht in der normalen Reihenfolge)
   { id: '1-G', name: 'Goldader', theme: 'hoehle', map: G1, par: 45, secret: true, from: '1-2',
-    signs: ['WILLKOMMEN IN DER GOLDADER. NIMM, SO VIEL DU TRAGEN KANNST.'] },
+    signs: ['WILLKOMMEN IN DER GOLDADER. DIE ALTEN SCHAUFLER SAGTEN: MONDSCHWERKRAFT.'] },
   { id: '2-G', name: 'Tresor der Zeit', theme: 'uhrturm', map: G2, par: 45, secret: true, from: '2-3', bigChest: true,
-    signs: ['DER TRESOR DER UHRMACHER. ANGEBLICH WAR HIER SEIT 300 JAHREN NIEMAND.'] },
+    signs: ['DER TRESOR DER UHRMACHER. IN DIE WAND GERITZT: MAULWURFSKOENIG.'] },
   { id: '3-G', name: 'Myzelnetz', theme: 'pilz', map: secrets(G3L, [[30, 5, 'O'], [9, 6, 'O']]), par: 45, secret: true, from: '3-2',
-    signs: ['DAS MYZELNETZ. ALLES HIER ZERBRÖSELT IRGENDWANN.'] },
+    signs: ['DAS MYZELNETZ. DIE PILZE WISPERN: RIESENWUCHS.'] },
   { id: 'X-0', name: 'Die Schaufelgruft', theme: 'bau', map: secrets(GX, [[47, 2, 'O'], [34, 12, 'O']]), par: 80, secret: true, coinsNeeded: 30, altar: 'spuerschaufel',
-    signs: ['DIE SCHAUFELGRUFT. HIER RUHEN DIE, DIE ZU VIEL GEGRABEN HABEN.'] },
+    signs: ['DIE SCHAUFELGRUFT. HIER RUHEN DIE, DIE ZU VIEL GEGRABEN HABEN. AUF DEM GRABSTEIN: DISCOGRUFT.'] },
 ];
 
 export const levelById = id => LEVELS.find(l => l.id === id);

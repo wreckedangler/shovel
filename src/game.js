@@ -31,6 +31,8 @@ export class Game {
     this.h = this.tiles.length;
     this.w = this.tiles[0].length;
     this.rand = rng(opt.seed || 7);
+    this.cheat = opt.cheats || {};
+    this.pgrav = GRAV * (this.cheat.mond ? 0.5 : 1);
     this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = [];
     this.frame = 0; this.gems = 0; this.deaths = 0; this.dirtTotal = 0;
     this.secretTotal = 0; this.secretsFound = 0; this.coins = []; this.crumbles = new Map();
@@ -94,7 +96,7 @@ export class Game {
     // Münzen in fester Reihenfolge nummerieren (für den Spielstand)
     this.ents.filter(e => e.type === 'coin').sort((a, b) => a.x - b.x || a.y - b.y).forEach((c, i) => { c.idx = i; });
     // Seltene goldene Gegner (deterministisch pro Level)
-    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat'].includes(e.type) && this.rand() < 0.07) {
+    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat', 'spitter', 'kuckuck'].includes(e.type) && (this.rand() < 0.07 || this.cheat.midas)) {
       e.golden = true; e.hp += 2; e.loot = 60;
     }
     this.coinTotal = this.ents.filter(e => e.type === 'coin').length;
@@ -228,7 +230,7 @@ export class Game {
   isHidden(px, py) { return this.hidden.size > 0 && this.hidden.has(Math.floor(px / T) + ',' + Math.floor(py / T)); }
   breakTile(tx, ty) {
     const c = this.tile(tx, ty);
-    if (c !== 'D' && c !== 'S' && c !== 'R') return;
+    if (c !== 'D' && c !== 'S' && c !== 'R' && !(c === '#' && this.cheat.maulwurf)) return;
     this.tiles[ty][tx] = '.';
     this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : c === 'R' ? 'ore' : 'dirt', 2.2);
     this.shake = Math.max(this.shake, 3);
@@ -295,7 +297,7 @@ export class Game {
     p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
     p.jbuf = i.jumpP ? 7 : Math.max(0, p.jbuf - 1);
     if (p.jbuf && p.onGround && i.down && (p.groundC === '=' || p.plat)) { p.drop = 10; p.y += 2; p.jbuf = 0; p.onGround = false; p.plat = null; }
-    else if (p.jbuf && p.coyote && p.hurt <= 0) {
+    else if (p.jbuf && (p.coyote || this.cheat.wolken) && p.hurt <= 0) {
       p.vy = -this.mod.jump; p.jbuf = 0; p.coyote = 0; p.onGround = false; p.jumping = true; this.ev('jump');
       this.burst(cx(p), p.y + p.h, 4, 'dust', 0.8, 0, 14);
     } else if (i.jumpP && this.mod.dash && !p.onGround && !p.dashUsed && p.hurt <= 0) {
@@ -314,7 +316,7 @@ export class Game {
     }
     p.pogo = !p.onGround && i.down && p.atk === 0 && p.hurt <= 0;
 
-    if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + GRAV);
+    if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + this.pgrav);
     if (p.pogo && p.vy > 0) this.pogoCheck();
     // Dampfstösse heben den Helden
     for (const v of this.vents) {
@@ -370,7 +372,7 @@ export class Game {
     const ty = Math.floor((box.y + box.h) / T);
     for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
       const c = this.tile(tx, ty);
-      if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) { this.dig(tx, ty); hit = true; }
+      if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore) || (c === '#' && this.cheat.maulwurf && ty < this.h - 1)) { this.dig(tx, ty); hit = true; }
       if (c === 'F') { this.breakFake(tx, ty); hit = true; }
     }
     if (hit && this.mod.quake) {
@@ -414,7 +416,7 @@ export class Game {
     for (let ty = Math.floor(box.y / T); ty <= Math.floor((box.y + box.h - 0.01) / T); ty++)
       for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
         const c = this.tile(tx, ty);
-        if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) this.dig(tx, ty);
+        if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore) || (c === '#' && this.cheat.maulwurf && ty < this.h - 1)) this.dig(tx, ty);
         else if (c === 'F') this.breakFake(tx, ty);
         else if ((c === 'S' || c === 'R') && !p.hits.has('clink')) {
           p.hits.add('clink'); this.ev('clink'); this.burst(tx * T + (p.face > 0 ? 0 : 16), p.y + 7, 6, 'spark', 2, 0.05, 12);
@@ -435,7 +437,7 @@ export class Game {
 
   hurtPlayer(dmg, dir, spike) {
     const p = this.p;
-    if (p.inv > 0 || p.dead || this.done) { if (spike) { p.vy = -6; p.onGround = false; } return; }
+    if (p.inv > 0 || p.dead || this.done || this.cheat.gott) { if (spike) { p.vy = -6; p.onGround = false; } return; }
     p.hp -= dmg; this.hurtCount++; this.bossHurt++; if (!this.rushT) this.rush = Math.max(0, this.rush - 45);
     p.inv = this.ar.inv || 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
@@ -478,6 +480,7 @@ export class Game {
           e.dead = true; const v = e.val * this.mod.gemMul * (this.rushT > 0 ? 2 : 1); this.gems += v; this.addRush(e.val >= 5 ? 2 : 0.6);
           this.streak++; this.streakT = 45;
           this.ev('gem', e.x, e.y, this.streak);
+          if (this.cheat.konfetti) this.burst(e.x + 3, e.y, 6, 'confetti', 2, 0.08, 40);
           if (v >= 5) this.num(e.x + 3, e.y - 2, '+' + v, '#a8d4ff');
           this.burst(e.x + 3, e.y + 3, 4, 'spark', 1, 0, 10);
         } break;
@@ -544,6 +547,7 @@ function hurtFoe(g, e, dmg, dir, src) {
   if (src !== 'pogo') e.nonPogo = true;
   e.hp -= dmg; e.iframe = 10; e.flash = 8;
   g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2); g.freeze = Math.max(g.freeze, 3);
+  if (g.cheat.konfetti) g.burst(e.x + e.w / 2, e.y, 24, 'confetti', 3, 0.08, 50);
   g.num(e.x + e.w / 2, e.y - 2, dmg, dmg >= 4 ? '#ff9a50' : '#ffffff');
   if (dir && e !== g.boss) e.vx = dir * 1.8;
   if (e.hp <= 0) {
