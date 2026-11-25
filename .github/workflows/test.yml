@@ -14,3 +14,7 @@ jobs:
           BEAM=40 timeout 600 node tools/solve.mjs Q-1 4 4
           GEN=1000:1 BEAM=30 timeout 600 node tools/solve.mjs gen
       - run: node tools/bundle.mjs
+      - name: Typprüfung (JSDoc, ausgewählte Module)
+        run: npx -y typescript@5 tsc -p jsconfig.json
+      - name: Probeläufe nachspielen
+        run: node tools/replaytest.mjs

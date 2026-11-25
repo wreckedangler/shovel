@@ -20,3 +20,14 @@
 **Nicht** den `service_role`-Schlüssel eintragen, der gehört nie ins Spiel.
 
 Was die Datenbank selbst prüft: Namensfilter, ein Tagesschacht-Lauf pro Gerät und Tag, nur heutige Läufe, mindestens 8 Sekunden pro Stufe, Grössengrenzen. Ein entschlossener Betrüger kann trotzdem plausible Fantasiewerte eintragen; dagegen hilft später nur, Eingaben aufzuzeichnen und auf dem Server nachzuspielen.
+
+## Stufe 2: Läufe auf dem Server nachprüfen (optional, später)
+
+Jeder Lauf wird als Folge von Tastendrücken gespeichert. Die Edge Function `verify` spielt ihn mit der echten Spiel-Engine nach und trägt ihn nur ein, wenn er genau so ausgeht wie behauptet. Erfundene Ergebnisse fallen damit raus.
+
+1. Supabase-Kommandozeile installieren: https://supabase.com/docs/guides/cli
+2. Im Projektordner: `node tools/prep-edge.mjs` (kopiert die Engine), dann `supabase login`, `supabase link --project-ref <deine-ref>`, `supabase functions deploy verify --no-verify-jwt`
+3. In `src/config.js` `verifyUrl` eintragen: `https://<deine-ref>.supabase.co/functions/v1/verify`
+4. Im SQL-Editor die beiden Zeilen unter „Stufe 2“ am Ende von `supabase/schema.sql` ausführen.
+
+Wichtig: Nach jeder Änderung an der Spiel-Engine `node tools/prep-edge.mjs` und erneut bereitstellen, sonst passen alte und neue Läufe nicht zusammen.

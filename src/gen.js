@@ -179,10 +179,10 @@ function shaft(r, bio, depth) {
     const overlap = nx < px + opw && nx + pw > px;
     const solid = '=';
     for (let k = 0; k < pw; k++) g.set(nx + k, ny, solid);
-    if (r() < 0.25 + d * 0.3) { if (solid !== 'c' && pw >= 4 && r() < 0.5) g.set(nx + 1, ny - 1, pickW(r, bio.foes)); else if (Object.keys(bio.air).length) g.set(Math.max(2, Math.min(W - 3, nx + ri(r, -3, pw + 2))), ny - 2, pickW(r, bio.air)); }
+    if (r() < 0.25 + d * 0.3) { if (pw >= 4 && r() < 0.5) g.set(nx + 1, ny - 1, pickW(r, bio.foes)); else if (Object.keys(bio.air).length) g.set(Math.max(2, Math.min(W - 3, nx + ri(r, -3, pw + 2))), ny - 2, pickW(r, bio.air)); }
     if (r() < 0.45) g.set(nx + Math.floor(pw / 2), ny - 2, 'G');
     sinceCheck += rise;
-    if (sinceCheck > 14 && solid !== 'c') { g.set(nx + pw - 1, ny - 1, 'C'); sinceCheck = 0; }
+    if (sinceCheck > 14) { g.set(nx + pw - 1, ny - 1, 'C'); sinceCheck = 0; }
     px = nx; y = ny; opw = pw;
   }
   // Gipfel: Ziel auf der letzten Plattform

@@ -5,8 +5,12 @@ import { CONFIG } from './config.js';
 export const online = () => !!(CONFIG.supabaseUrl && CONFIG.supabaseKey);
 const headers = () => ({ apikey: CONFIG.supabaseKey, Authorization: `Bearer ${CONFIG.supabaseKey}`, 'Content-Type': 'application/json' });
 
+async function viaVerify(body) {
+  try { const r = await fetch(CONFIG.verifyUrl, { method: 'POST', headers: headers(), body: JSON.stringify(body) }); return r.ok; } catch { return false; }
+}
 export async function uploadGhost({ level, name, frames, code }) {
   if (!online()) return false;
+  if (CONFIG.verifyUrl) return viaVerify({ kind: 'ghost', code, name, version: CONFIG.version });
   try {
     const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/ghosts`, {
       method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' },
@@ -28,6 +32,7 @@ export async function topGhosts(level, limit = 10) {
 // Ein Eintrag pro Lauf: Todesstelle (mit den letzten 3 Sekunden als Geist), optional eine Botschaft
 export async function uploadDailyRun(run) {
   if (!online()) return false;
+  if (CONFIG.verifyUrl) return viaVerify({ kind: 'daily', run: { ...run, tail: JSON.stringify(run.tail || []).slice(0, 4000), version: CONFIG.version } });
   try {
     const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/daily_runs`, { method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify({ ...run, tail: JSON.stringify(run.tail || []).slice(0, 4000), version: CONFIG.version }) });
     return r.ok;

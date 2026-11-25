@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/cheats.js",
+    "src/core.js",
+    "src/daily.js",
+    "src/gen.js",
+    "src/loot.js",
+    "src/names.js",
+    "src/replay.js",
+    "src/save.js"
+  ]
+}

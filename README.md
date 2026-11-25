@@ -287,3 +287,13 @@ Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k
 - **Aktualisierung:** Neue Versionen werden erkannt und im Titelmenü angeboten statt mitten im Spiel neu zu laden.
 - **Tests auf GitHub:** `.github/workflows/test.yml` prüft bei jedem Push alle Levels, 1000 generierte Levels, zwei Suchbot-Stichproben und baut die Einzeldatei.
 - **Supabase:** Anleitung in `SUPABASE.md`, komplettes Schema in `supabase/schema.sql`.
+
+## Engine (v0.16)
+
+- **Deterministisch:** eigene Sinus-Tabelle (`src/core.js`, auf 1e-7 gerundet) statt `Math.sin` in der Spiellogik, Zufall nur aus dem Samen. Gleiche Eingaben ergeben auf jedem Gerät denselben Lauf.
+- **Wiederholungen (`src/replay.js`):** Jeder Lauf zeichnet seine Tastendrücke auf (`game.inputs`). Geister-Codes `SH2.…` sind Wiederholungen (etwa 3× kürzer als die alten `SH1.…`, die weiter gelesen werden) und werden beim Laden nachgespielt. Tagesschacht-Läufe speichern pro Stufe eine Wiederholung.
+- **Server-Prüfung:** `supabase/functions/verify` spielt eingereichte Läufe mit derselben Engine nach (siehe `SUPABASE.md`, Stufe 2).
+- **Probeläufe:** `SAVE=1 node tools/solve.mjs <level> 3 3` speichert einen geschafften Lauf in `tests/replays/`. `node tools/replaytest.mjs` spielt alle nach und meldet, wenn eine Änderung einen Lauf bricht. `tools/test.mjs` prüft zusätzlich für jedes Level, dass die Wiederholung exakt gleich ausgeht.
+- **Aufteilung:** `src/core.js` (Konstanten, Helfer), `src/foes.js` (alle Gegner, Bosse, Fallen, Projektile mit `MAKERS`-Liste), `src/game.js` (Spielwelt, Held, Regeln).
+- **Leistung:** feste Kacheln werden in 16×16-Blöcken vorgezeichnet und nur bei Änderungen erneuert (`game.setT`), Listen werden an Ort und Stelle aufgeräumt, der Held wird zwischen zwei Logikschritten weich gezeichnet (90/120 Hz).
+- **Typen:** `jsconfig.json` prüft ausgewählte Module mit TypeScript (JSDoc), auch in den GitHub-Tests.

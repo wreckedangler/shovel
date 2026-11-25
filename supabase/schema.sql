@@ -15,6 +15,7 @@ create table if not exists ghosts (
   frames int not null check (frames > 300),
   code text not null check (char_length(code) < 60000),
   version text,
+  verified boolean default false,
   created_at timestamptz default now()
 );
 create index if not exists ghosts_level on ghosts (level, frames);
@@ -37,6 +38,8 @@ create table if not exists daily_runs (
   ma int default -1 check (ma between -1 and 13), mb int default -1 check (mb between -1 and 9),
   mx int default 0, my int default 0, mk int default 0,
   carried int default 0 check (carried between 0 and 500),
+  replay text check (char_length(replay) < 300000),
+  verified boolean default false,
   version text,
   created_at timestamptz default now(),
   unique (date, device)
@@ -71,3 +74,8 @@ create table if not exists deaths_anon (
 alter table deaths_anon enable row level security;
 drop policy if exists "eintragen" on deaths_anon; create policy "eintragen" on deaths_anon for insert with check (true);
 -- (bewusst keine Lese-Policy: auswerten nur im Supabase-Dashboard)
+
+-- ===== Stufe 2 (optional, nach dem Bereitstellen der Edge Function "verify") =====
+-- Danach dürfen nur noch nachgeprüfte Läufe eingetragen werden:
+-- drop policy if exists "eintragen" on daily_runs;
+-- drop policy if exists "eintragen" on ghosts;

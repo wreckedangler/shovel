@@ -3,6 +3,7 @@
 import { LEVELS } from '../src/levels.js';
 import { Game } from '../src/game.js';
 import { encodeGhost, decodeGhost } from '../src/ghost.js';
+import { replayOf, simulate } from '../src/replay.js';
 
 let fail = 0;
 const bad = m => { console.log('FEHLER', m); fail++; };
@@ -26,6 +27,9 @@ for (const L of LEVELS) {
     if (Number.isNaN(g.p.x) || Number.isNaN(g.p.y)) { bad(`${L.id} NaN`); break; }
     if (g.done) break;
   }
+  // Determinismus: dieselben Eingaben müssen exakt denselben Lauf ergeben
+  { const g2 = simulate({ ...replayOf(g), level: L.id }); const same = g2 && g2.frame === g.frame && g2.p.x === g.p.x && g2.p.y === g.p.y && g2.gems === g.gems && g2.deaths === g.deaths && g2.rec.length === g.rec.length;
+    if (!same) bad(`${L.id} Wiederholung weicht ab (x ${g.p.x} vs ${g2 && g2.p.x})`); }
   console.log(`${L.id.padEnd(4)} ${L.name.padEnd(24)} Breite ${w}  Bot bis x=${Math.round(maxX / 16)}  fertig=${g.done}  Tode=${g.deaths}  Steine=${g.gems}  Frames=${g.frame}`);
   const code = await encodeGhost({ level: L.id, name: 'Bot', frames: g.frame, gear: { shovel: 3, armor: 3 }, rec: g.rec });
   const back = await decodeGhost(code);

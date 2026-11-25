@@ -6,7 +6,13 @@ import { TIERS, SHOVEL, ARMOR, PRICE, AVAILABLE } from './gear.js';
 import { Renderer } from './render.js';
 import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
-import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
+import { decodeGhost as decodeGhostOld, fmtTime } from './ghost.js';
+import { replayOf, encodeReplay, decodeReplay, ghostFromReplay } from './replay.js';
+// Geister: neue Codes (SH2) sind Tastendruck-Aufzeichnungen und werden nachgespielt; alte (SH1) enthalten Positionen
+async function decodeGhost(code) {
+  if (/SH2\./.test(code || '')) { const r = await decodeReplay(code.trim()); return r ? ghostFromReplay(r, r.name) : null; }
+  return decodeGhostOld(code);
+}
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter , cloudSave, cloudLoad, uploadDeaths } from './online.js';
 import * as S from './sprites.js';
@@ -84,6 +90,7 @@ function loop(now) {
   const spd = mode === 'play' || mode === 'won' ? (D.cheatsOn.espresso ? 1.5 : D.cheatsOn.zeitlupe ? 0.5 : 1) : 1;
   const stepMs = 1000 / 60 / spd;
   while (acc >= stepMs) { acc -= stepMs; tick(); }
+  R.alpha = mode === 'play' ? Math.max(0, Math.min(1, acc / stepMs)) : 1;
   draw();
   requestAnimationFrame(loop);
 }
@@ -241,7 +248,7 @@ async function finish() {
   const oldRank = D.ranks[id], newRank = !oldRank || RANK_ORDER[rank] > RANK_ORDER[oldRank];
   if (newRank && !cheated) D.ranks[id] = rank;
   const old = D.best[id], record = !cheated && (!old || frames < old);
-  const code = await encodeGhost({ level: id, name: D.name || 'Ich', frames, gear: { shovel: D.shovel, armor: D.armor }, rec: game.rec });
+  const code = await encodeReplay(replayOf(game, { name: D.name || 'Ich' }));
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
   // Waffen-Bedingungen am Levelende
   if (id === '1-1' && game.kills === 0) unlockWeapon('federklinge');
@@ -567,7 +574,7 @@ function autoQuality(dt) {
 let tsServer = { date: '', marks: [] };
 function tsToday() {
   const key = dayKey(), T = D.ts;
-  if (T.date !== key) { Object.assign(T, { date: key, k: 1, done: false, path: [], end: null, msg: null, carried: 0, frames: 0, better: null }); for (const d in T.marks) if (d !== key) delete T.marks[d]; save.write(); }
+  if (T.date !== key) { Object.assign(T, { date: key, k: 1, done: false, path: [], end: null, msg: null, carried: 0, frames: 0, better: null, replays: [] }); for (const d in T.marks) if (d !== key) delete T.marks[d]; save.write(); }
   return T;
 }
 const tsSeed = () => daySeed(tsToday().date);
@@ -600,11 +607,12 @@ function tsAbandoned() {
   if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', device: D.device, gv: GEN_VERSION, k: T.k, frames: T.frames, x: 0, y: 0, tail: [], carried: T.carried, ...(T.msg || {}) });
   return true;
 }
-function tsDeath() {
+async function tsDeath() {
   const T = D.ts, p = game.p; T.inStage = 0;
+  (T.replays = T.replays || []).push(await encodeReplay(replayOf(game)));
   T.done = true; T.end = { k: T.k, x: Math.round(p.x), y: Math.round(p.y), frames: game.frame, tail: game.rec.slice(-90) };
   T.history[T.date] = T.k; T.carried += game.carried.length; save.write();
-  if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', device: D.device, gv: GEN_VERSION, k: T.k, frames: T.frames + game.frame, x: T.end.x, y: T.end.y, tail: T.end.tail, carried: T.carried, ...(T.msg || {}) })
+  if (online()) uploadDailyRun({ replay: (T.replays || []).join(' '), date: T.date, name: D.name || 'Namenlos', device: D.device, gv: GEN_VERSION, k: T.k, frames: T.frames + game.frame, x: T.end.x, y: T.end.y, tail: T.end.tail, carried: T.carried, ...(T.msg || {}) })
     .then(() => dailyBetter(T.date, T.k)).then(b => { T.better = b; save.write(); if (document.querySelector('.tsresult')) tagesschacht(); });
   tagesschacht();
 }
@@ -748,6 +756,7 @@ function endless(msg = '') {
 async function finishEndless() {
   if (tsRun(level)) {
     const T = D.ts, k = T.k, earned = Math.round(game.gems * 1.3) + 60 + k * 30; T.inStage = 0;
+    (T.replays = T.replays || []).push(await encodeReplay(replayOf(game)));
     D.gems += earned; D.earned += earned; T.path.push(pathKind(level)); T.frames += game.frame; T.carried += game.carried.length; T.k = k + 1; T.history[T.date] = Math.max(T.history[T.date] || 0, k);
     let keyHtml = ''; const kk = 'T' + T.date + ':' + k;
     if ((k === 5 || k === 10) && !D.keyLog[kk]) { D.keyLog[kk] = true; keyHtml = grantKey(k === 10 ? 'urlicht' : 'gold', 1, `Tagesschacht Stufe ${k}`); }

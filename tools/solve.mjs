@@ -3,6 +3,8 @@
 import { levelById } from '../src/levels.js';
 import { Game } from '../src/game.js';
 import { generateLevel } from '../src/gen.js';
+import { replayOf } from '../src/replay.js';
+import { writeFileSync, mkdirSync } from 'fs';
 
 const id = process.argv[2] || '1-1';
 const gear = { shovel: +(process.argv[3] || 0), armor: +(process.argv[4] || 0) };
@@ -60,5 +62,7 @@ for (let d = 0; d < MAX && !found; d++) {
   if (d % 25 === 0) process.stdout.write(`  Tiefe ${d}: x=${Math.round(beam[0].g.p.x / 16)} y=${Math.round(beam[0].g.p.y / 16)}\n`);
 }
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
+// Mit SAVE=1 wird der gefundene Lauf als Probelauf für die Tests gespeichert
+if (found && process.env.SAVE && !START && !TARGET) { mkdirSync('tests/replays', { recursive: true }); const name = (process.env.GEN ? 'gen-' + process.env.GEN.replace(':', '-') : id); writeFileSync(`tests/replays/${name}.json`, JSON.stringify({ ...replayOf(found.g), level: L.id })); console.log('gespeichert: tests/replays/' + name + '.json'); }
 if (found) console.log(`${id}: SCHAFFBAR in ${(found.g.frame / 60).toFixed(1)} s Spielzeit (Suche ${secs} s)`);
 else { console.log(`${id}: NICHT gefunden. Bester Stand x=${Math.round(beam[0].g.p.x / 16)} y=${Math.round(beam[0].g.p.y / 16)} (Suche ${secs} s)`); process.exitCode = 1; }

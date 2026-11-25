@@ -9,7 +9,7 @@ export const daySeed = key => 100000 + (hashSeed('tagesschacht:' + key) % 899999
 // Stufe k (1, 2, 3 …) wird mit der Generator-Tiefe 2k+2 erzeugt: schnell anspruchsvoll, Wächter auf Stufe 4, 9, 14 …
 export const stageDepth = k => 2 * k + 2;
 export const depthStage = d => (d - 2) / 2;
-export function msUntilTomorrow(d = new Date()) { const t = new Date(d); t.setHours(24, 0, 0, 0); return t - d; }
+export function msUntilTomorrow(d = new Date()) { const t = new Date(d); t.setHours(24, 0, 0, 0); return t.getTime() - d.getTime(); }
 
 // Botschaften aus festen Bausteinen (wie Elden Ring): keine freie Eingabe, nichts Anstössiges möglich
 export const MSG_A = ['Achtung', 'Trollblock', 'Falle', 'Geheimnis', 'Abgrund', 'Springen', 'Schaufel-Sprung', 'Warten', 'Rennen', 'Schatz', 'Lüge', 'Mut', 'Kein Ausweg', 'Hier ruhte ich'];

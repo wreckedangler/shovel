@@ -31,6 +31,12 @@ export class Renderer {
   }
 
   draw(g, ghosts = []) {
+    // Zwischenwert zwischen zwei Logikschritten: flüssig auf 90/120-Hz-Bildschirmen
+    const p0 = g.p, al = this.alpha ?? 1, rx = p0.x, ry = p0.y;
+    if (p0.ox !== undefined && Math.abs(p0.x - p0.ox) < 24 && Math.abs(p0.y - p0.oy) < 24) { p0.x = p0.ox + (p0.x - p0.ox) * al; p0.y = p0.oy + (p0.y - p0.oy) * al; }
+    try { this.drawFrame(g, ghosts); } finally { p0.x = rx; p0.y = ry; }
+  }
+  drawFrame(g, ghosts = []) {
     const x = this.x, W = this.W, H = this.H, th = THEMES[g.level.theme];
     this.t++;
     const tg = this.target(g);
@@ -119,46 +125,74 @@ export class Renderer {
     }
   }
 
+  // Kacheln: feste Kacheln werden in 16×16-Blöcken vorgezeichnet und nur bei Änderungen neu erstellt.
+  // Bewegte oder blinkende Kacheln (Bröckel, Kippböden, Pfeilwerfer, Trollblöcke, Seher-Schimmer) kommen jedes Bild dazu.
   tiles(g, th, cx, cy) {
-    const x = this.x, ts = S.tileset(th);
-    const x0 = Math.floor(cx / T), x1 = Math.ceil((cx + this.W) / T), y0 = Math.max(0, Math.floor(cy / T)), y1 = Math.min(g.h - 1, Math.ceil((cy + this.H) / T));
-    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-      const c = g.tile(tx, ty);
-      if (g.hidden.size && g.hidden.has(tx + ',' + ty)) { x.drawImage(ts.fill[(tx * 7 + ty * 13) % 3], tx * T, ty * T); if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.18)'; x.fillRect(tx * T, ty * T, T, T); } continue; }
-      if (c === '.') continue;
-      const v = (tx * 7 + ty * 13) % 3, px = tx * T, py = ty * T;
-      let img;
-      if (c === '#' || c === 'F') { if (tx < 0 || tx >= g.w) continue; const up = g.tile(tx, ty - 1); img = (up === '#' || up === 'F') && ty > 0 ? ts.fill[v] : ts.top[v]; }
-      else if (c === 'H') { if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); } continue; }
-      else if (c === 'J') img = ts.used;
-      else if (c === 'c') { const cr = g.crumbles.get(tx + ',' + ty); x.drawImage(ts.crumble, px + (cr && cr.state === 'shake' ? ((this.t >> 1) & 1) * 2 - 1 : 0), py); continue; }
-      else if (c === 'D') img = ts.dirt; else if (c === 'S') img = ts.stone; else if (c === '^') img = ts.spike;
-      else if (c === '=') img = ts.plank; else if (c === 'B') img = ts.mush; else if (c === 'X') img = ts.gate;
-      else if (c === 'V') img = ts.vent; else if (c === 'R') img = ts.ore;
-      else if (c === 'A') { // Pfeilwerfer: Steinblock mit Schlitz, glüht vor dem Schuss
-        x.drawImage(ts.stone, px, py); const tr = g.traps.find(t => t.tx === tx && t.ty === ty), fx = tr && tr.face > 0 ? px + 12 : px;
-        x.fillStyle = K; x.fillRect(fx, py + 6, 4, 4); x.fillStyle = tr && tr.warn > 0 && (this.t >> 1) & 1 ? '#ff5030' : '#3a1010'; x.fillRect(fx + 1, py + 7, 2, 2);
-        x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 3, py + 3, 10, 1); continue;
+    const x = this.x, ts = S.tileset(th), CH = 16, CS = CH * T;
+    if (this.tcGame !== g) { this.tc = new Map(); this.tcGame = g; this.tcHid = g.hiddenVer; }
+    if (g.hiddenVer !== this.tcHid) { this.tc.clear(); this.tcHid = g.hiddenVer; }
+    if (g.dirty.size) { for (const k of g.dirty) this.tc.delete(k); g.dirty.clear(); }
+    const bx0 = Math.floor(cx / CS), bx1 = Math.floor((cx + this.W) / CS), by0 = Math.max(0, Math.floor(cy / CS)), by1 = Math.floor((cy + this.H) / CS);
+    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) {
+      if (bx < 0 || bx * CH >= g.w || by * CH >= g.h) continue;
+      const k = bx + ',' + by; let c = this.tc.get(k);
+      if (!c) {
+        c = document.createElement('canvas'); c.width = CS; c.height = CS; const cxx = c.getContext('2d');
+        cxx.translate(-bx * CS, -by * CS);
+        for (let ty = by * CH; ty < Math.min(g.h, by * CH + CH); ty++) for (let tx = bx * CH; tx < Math.min(g.w, bx * CH + CH); tx++) this.tileAt(cxx, g, ts, tx, ty, false);
+        this.tc.set(k, c);
       }
-      else if (c === 'K') { // Kippboden: Bretter mit Scharnier, wackeln vor dem Kippen
-        const fl = g.flips.get(tx + ',' + ty), wob = fl && fl.state === 'warn' ? ((this.t >> 1) & 1) * 2 - 1 : 0;
-        x.save(); x.translate(px + 8, py + 2); x.rotate(wob * 0.06); x.drawImage(ts.plank, -8, -2); x.restore();
-        x.fillStyle = K; x.fillRect(px, py + 5, 16, 1); x.fillStyle = '#8a8a9a'; x.fillRect(px + 1, py + 4, 2, 2); x.fillRect(px + 13, py + 4, 2, 2);
-        x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 7, py, 2, 5); continue;
-      }
-      else if (c === 'I') { // Trollblock: unsichtbar, nur ein seltenes Glitzern verrät ihn
-        if ((this.t + tx * 31 + ty * 17) % 240 < 6) { x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillRect(px + 7, py + 7, 1, 1); x.fillRect(px + 6, py + 8, 3, 1); }
-        if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(255,90,90,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); }
-        continue;
-      }
-      if (img) x.drawImage(img, px, py);
-      if (c === 'F') {
-        // Feiner Riss als Hinweis; mit der Spürschaufel leuchtet die Wand
-        x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 7, py + 6, 1, 4); x.fillRect(px + 8, py + 9, 2, 1);
-        if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.3)'; x.fillRect(px, py, 16, 16); }
-      }
+      x.drawImage(c, bx * CS, by * CS);
     }
+    const x0 = Math.floor(cx / T), x1 = Math.ceil((cx + this.W) / T), y0 = Math.max(0, Math.floor(cy / T)), y1 = Math.min(g.h - 1, Math.ceil((cy + this.H) / T));
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) this.tileAt(x, g, ts, tx, ty, true);
   }
+  tileAt(x, g, ts, tx, ty, dyn) {
+    const c0 = g.tile(tx, ty), hid = g.hidden.size > 0 && g.hidden.has(tx + ',' + ty), dynTile = 'cKAIH'.includes(c0) && !hid;
+    if (!dyn && dynTile) return;
+    if (dyn && !dynTile) {
+      // nur den Seher-Schimmer über die vorgezeichnete Kachel legen
+      if (g.mod.seer && (c0 === 'F' || hid) && (this.t >> 3) & 1) { x.fillStyle = c0 === 'F' ? 'rgba(125,255,207,0.3)' : 'rgba(125,255,207,0.18)'; x.fillRect(tx * T, ty * T, T, T); }
+      return;
+    }
+    const seer = dyn && g.mod.seer;
+    const c = c0;
+    if (g.hidden.size && g.hidden.has(tx + ',' + ty)) { x.drawImage(ts.fill[(tx * 7 + ty * 13) % 3], tx * T, ty * T); if (seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.18)'; x.fillRect(tx * T, ty * T, T, T); } return; }
+    if (c === '.') return;
+    const v = (tx * 7 + ty * 13) % 3, px = tx * T, py = ty * T;
+    let img;
+    if (c === '#' || c === 'F') { if (tx < 0 || tx >= g.w) return; const up = g.tile(tx, ty - 1); img = (up === '#' || up === 'F') && ty > 0 ? ts.fill[v] : ts.top[v]; }
+    else if (c === 'H') { if (seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); } return; }
+    else if (c === 'J') img = ts.used;
+    else if (c === 'c') { const cr = g.crumbles.get(tx + ',' + ty); x.drawImage(ts.crumble, px + (cr && cr.state === 'shake' ? ((this.t >> 1) & 1) * 2 - 1 : 0), py); return; }
+    else if (c === 'D') img = ts.dirt; else if (c === 'S') img = ts.stone; else if (c === '^') img = ts.spike;
+    else if (c === '=') img = ts.plank; else if (c === 'B') img = ts.mush; else if (c === 'X') img = ts.gate;
+    else if (c === 'V') img = ts.vent; else if (c === 'R') img = ts.ore;
+    else if (c === 'A') { // Pfeilwerfer: Steinblock mit Schlitz, glüht vor dem Schuss
+      x.drawImage(ts.stone, px, py); const tr = g.traps.find(t => t.tx === tx && t.ty === ty), fx = tr && tr.face > 0 ? px + 12 : px;
+      x.fillStyle = K; x.fillRect(fx, py + 6, 4, 4); x.fillStyle = tr && tr.warn > 0 && (this.t >> 1) & 1 ? '#ff5030' : '#3a1010'; x.fillRect(fx + 1, py + 7, 2, 2);
+      x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 3, py + 3, 10, 1); return;
+    }
+    else if (c === 'K') { // Kippboden: Bretter mit Scharnier, wackeln vor dem Kippen
+      const fl = g.flips.get(tx + ',' + ty), wob = fl && fl.state === 'warn' ? ((this.t >> 1) & 1) * 2 - 1 : 0;
+      x.save(); x.translate(px + 8, py + 2); x.rotate(wob * 0.06); x.drawImage(ts.plank, -8, -2); x.restore();
+      x.fillStyle = K; x.fillRect(px, py + 5, 16, 1); x.fillStyle = '#8a8a9a'; x.fillRect(px + 1, py + 4, 2, 2); x.fillRect(px + 13, py + 4, 2, 2);
+      x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 7, py, 2, 5); return;
+    }
+    else if (c === 'I') { // Trollblock: unsichtbar, nur ein seltenes Glitzern verrät ihn
+      if ((this.t + tx * 31 + ty * 17) % 240 < 6) { x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillRect(px + 7, py + 7, 1, 1); x.fillRect(px + 6, py + 8, 3, 1); }
+      if (seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(255,90,90,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); }
+      return;
+    }
+    if (img) x.drawImage(img, px, py);
+    if (c === 'F') {
+      // Feiner Riss als Hinweis; mit der Spürschaufel leuchtet die Wand
+      x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 7, py + 6, 1, 4); x.fillRect(px + 8, py + 9, 2, 1);
+      if (seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.3)'; x.fillRect(px, py, 16, 16); }
+    }
+
+  }
+
 
   ent(g, e, th) {
     if (e.elite && !e.dead && this.symbols) S.drawText(this.x, { schnell: '>>', zaeh: '+', teilt: '%' }[e.elite], Math.round(e.x + e.w / 2), Math.round(e.y) - 8, '#ffffff', 1, 'center');
