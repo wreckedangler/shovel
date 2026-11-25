@@ -445,7 +445,7 @@ const Q3M = [
   "#....O.............#",
   "#...====...........#",
   "#..................#",
-  "#........KKKK......#",
+  "#........====......#",
   "#..................#",
   "#.............====.#",
   "#..........G.......#",
@@ -478,7 +478,7 @@ const Q3M = [
   "#.....====.........#",
   "#..P...............#",
   "####################",
-  "####################"];
+  "####################"]
 export const QUAL_WORLD = { id: 'Q', name: 'Qualpfade', levels: ['Q-1', 'Q-2', 'Q-3'] };
 
 export const LEVELS = [
@@ -523,7 +523,7 @@ export const LEVELS = [
   // Qualpfade: öffnen sich mit einem S-Rang in der jeweiligen Welt
   { id: 'Q-1', name: 'Die Nadelkammer', theme: 'hoehle', map: Q1M, par: 70, qual: 1, signs: [] },
   { id: 'Q-2', name: 'Wurmgrund', theme: 'dornen', map: Q2M, par: 55, qual: 2, signs: [], chase: { kind: 'wurm', speed: 1.3, delay: 150 } },
-  { id: 'Q-3', name: 'Der Glutschlund', theme: 'bau', map: Q3M, par: 80, qual: 3, signs: [], chase: { kind: 'lava', speed: 0.42, delay: 200 } },
+  { id: 'Q-3', name: 'Der Glutschlund', theme: 'bau', map: Q3M, par: 80, qual: 3, signs: [], chase: { kind: 'lava', speed: 0.36, delay: 240 } },
   // Geheimlevels (nicht in der normalen Reihenfolge)
   { id: '1-G', name: 'Goldader', theme: 'hoehle', map: G1, par: 45, secret: true, from: '1-2',
     signs: ['WILLKOMMEN IN DER GOLDADER. DIE ALTEN SCHAUFLER SAGTEN: MONDSCHWERKRAFT.'] },
