@@ -8,7 +8,7 @@ import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
 import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
-import { online, uploadGhost, topGhosts } from './online.js';
+import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter } from './online.js';
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
@@ -17,6 +17,7 @@ import { generateLevel, BIOMES, STYLE_NAME as STYLE_NAME0 } from './gen.js';
 const STYLE_NAME = { ...STYLE_NAME0, arena: 'Wächter' };
 const bioName = L => L.biome || (BIOMES.find(b => b.id === L.theme) || {}).name || '';
 import { darkness } from './atmo.js';
+import { dayKey, dayNumber, daySeed, stageDepth, depthStage, msUntilTomorrow, MSG_A, MSG_B, msgText, encodeMark, decodeMark, shareText } from './daily.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD, QUAL_WORLD } from './levels.js';
@@ -106,7 +107,9 @@ function tick() {
     if (e.name === 'unlock') unlockWeapon(e.v, true);
     if (e.name === 'check') moment('LATERNE ENTZÜNDET', 'Hier kehrst du zurück', 'gold', 2.6);
     if (e.name === 'bossDie') moment('GROSSER FEIND BEZWUNGEN', level.name, 'gold', 4.6);
-    if (e.name === 'die') moment(hcRun(level) ? 'DER LAUF ENDET' : 'DU BIST GEFALLEN', '', 'death', 2.8);
+    if (e.name === 'die') moment(tsRun(level) ? 'DER SCHACHT NIMMT DICH' : hcRun(level) ? 'DER LAUF ENDET' : 'DU BIST GEFALLEN', tsRun(level) ? `Stufe ${D.ts.k}` : '', 'death', 2.8);
+    if (e.name === 'soul') { sfx('legend'); haptic('unlock'); }
+    if (e.name === 'die' && tsRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') tsDeath(); }, 1100); }
     if (e.name === 'die' && hcRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') hcEnd(); }, 1100); }
     if (e.name === 'timeout') { moment('ZEIT ABGELAUFEN', 'Die Tiefe beginnt neu', 'death', 2.4); const lv = level; setTimeout(() => { if (level === lv && mode === 'play') startLevel(lv.id, curCodes); }, 1200); }
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
@@ -183,11 +186,12 @@ async function startLevel(id, ghostCodes = []) {
   setSpace(darkness(level) >= 0.6 ? 'cave' : ['uhrturm', 'glocke', 'pendel', 'bau'].includes(level.theme) ? 'hall' : 'open');
   goFullscreen();
   const wn = ALLW().find(w => w.levels.includes(id));
-  const sub = level.gen ? `Tiefe ${level.depth} · ${bioName(level)} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
+  const sub = tsRun(level) ? `Tagesschacht #${dayNumber()} · Stufe ${D.ts.k} · ${bioName(level)}` : level.gen ? `Tiefe ${level.depth} · ${bioName(level)} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
   setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true); show(`
   <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
+  ${tsRun(level) && !D.ts.msg ? '<button data-a="tsmsg">Botschaft hinterlassen</button>' : ''}
   <button class="big" data-a="resume">Weiter</button>
   <button data-a="restart">Neu starten</button>
   <button data-a="map">Zur Karte</button>
@@ -508,6 +512,7 @@ const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => 
 const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
 function runOpts(L) {
   if (!L.gen) return {};
+  if (tsRun(L)) { const k = D.ts.k; return { elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
   const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
   if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
   if (hcRun(L)) o.noCheck = true;
@@ -523,6 +528,82 @@ function hcEnd() {
     <div class="stats"><div><small>Geschafft</small><b>${dep}</b><em>Tiefen</em></div><div><small>Rekord</small><b>${H.best}</b><em>ohne Wiederkehr</em></div><div><small>Samen</small><b>${H.seed}</b></div></div>
     <div class="row"><button class="big" data-a="hcstart">Neuer Lauf</button><button data-a="endless">Übersicht</button></div>
   </div>`);
+}
+/* ---------- Tagesschacht ---------- */
+let tsServer = { date: '', marks: [] };
+function tsToday() {
+  const key = dayKey(), T = D.ts;
+  if (T.date !== key) { Object.assign(T, { date: key, k: 1, done: false, path: [], end: null, msg: null, carried: 0, frames: 0, better: null }); for (const d in T.marks) if (d !== key) delete T.marks[d]; save.write(); }
+  return T;
+}
+const tsSeed = () => daySeed(tsToday().date);
+const tsId = k => genId(tsSeed(), stageDepth(k));
+const tsRun = L => L && L.gen && D.ts.date === dayKey() && !D.ts.done && L.seed === daySeed(D.ts.date) && depthStage(L.depth) === D.ts.k;
+function tsAllMarks() { const own = D.ts.marks[D.ts.date] || []; return [...(tsServer.date === D.ts.date ? tsServer.marks : []), ...own]; }
+function tsMarksFor(k) {
+  const out = [];
+  for (const m of tsAllMarks()) {
+    if (m.k === k && m.x) out.push({ type: 'stain', x: m.x, y: m.y, name: m.name, tail: m.tail });
+    if (m.ma >= 0 && m.mk === k) out.push({ type: 'msg', x: m.mx, y: m.my, name: m.name, text: msgText(m.ma, m.mb) });
+  }
+  return out.slice(0, 60);
+}
+const tsStreak = () => { let n = 0; const d = new Date(); if (!D.ts.history[dayKey(d)]) d.setDate(d.getDate() - 1); while (D.ts.history[dayKey(d)]) { n++; d.setDate(d.getDate() - 1); } return n; };
+const pathKind = L => L.bossTier ? 'boss' : L.chase ? (L.chase.kind === 'lava' ? 'lava' : 'chase') : L.style === 'hoehle' ? 'dark' : 'n';
+function tsCode() { const T = D.ts, e = T.end || {}; return encodeMark({ date: T.date, name: D.name || 'Namenlos', k: e.k || T.k, x: e.x || 0, y: e.y || 0, ...(T.msg || {}) }); }
+function tsShare() {
+  const T = D.ts, txt = shareText({ num: dayNumber(), stage: T.end ? T.end.k : T.k, time: fmtTime(T.frames + (T.end ? T.end.frames : 0)), path: T.path, carried: T.carried, code: tsCode(), better: T.better });
+  if (navigator.share) navigator.share({ text: txt }).catch(() => {});
+  else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Kopiert', 'Ergebnis in der Zwischenablage.'), () => {});
+  return txt;
+}
+function tsDeath() {
+  const T = D.ts, p = game.p;
+  T.done = true; T.end = { k: T.k, x: Math.round(p.x), y: Math.round(p.y), frames: game.frame, tail: game.rec.slice(-90) };
+  T.history[T.date] = T.k; T.carried += game.carried.length; save.write();
+  if (online()) uploadDailyRun({ date: T.date, name: D.name || 'Namenlos', k: T.k, frames: T.frames + game.frame, x: T.end.x, y: T.end.y, tail: T.end.tail, carried: T.carried, ...(T.msg || {}) })
+    .then(() => dailyBetter(T.date, T.k)).then(b => { T.better = b; save.write(); if (document.querySelector('.tsresult')) tagesschacht(); });
+  tagesschacht();
+}
+function tagesschacht(msg = '') {
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'tagesschacht';
+  playMusic(THEMES.karte.music);
+  const mo = $('#moment'); if (mo) mo.className = '';
+  const T = tsToday(), num = dayNumber(), left = msUntilTomorrow(), hh = Math.floor(left / 36e5), mm = Math.floor(left / 6e4) % 60;
+  if (online() && tsServer.date !== T.date) fetchDailyMarks(T.date).then(ms => { tsServer = { date: T.date, marks: ms }; if (document.querySelector('.ts')) tagesschacht(msg); });
+  const marks = tsAllMarks(), stains = marks.filter(m => m.x).length, hist = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const v = T.history[dayKey(d)]; return `<i class="${v ? 'on' : ''}" title="${dayKey(d)}">${v || ''}</i>`; }).join('');
+  const preview = levelById(tsId(1));
+  show(`<div class="panel ts ${T.done ? 'tsresult' : ''}">
+    <div class="top"><button class="back" data-a="title">‹</button><h2>Tagesschacht #${num}</h2><span class="gems">Serie ${tsStreak()} ${ic('flame')}</span></div>
+    ${T.done ? `
+      <div class="tsend"><p class="rar">Der Schacht hat dich verschlungen</p>
+        <div class="tsbig">${serifImg('Stufe ' + T.end.k, 16, 'red', 3)}</div>
+        <p class="note">${T.path.length} ${T.path.length === 1 ? 'Stufe' : 'Stufen'} bezwungen · ${fmtTime(T.frames + T.end.frames)}${T.carried ? ` · ${T.carried} ${T.carried === 1 ? 'Seele' : 'Seelen'} getragen` : ''}${T.better != null ? ` · besser als ${T.better} %` : ''}</p>
+        <p class="tspath">${T.path.map(p => ({ n: '⛏️', boss: '👑', chase: '🌊', lava: '🔥', dark: '🌑' }[p])).join('')}💀</p>
+        <div class="row"><button class="big" data-a="tsshare">Ergebnis teilen</button></div>
+        <p class="note">Dein Blutfleck liegt jetzt im Schacht. Wer ihn findet, kann deine Seele tiefer tragen.</p>
+        <p class="msg">Neuer Schacht in ${hh} h ${mm} min</p></div>`
+    : `
+      <p class="note">Ein Schacht für alle, jeden Tag neu. <b>Ein Leben</b>, keine Laternen-Rückkehr. Wie tief kommst du?</p>
+      <div class="tsprev"><canvas class="mini" data-tsmini="1"></canvas><small>Stufe 1 · ${esc(preview.name)} · ${esc(bioName(preview))}</small></div>
+      <div class="row"><button class="big" data-a="eplay" data-id="${tsId(T.k)}">${T.k > 1 ? `Weiter · Stufe ${T.k}` : 'Abstieg beginnen'}</button></div>
+      <p class="note">Unterwegs liegen Blutflecken anderer. Berühre sie, um ihre Seele zu bergen und ihren letzten Moment zu sehen. ${T.msg ? 'Deine Botschaft liegt bereit.' : 'In der Pause kannst du eine Botschaft hinterlassen.'}</p>`}
+    <div class="seedbox inset"><h3 class="sub">Blutflecken heute: ${stains}${online() ? '' : ' (nur über Codes)'}</h3>
+      <label class="field">Code von Freunden einfügen<textarea id="tscode" rows="2" placeholder="SHT.…"></textarea></label>
+      <div class="row"><button data-a="tsimport">Blutfleck übernehmen</button></div>
+      ${msg ? `<p class="msg">${msg}</p>` : ''}
+      <div class="tshist"><small>Letzte 7 Tage</small><div>${hist}</div></div>
+    </div>
+  </div>`);
+  const cv = ui.querySelector('[data-tsmini]'); if (cv) { const m = miniMap(preview); cv.width = m.width; cv.height = m.height; cv.getContext('2d').drawImage(m, 0, 0); }
+}
+function tsMessage() {
+  mode = 'pause';
+  show(`<div class="panel small"><h2>Botschaft</h2>
+    <p class="note">Sie bleibt an dieser Stelle liegen. Andere lesen sie, wenn sie hier vorbeikommen. Eine pro Tag.</p>
+    <label class="field">Wort<select id="ma">${MSG_A.map((t, i) => `<option value="${i}">${esc(t)}</option>`).join('')}</select></label>
+    <label class="field">Zusatz<select id="mb">${MSG_B.map((t, i) => `<option value="${i}">${esc(t)}</option>`).join('')}</select></label>
+    <button class="big" data-a="tsmsgset">Hinterlassen</button><button data-a="resume">Zurück</button></div>`);
 }
 /* ---------- Abstieg: nahtloser Übergang zur nächsten Tiefe ---------- */
 let desc = null;
@@ -621,6 +702,14 @@ function endless(msg = '') {
   }
 }
 async function finishEndless() {
+  if (tsRun(level)) {
+    const T = D.ts, k = T.k, earned = Math.round(game.gems * 1.3) + 60 + k * 30;
+    D.gems += earned; D.earned += earned; T.path.push(pathKind(level)); T.frames += game.frame; T.carried += game.carried.length; T.k = k + 1; T.history[T.date] = Math.max(T.history[T.date] || 0, k);
+    let keyHtml = ''; const kk = 'T' + T.date + ':' + k;
+    if ((k === 5 || k === 10) && !D.keyLog[kk]) { D.keyLog[kk] = true; keyHtml = grantKey(k === 10 ? 'urlicht' : 'gold', 1, `Tagesschacht Stufe ${k}`); }
+    save.write(); checkAch();
+    return startDescent({ dep: k, earned, coins: game.coins.length, coinTotal: (level.map.join('').match(/O/g) || []).length, keyHtml, rec: false, nextId: tsId(k + 1) });
+  }
   const E = D.endless, dep = level.depth, hc = hcRun(level), main = mainRun(level) && !hc;
   const coins = game.coins.length, info = { coins: (level.map.join('').match(/O/g) || []).length };
   const mul = (main || hc ? curseMul() : 1) * (hc ? 1.5 : 1) * (level.bossTier ? 2 : 1);
@@ -670,6 +759,7 @@ function title() {
     <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
     <div class="menu">
       <button class="big" data-a="map">Abenteuer</button>
+      <button class="tsbtn" data-a="tagesschacht">Tagesschacht #${dayNumber()} ${D.ts.date === dayKey() && D.ts.done ? `<small>Stufe ${D.ts.end.k} ✓</small>` : '<span class="badge">!</span>'}</button>
       ${endlessOpen() ? `<button data-a="endless">∞ Endlose Tiefen${D.endless.best ? ` <small style="color:var(--mute)">${D.endless.best}</small>` : ''}</button>` : ''}
       <button class="treasurebtn" data-a="treasury">${ic('lock')} Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button>
       <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
@@ -829,7 +919,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.13</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.14</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -851,6 +941,15 @@ ui.addEventListener('click', async e => {
   switch (a) {
     case 'title': return title();
     case 'treasury': return treasury();
+    case 'tagesschacht': return tagesschacht();
+    case 'tsshare': tsShare(); return;
+    case 'tsmsg': return tsMessage();
+    case 'tsmsgset': { const p = game.p; D.ts.msg = { ma: +$('#ma').value, mb: +$('#mb').value, mx: Math.round(p.x), my: Math.round(p.y), mk: D.ts.k }; save.write(); sfx('secret'); return resume(); }
+    case 'tsimport': {
+      const T = tsToday(), raw = $('#tscode').value; let n = 0, wrong = 0;
+      for (const c of raw.match(/SHT\.[A-Za-z0-9_-]+/g) || []) { const m = decodeMark(c); if (!m) continue; if (m.date !== T.date) { wrong++; continue; } (T.marks[T.date] = T.marks[T.date] || []).push(m); n++; }
+      save.write(); return tagesschacht(n ? `${n} ${n === 1 ? 'Blutfleck liegt' : 'Blutflecken liegen'} jetzt im Schacht.` : wrong ? 'Dieser Code gehört zu einem anderen Tag.' : 'Kein gültiger Code gefunden.');
+    }
     case 'endless': return endlessOpen() ? endless() : sfx('nope');
     case 'eplay': goFullscreen(); return startLevel(id);
     case 'eseed': { const v = parseInt($('#eseed').value, 10); if (!(v > 0)) return endless('Bitte eine Zahl eingeben.'); if (v !== D.endless.seed) { D.endless.seed = v; D.endless.depth = 1; save.write(); } return endless(`Weltsamen ${v} gesetzt.`); }

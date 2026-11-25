@@ -177,6 +177,26 @@ export class Renderer {
         if ((f + e.x) % 90 < 6) { x.fillStyle = '#fff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y) + bob + 1, 1, 1); }
         return;
       }
+      case 'soul': {
+        // Blutfleck am Boden (solange die Seele dort ist) und eine violette Flamme
+        if (!e.taken) { x.fillStyle = 'rgba(160,20,40,0.7)'; x.fillRect(Math.round(e.x) - 3, Math.round(e.y) + 13, 16, 2); x.fillRect(Math.round(e.x) - 1, Math.round(e.y) + 12, 12, 1); }
+        const fy = Math.round(e.y + Math.sin(e.ph) * 2), fx = Math.round(e.x);
+        for (let k = 0; k < 6; k++) { const w = 6 - k, h = 2; x.fillStyle = k < 2 ? '#7a3ad0' : k < 4 ? '#c58bff' : '#f0e0ff'; x.fillRect(fx + 5 - Math.ceil(w / 2) + Math.round(Math.sin(e.ph * 2 + k) * (k > 2 ? 1 : 0)), fy + 12 - k * 2, w, h); }
+        if (!e.taken && Math.abs(g.p.x - e.x) < 60) { x.globalAlpha = 0.85; S.drawText(x, e.name, fx + 5, fy - 6, '#c58bff', 1, 'center'); x.globalAlpha = 1; }
+        return;
+      }
+      case 'echo': {
+        const s2 = e.tail[Math.min(e.i, e.tail.length - 1)]; if (!s2) return;
+        x.globalAlpha = 0.55; this.figure(S.ghostHero(), s2[0], s2[1], s2[2] & 8 ? -1 : 1, s2[2] & 7, (s2[2] & 16) ? 8 : 0, 8); x.globalAlpha = 1;
+        S.drawText(x, e.name, Math.round(s2[0] + 5), Math.round(s2[1]) - 12, '#c58bff', 1, 'center');
+        return;
+      }
+      case 'rune': {
+        const gl = 0.5 + Math.sin(f / 15 + e.x) * 0.3; x.globalAlpha = gl; x.fillStyle = '#ffcf6a';
+        const rx = Math.round(e.x), ry = Math.round(e.y);
+        x.fillRect(rx + 2, ry + 6, 10, 1); x.fillRect(rx + 6, ry, 1, 7); x.fillRect(rx + 3, ry + 2, 7, 1); x.fillRect(rx + 4, ry + 4, 1, 2); x.fillRect(rx + 9, ry + 4, 1, 2);
+        x.globalAlpha = 1; return;
+      }
       case 'icicle': {
         if (e.state === 'gone') return;
         const sx = Math.round(e.x) + (e.state === 'shake' ? ((f >> 1) & 1) * 2 - 1 : 0), sy = Math.round(e.y);
@@ -549,7 +569,7 @@ export class Renderer {
     const tx = W < 220 ? Math.max(W / 2, 6 + per * 8 + 26) : W / 2;
     S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
-    if (g.level.gen) { S.drawText(x, 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
+    if (g.level.gen) { S.drawText(x, g.hudLabel || 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
     if (g.timeLimit && !g.done) { const left = Math.max(0, g.timeLimit - g.frame); S.drawText(x, 'NOCH ' + fmtTime(left), tx, gy, left < 600 && (this.t >> 3) & 1 ? '#ff5050' : '#ffb0a0', 1, 'center'); gy += 8; }
     if (g.chase && !g.done) { const d = g.chase.vert ? (g.chase.pos - g.p.y - g.p.h) : (g.p.x - g.chase.pos); if (d < 90 && (this.t >> 2) & 1) { x.fillStyle = 'rgba(255,40,40,0.18)'; g.chase.vert ? x.fillRect(0, this.H - 18, W, 18) : x.fillRect(0, 0, 14, this.H); } }
     for (const gh of ghosts) {

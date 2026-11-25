@@ -170,6 +170,25 @@ create policy "eintragen" on ghosts for insert with check (true);
 
 3. In `src/config.js` Projekt-URL und `anon`-Schlüssel eintragen.
 
+Für den **Tagesschacht** (Blutflecken, Botschaften, „besser als X %“) zusätzlich:
+
+```sql
+create table daily_runs (
+  id bigint generated always as identity primary key,
+  date text not null,
+  name text not null check (char_length(name) between 1 and 16),
+  k int not null, frames int, x int, y int,
+  tail text check (char_length(tail) < 4100),
+  ma int default -1, mb int default -1, mx int default 0, my int default 0, mk int default 0,
+  carried int default 0, version text,
+  created_at timestamptz default now()
+);
+create index on daily_runs (date, k);
+alter table daily_runs enable row level security;
+create policy "lesen" on daily_runs for select using (true);
+create policy "eintragen" on daily_runs for insert with check (true);
+```
+
 Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für mehr Schutz später eine Supabase Edge Function bauen, die den Geist nachsimuliert.
 
 ## Fahrplan
@@ -248,3 +267,12 @@ Ab 1-1 gibt es im Kartenmenü den Tab **∞ Tiefen**. Jede Tiefe wird aus dem *W
 **Qualpfade (Tab „Qual“):** Q-1 Die Nadelkammer (dunkle Fallenhöhle), Q-2 Wurmgrund (Wurm-Verfolgung), Q-3 Der Glutschlund (Schacht mit steigender Lava). Öffnen sich mit einem S-Rang in Welt 1/2/3. Erster Abschluss: Urlicht-Schlüssel und 2500 Edelsteine.
 
 **Endlose Tiefen:** Fallen ab Tiefe 6, Verfolgungen ab Tiefe 6 (Schacht) bzw. 12, Elitegegner ab Tiefe 15 (schnell, zäh oder teilend), **Wächter** alle 10 Tiefen (Boss-Arena, jedes Mal mehr Leben und schneller), **Flüche** ab Rekord 10 (Einherz, Finsternis, Gegnerflut, Zeitdruck, Elite, jeweils mehr Beute), **Ohne Wiederkehr** (neue Welt, Laternen ohne Rücksetzpunkt, erster Tod beendet den Lauf, Beute ×1,5).
+
+## Tagesschacht (v0.14, `src/daily.js`)
+
+Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k+2, Wächter auf Stufe 4, 9, 14 …). Ein Leben, Laternen setzen keinen Rücksetzpunkt.
+
+- **Blutflecken:** Jeder Tod hinterlässt einen Fleck mit der Seele des Spielers. Wer ihn berührt, birgt die Seele (sie schwebt mit), sieht den letzten Moment als Geist (mit Server) und trägt sie tiefer.
+- **Botschaften:** in der Pause aus festen Wortbausteinen, eine pro Tag; andere lesen sie an derselben Stelle.
+- **Teilen:** Emoji-Zeile (⛏️ Stufe, 🌑 Höhle, 👑 Wächter, 🌊 Verfolgung, 🔥 Lava, 💀 Tod), getragene Seelen und ein Code `SHT.…`, den Freunde einfügen, damit dein Fleck in ihrem Schacht liegt.
+- **Ohne Server** funktioniert alles über die Codes. **Mit Supabase** (Tabelle `daily_runs`, siehe oben) liegen die Flecken und Botschaften aller Spieler im Schacht, mit Geister-Wiederholung, und das Ergebnis zeigt „besser als X %“.

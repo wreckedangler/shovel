@@ -136,6 +136,13 @@ export class Game {
       this.chase = { ...ch, vert, pos: vert ? this.h * T + 60 : -90, t: 0 };
     }
     if (opt.timeLimit) this.timeLimit = opt.timeLimit;
+    this.hudLabel = opt.hudLabel || '';
+    // Spuren anderer Spieler: Blutflecken mit Seelen und Botschaften
+    this.carried = [];
+    for (const m of opt.marks || []) {
+      if (m.type === 'stain') this.add({ type: 'soul', x: m.x, y: m.y, w: 10, h: 14, name: m.name, tail: m.tail || null, taken: false, ph: Math.random() * 6 });
+      else if (m.type === 'msg') this.add({ type: 'rune', x: m.x, y: m.y + 6, w: 14, h: 10, text: m.text, name: m.name });
+    }
     if (!this.spawn) this.spawn = { x: 24, y: 100 };
     this.check = { ...this.spawn };
     const p = this.p = {
@@ -572,6 +579,11 @@ export class Game {
       }
     }
     if (this.timeLimit && !this.done && this.frame === this.timeLimit) this.ev('timeout');
+    let k = 0;
+    for (const e of this.ents) if (e.type === 'soul') {
+      e.ph += 0.06;
+      if (e.taken) { k++; const tx = p.x - p.face * (10 + k * 9), ty = p.y - 6 - k * 3 + Math.sin(e.ph) * 3; e.x += (tx - e.x) * 0.08; e.y += (ty - e.y) * 0.08; }
+    }
   }
 
   contacts() {
@@ -602,6 +614,10 @@ export class Game {
         case 'sign': this.sign = e.text; break;
         case 'rock': if (!e.landed) { e.dead = true; this.hurtPlayer(1, sign(cx(p) - cx(e))); } break;
         case 'cog': if (p.safe <= 0) this.hurtPlayer(1, sign(cx(p) - cx(e))); break;
+        case 'soul': if (!e.taken) { e.taken = true; this.carried.push(e.name); this.ev('soul', e.x, e.y, e.name); this.freeze = Math.max(this.freeze, 8); this.burst(e.x + 5, e.y + 7, 24, 'soul', 2, -0.04, 34);
+          this.banner = { text: 'SEELE GEBORGEN', sub: e.name.toUpperCase(), col: '#c58bff', t: 80 };
+          if (e.tail && e.tail.length) this.add({ type: 'echo', tail: e.tail, i: 0, name: e.name, x: 0, y: 0, w: 0, h: 0, update(g, o) { if (g.frame % 2 === 0 && ++o.i >= o.tail.length) { o.dead = true; g.burst(o.tail[o.tail.length - 1][0] + 5, o.tail[o.tail.length - 1][1] + 7, 16, 'soul', 2, 0, 24); } } }); } break;
+        case 'rune': this.sign = '»' + e.text + '« – ' + e.name; break;
         case 'saw': this.hurtPlayer(2, sign(cx(p) - cx(e)) || 1); break;
         case 'icicle': if (e.state !== 'gone') { this.hurtPlayer(e.state === 'fall' ? 2 : 1, sign(cx(p) - cx(e)) || 1); if (e.state === 'fall') { e.state = 'gone'; e.t = 240; this.burst(cx(e), e.y + 10, 10, 'stone', 2); } } break;
         case 'eproj': if (p.safe <= 0 || e.kind === 'shock') { if (e.kind !== 'shock') e.dead = true; this.hurtPlayer(e.dmg, sign(cx(p) - cx(e))); } break;
@@ -684,6 +700,7 @@ function beetle(x, y) {
       if (e.y > g.h * T + 20) e.dead = true;
     } });
 }
+// Getragene Seelen schweben dem Helden nach (Update in stepTraps)
 // Fallstachel: hängt an der Decke, zittert, wenn du darunter bist, und stürzt herab
 function icicle(x, y) {
   return { type: 'icicle', x, y, w: 10, h: 14, ox: x, oy: y, vy: 0, state: 'hang', t: 0,

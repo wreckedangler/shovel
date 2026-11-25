@@ -113,6 +113,8 @@ export class Atmo {
         case 'wisp': hole(e.x + 4, e.y + 4, 40, 0.9, '79,210,255'); break;
         case 'chest': if (!e.open) hole(e.x + 7, e.y + 6, 22, 0.6, '255,200,80'); break;
         case 'door': hole(e.x + 8, e.y + 12, 40, 0.8, '125,255,207'); break;
+        case 'soul': hole(e.x + 5, e.y + 8, 34, 0.9, '197,139,255'); break;
+        case 'rune': hole(e.x + 7, e.y + 4, 22, 0.7, '255,207,106'); break;
         case 'altar': hole(e.x + 12, e.y + 8, 60, 1, '255,120,60'); break;
         default: if (e.golden) hole(e.x + e.w / 2, e.y + e.h / 2, 30, 0.8, '255,216,74'); else if (e.foe && e.type === 'spitter') hole(e.x + 6, e.y + 4, 18, 0.5, '160,255,120');
       }

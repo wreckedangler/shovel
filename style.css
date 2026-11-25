@@ -343,3 +343,19 @@ canvas.mini{width:100%;height:34px;image-rendering:pixelated;border:1px solid #2
 .card.qualcard{--c1:rgba(200,64,48,.25)}
 .curses{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .icard.curse.on{border-image-source:var(--fr-line-hi);box-shadow:0 0 14px rgba(200,64,48,.35)}
+
+/* ---------- Tagesschacht ---------- */
+.tsbtn{color:#e0c0ff!important;text-shadow:0 0 12px #7a3ad0!important}
+.tsbtn small{color:var(--mute);margin-left:6px;letter-spacing:.1em}
+.ts .tsend{text-align:center}
+.ts .tsend .rar{color:#ff8a7a;letter-spacing:.3em;text-transform:uppercase;font-size:12px;margin:6px 0}
+.tsbig{margin:4px 0 6px;filter:drop-shadow(0 0 14px rgba(200,64,48,.5))}
+.tspath{font-size:22px;letter-spacing:2px;margin:6px 0 10px}
+.tsprev{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.tsprev canvas.mini{height:44px}
+.tsprev small{color:var(--mute);font-size:12px}
+.tshist{margin-top:8px}.tshist small{color:var(--mute);font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.tshist div{display:flex;gap:6px;margin-top:4px}
+.tshist i{flex:1;height:26px;display:grid;place-items:center;font-style:normal;font-size:12px;color:#070605;border:1px solid #3a3020;background:#0c0a08}
+.tshist i.on{background:linear-gradient(#c58bff,#7a3ad0);color:#fff;border-color:#c58bff}
+.field select{font:16px "Pixelify Sans",sans-serif;padding:8px;color:var(--ink);border:6px solid transparent;border-image:var(--fr-line) 4 / 6px;background:#050403 padding-box}
