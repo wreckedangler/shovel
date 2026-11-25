@@ -297,32 +297,152 @@ const WB = [
   '####################################',
 ];
 
+
+/* ================= Welt 3: Pilzwald von Moderbrück ================= */
+// Neue Zeichen: c Bröckelpilz (zerfällt) · s Sporenspucker · N Boss Morchelmutter
+// Geheimnisse: F falsche Wand · H unsichtbarer Block · O Schaufelmünze · Y Geheimtür
+
+/* ---------- 3-1 Moderpfad ---------- */
+const P31 = build([
+  seg('..........GGG.......', '....................', '..........ccccc.....', '.P.i................', G3, G3, G3),
+  seg('......G....G....G...', '', '', '', '###cccccccccccccc###', '###..............###', '###..............###'),
+  seg('..............GGG...', '.............=====..', '', '', '', '', '', '....s......B........', G3, G3, G3),
+  seg('...........GGG......', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..C....V..##########', G3, G3, G3),
+  seg('...o................', '##########..........', '##########..........', '##########..ccc.....', '##########..........', '##########......ccc.', '##########..........', '##########..........', G3, G3, G3),
+  seg('....GGG.............', '', '', '......s.....B...E...', G3, G3, G3),
+]);
+
+/* ---------- 3-2 Leuchtgrotte ---------- */
+const P32 = build([
+  seg(...CEIL, '', '', '', '', '', '....GG.....GG.......', '', '........ccc.........', '.P.i......o.........', G3, G3, G3),
+  seg(...CEIL, '', '', '.............GGG....', '...........=====....', '', '', '', '', '...V................', '#####^^^^^^^^^^#####', G3, G3),
+  seg(...CEIL, '', '', '', '', '..............GGG...', '.............cccc...', '', '........ccc.........', '..C.................', G3, G3, G3),
+  seg(G3, G3, G3, G3, G3, G3, G3, '....................', '....v.........v.....', '', '', '####cccccccccccc####', '####............####', '####............####'),
+  seg(G3, G3, G3, G3, G3, G3, G3, '', '', '', '..........o.........', G3, G3, G3),
+  seg(...CEIL, '', '', '', '', '', '....GGG.............', '', '...===..............', '........s.....E.....', G3, G3, G3),
+]);
+
+/* ---------- 3-3 Riesenstiel ---------- */
+const P33 = build([
+  seg('...........GGG......', '', '', '.P..................', G3, G3, G3),
+  seg('....GG....GG....GG..', '', '', '', '##...B.....B.....###', '##...............###', '##...............###'),
+  seg('........GG..........', '', '.......ccc..........', '...s....C...s.......', G3, G3, G3),
+  seg('...........GGG......', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..i....B..##########', G3, G3, G3),
+  seg('...o........v.......', '#####cccccc#########', '#####......#########', '#####......#########', '#####......#########', '#####......#########', '#####......#########', '#####......#########', '#####......#########', '#####......#########'),
+  seg('#####...............', '#####...............', '#####...............', '#####...............', '#####...............', '#####...............', '#####.....s.....E...', G3, G3, G3),
+]);
+
+/* ---------- 3-B Morchelmutter ---------- */
+const PB = [
+  '####################################',
+  '####################################',
+  '...................................#',
+  '...................................#',
+  '...................................#',
+  '...................................#',
+  '...................................#',
+  '...................................#',
+  '...................................#',
+  '..............ccc.......ccc........#',
+  '.P..h..C...B..............N........#',
+  '####################################',
+  '####################################',
+  '####################################',
+];
+
+/* ================= Geheimlevels ================= */
+const G1 = build([
+  seg(...CEIL, '', '', '', '', '', '...DDDD......DDDD...', '...DDDD......DDDD...', '...DODD......DDOD...', '.P.DDDD...i..DDDD...', G3, G3, G3),
+  seg(...CEIL, '', '', '', '', '', '....GGGGGGGGGGGG....', '', '...DDDDDDDDDDDDDD...', '....................', G3, G3, G3),
+  seg(...CEIL, '', '', '', '......GGGGGG........', '', '....DDDDDDDDDD......', '....DDDDDDDDDD......', '....DDDDDDDDDD...O..', '....DDDDDDDDDD...T.E', G3, G3, G3),
+]);
+const G2 = build([
+  seg('........GGG.........', '', '......m.......m.....', '.P.i................', '####............####', '####............####', '####............####'),
+  seg('....G...G...G.......', '', '', '...z...z...z...O....', G3, G3, G3),
+  seg('..O.........GGG.....', '............########', '............########', '............########', '......n.....########', '............########', '............########', '............########', G3, G3, G3),
+  seg('...T.....O.....E....', G3, G3, G3, G3, G3, G3, G3, G3, G3, G3),
+]);
+const G3L = build([
+  seg('........GGG.........', '', '.......cccc.........', '.P.i................', G3, G3, G3),
+  seg('..G.....G.....G.....', '', '', '..........B.........', '##cccc..cccc....####', '##..............####', '##..............####'),
+  seg('...............O....', '.............=====..', '', '', '', '', '', '..........V.........', G3, G3, G3),
+  seg('....GGG.............', '', '', '......s.....E.......', G3, G3, G3),
+]);
+const GX = build([
+  seg('..........GGG.......', '', '.........=====......', '.P.i....^^....k.....', G3, G3, G3),
+  seg('.....G.....G........', '', '......m....m........', '', '####............####', '####............####', '####^^^^^^^^^^^^####'),
+  seg('...........GGG......', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..........##########', '..z....V..##########', G3, G3, G3),
+  seg('....k.....k.........', '##########cccccc####', '##########......####', '##########......####', '##########......####', '##########......####', '##########......####', '##########......####', '##########......####', '##########......####', '##########......####'),
+  seg('...O........Q.....E.', G3, G3, G3, G3, G3, G3, G3, G3, G3, G3),
+]);
+
+// Nachträglich eingebaute Geheimnisse: [x, y, Zeichen]. Jede Stelle wird geprüft.
+function secrets(map, list) {
+  const rows = map.map(r => r.split(''));
+  for (const [x, y, ch, expect] of list) {
+    const cur = rows[y] && rows[y][x];
+    if (cur !== (expect || '.')) throw new Error(`Geheimnis bei ${x},${y}: erwartet '${expect || '.'}', gefunden '${cur}'`);
+    rows[y][x] = ch;
+  }
+  return rows.map(r => r.join(''));
+}
+const room = (x0, x1, y, extra = []) => [...Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, '.', '#']), ...extra];
+
+export const SECRET_WORLD = { id: '?', name: 'Geheimnisse', levels: ['1-G', '2-G', '3-G', 'X-0'] };
 export const WORLDS = [
   { id: 1, name: 'Wurzelgrund', levels: ['1-1', '1-2', '1-3', '1-B'] },
   { id: 2, name: 'Uhrturm von Zahnfels', levels: ['2-1', '2-2', '2-3', '2-B'] },
+  { id: 3, name: 'Pilzwald von Moderbrück', levels: ['3-1', '3-2', '3-3', '3-B'] },
 ];
 
 export const LEVELS = [
-  { id: '1-1', name: 'Moosweg', theme: 'wald', map: L1, par: 40,
+  { id: '1-1', name: 'Moosweg', theme: 'wald', par: 40,
+    map: secrets(L1, [[74, 2, 'O'], [90, 6, 'O'], [11, 8, 'H'], [20, 11, 'F', '#'], [21, 11, 'F', '#'], ...room(17, 25, 12), [24, 12, 'O', '.'], [18, 12, 'i', '.'], [22, 12, 'G', '.']]),
     signs: ['◀ ▶ LAUFEN · A SPRINGEN',
             'B = SCHAUFEL. GRAB DIE ERDHAUFEN AUS!',
+            'DU HAST EINE GEHEIME KAMMER GEFUNDEN. RAPHI WAR SCHON HIER.',
             'IN DER LUFT ▼ HALTEN = SCHAUFEL-SPRUNG. SPRING SO AUF GEGNER!',
             'STEIN? DAFÜR BRAUCHST DU EINE EISEN-SCHAUFEL. KOMM SPÄTER WIEDER!'] },
-  { id: '1-2', name: 'Wurzelhöhlen', theme: 'hoehle', map: L2, par: 55,
-    signs: ['ERDBLÖCKE ZERFALLEN BEIM SCHAUFEL-SPRUNG. WO LANDEST DU DANN?'] },
-  { id: '1-3', name: 'Dornenkamm', theme: 'dornen', map: L3S, par: 65,
+  { id: '1-2', name: 'Wurzelhöhlen', theme: 'hoehle', par: 55, secretExit: '1-G',
+    map: secrets(L2, [[53, 2, 'O'], [28, 12, 'O'], [67, 9, 'O', 'D'], [46, 11, 'F', '#'], [47, 11, 'F', '#'], ...room(44, 50, 12), [49, 12, 'Y', '.'], [45, 12, 'i', '.']]),
+    signs: ['ERDBLÖCKE ZERFALLEN BEIM SCHAUFEL-SPRUNG. WO LANDEST DU DANN?', 'PSST … DIE TÜR DA FÜHRT IN DIE GOLDADER.'] },
+  { id: '1-3', name: 'Dornenkamm', theme: 'dornen', par: 65,
+    map: secrets(L3S, [[100, 4, 'O'], [11, 18, 'O'], [55, 11, 'F', '#'], ...room(53, 58, 12), [57, 12, 'O', '.']]),
     signs: ['PILZE FEDERN DICH HOCH. MIT ▼ SCHAUFEL-SPRUNG NOCH HÖHER!',
             'ZU HOCH? SPRING, HALTE ▼ UND LANDE AUF DEM PILZ!'] },
-  { id: '1-B', name: 'Bau des Rostmaulwurfs', theme: 'bau', map: LB, gate: 10, boss: true, par: 80,
+  { id: '1-B', name: 'Bau des Rostmaulwurfs', theme: 'bau', map: secrets(LB, [[15, 6, 'O'], [25, 6, 'O'], [5, 8, 'H'], [2, 11, 'F', '#'], ...room(1, 4, 12), [3, 12, 'O', '.']]), gate: 10, boss: true, par: 80,
     signs: [] },
-  { id: '2-1', name: 'Zahnradgasse', theme: 'uhrturm', map: W21, par: 60,
+  { id: '2-1', name: 'Zahnradgasse', theme: 'uhrturm', par: 60,
+    map: secrets(W21, [[103, 1, 'O'], [33, 7, 'O'], [50, 8, 'H'], [60, 11, 'F', '#'], [61, 11, 'F', '#'], ...room(58, 64, 12), [63, 12, 'O', '.'], [59, 12, 'i', '.']]),
     signs: ['ZAHNRITTER BLOCKEN VORNE MIT DEM SCHILD. SPRING DRAUF ODER TRIFF SIE VON HINTEN!',
             'SCHWEBEPLATTFORMEN TRAGEN DICH MIT. ▼ + A: DURCHFALLEN.',
+            'HIER UNTEN STEHT NUR DIESES SCHILD. UND JETZT DU. HALLO.',
             'DAMPFSTÖSSE HEBEN DICH HOCH. WARTE AUF DEN NÄCHSTEN STOSS!'] },
-  { id: '2-2', name: 'Dampfschacht', theme: 'uhrturm', map: W22, par: 50,
+  { id: '2-2', name: 'Dampfschacht', theme: 'uhrturm', par: 50,
+    map: secrets(W22, [[4, 3, 'O'], [6, 26, 'O'], [14, 23, 'O'], [9, 33, 'H']]),
     signs: ['DER SCHACHT FÜHRT NACH OBEN. OBEN WARTET DIE TURMUHR.'] },
-  { id: '2-3', name: 'Glockenstuhl', theme: 'glocke', map: W23, par: 75, signs: [] },
-  { id: '2-B', name: 'Das Pendelwerk', theme: 'pendel', map: WB, gate: 10, boss: true, par: 90, signs: [] },
+  { id: '2-3', name: 'Glockenstuhl', theme: 'glocke', par: 75, secretExit: '2-G', signs: [],
+    map: secrets(W23, [[67, 2, 'O'], [29, 10, 'O'], [12, 7, 'O'], [104, 9, 'F', '#'], [104, 10, 'F', '#'], [100, 10, '.', '#'], [101, 10, 'Y', '#'], [102, 10, '.', '#'], [103, 10, '.', '#'], [100, 9, '.', '#'], [101, 9, '.', '#'], [102, 9, '.', '#'], [103, 9, '.', '#']]) },
+  { id: '2-B', name: 'Das Pendelwerk', theme: 'pendel', map: secrets(WB, [[15, 6, 'O'], [25, 6, 'O'], [2, 11, 'F', '#'], ...room(1, 4, 12), [3, 12, 'O', '.']]), gate: 10, boss: true, par: 90, signs: [] },
+  { id: '3-1', name: 'Moderpfad', theme: 'pilz', par: 60,
+    map: secrets(P31, [[57, 2, 'O'], [112, 5, 'O'], [44, 8, 'H'], [70, 9, 'F', '#'], [70, 10, 'F', '#'], [71, 10, '.', '#'], [72, 10, 'O', '#']]),
+    signs: ['BRÖCKELPILZE ZERFALLEN UNTER DEN FÜSSEN. NICHT STEHEN BLEIBEN!'] },
+  { id: '3-2', name: 'Leuchtgrotte', theme: 'grotte', par: 65, secretExit: '3-G',
+    map: secrets(P32, [[21, 3, 'O'], [57, 5, 'O'], [70, 8, 'O'], [14, 8, 'H'], [88, 11, 'F', '#'], [89, 11, 'F', '#'], ...room(86, 92, 12), [91, 12, 'Y', '.']]),
+    signs: ['DUNKEL HIER. DIE LEUCHTPILZE ZEIGEN DEN WEG … MEISTENS.'] },
+  { id: '3-3', name: 'Riesenstiel', theme: 'pilz', par: 70,
+    map: secrets(P33, [[28, 6, 'O'], [34, 6, 'O'], [104, 10, 'F', '#'], [103, 10, '.', '#'], [102, 10, '.', '#'], [101, 10, 'O', '#']]),
+    signs: ['ERINNERUNG: SPRINGEN, ▼ HALTEN, AUF DEM PILZ LANDEN = SUPERSPRUNG.'] },
+  { id: '3-B', name: 'Die Morchelmutter', theme: 'moder', map: secrets(PB, [[15, 6, 'O'], [25, 6, 'O'], [11, 5, 'O']]), gate: 10, boss: true, par: 95, signs: [] },
+  // Geheimlevels (nicht in der normalen Reihenfolge)
+  { id: '1-G', name: 'Goldader', theme: 'hoehle', map: G1, par: 45, secret: true, from: '1-2',
+    signs: ['WILLKOMMEN IN DER GOLDADER. NIMM, SO VIEL DU TRAGEN KANNST.'] },
+  { id: '2-G', name: 'Tresor der Zeit', theme: 'uhrturm', map: G2, par: 45, secret: true, from: '2-3', bigChest: true,
+    signs: ['DER TRESOR DER UHRMACHER. ANGEBLICH WAR HIER SEIT 300 JAHREN NIEMAND.'] },
+  { id: '3-G', name: 'Myzelnetz', theme: 'pilz', map: secrets(G3L, [[30, 5, 'O'], [9, 6, 'O']]), par: 45, secret: true, from: '3-2',
+    signs: ['DAS MYZELNETZ. ALLES HIER ZERBRÖSELT IRGENDWANN.'] },
+  { id: 'X-0', name: 'Die Schaufelgruft', theme: 'bau', map: secrets(GX, [[47, 2, 'O'], [34, 12, 'O']]), par: 80, secret: true, coinsNeeded: 30, altar: 'spuerschaufel',
+    signs: ['DIE SCHAUFELGRUFT. HIER RUHEN DIE, DIE ZU VIEL GEGRABEN HABEN.'] },
 ];
 
 export const levelById = id => LEVELS.find(l => l.id === id);

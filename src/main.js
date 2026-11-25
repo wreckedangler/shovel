@@ -11,6 +11,8 @@ import { save } from './save.js';
 import { online, uploadGhost, topGhosts } from './online.js';
 import * as S from './sprites.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
+import { SECRET_WORLD } from './levels.js';
+import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -75,14 +77,26 @@ function tick() {
     haptic(e.name);
     if (e.name === 'unlock') unlockWeapon(e.v, true);
     if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
-    if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); }
+    if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); checkAch(); }
+    const st = D.stats;
+    switch (e.name) {
+      case 'dig': st.dug++; if (st.dug % 50 === 0) checkAch(); break;
+      case 'golden': st.golden++; checkAch(); break;
+      case 'rush': st.rush++; checkAch(); break;
+      case 'chestRare': if (e.v >= 0.98) { st.legendChest++; checkAch(); } break;
+      case 'flag': st.flag++; checkAch(); break;
+      case 'sleep': st.sleep++; checkAch(); break;
+      case 'bossClean': st.bossClean++; checkAch(); break;
+      case 'bounce': if (e.v > st.bestChain) { st.bestChain = e.v; if (e.v === 5 || e.v === 8) checkAch(); } break;
+    }
   }
   if (game.done && mode === 'play') { mode = 'won'; doneT = 0; touchEl.hidden = true; pauseBtn.hidden = true; }
   if (mode === 'won' && ++doneT === 80) finish();
 }
 function draw() {
-  if (game && mode !== 'menu') { R.draw(game, ghosts); return; }
-  drawMenuBg();
+  R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || '');
+  if (game && mode !== 'menu') R.draw(game, ghosts); else drawMenuBg();
+  if (D.retro) retroFilter();
 }
 function drawMenuBg() {
   const th = THEMES.karte, bg = S.backdrop(th, VH), t = menuT;
@@ -118,17 +132,33 @@ function resume() { hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isT
 
 async function finish() {
   const id = level.id, frames = game.frame, first = !D.cleared[id];
-  const bonus = first ? (level.boss ? 300 : 100) : 0;
+  const viaSecret = game.exit === 'secret';
+  const bonus = first ? (level.boss ? 300 : level.secret ? 250 : 100) : 0;
   // Sterne: geschafft · unter Zielzeit · ohne Tod. Jeder neue Stern bringt 50.
   const got = [true, frames <= level.par * 60, game.deaths === 0];
   const had = D.stars[id] || [false, false, false];
-  const newStars = got.map((g, i) => g && !had[i]);
-  D.stars[id] = had.map((h, i) => h || got[i]);
+  const newStars = level.secret ? [false, false, false] : got.map((g, i) => g && !had[i]);
+  if (!level.secret) D.stars[id] = had.map((h, i) => h || got[i]);
   const starGems = newStars.filter(Boolean).length * 50;
-  const earned = game.gems + bonus + starGems;
+  // Münzen und Geheimnisse dauerhaft speichern
+  const prevCoins = new Set(D.coins[id] || []), newCoins = game.coins.filter(c => !prevCoins.has(c));
+  D.coins[id] = [...new Set([...prevCoins, ...game.coins])].sort();
+  const prevSec = D.secrets[id] || 0; D.secrets[id] = Math.max(prevSec, game.secretsFound);
+  const coinGems = newCoins.length * 100;
+  const earned = game.gems + bonus + starGems + coinGems;
   D.gems += earned; D.earned += earned; D.cleared[id] = true;
   const li = LEVELS.findIndex(l => l.id === id);
-  D.unlocked = Math.max(D.unlocked, li + 2);
+  if (!level.secret) D.unlocked = Math.max(D.unlocked, li + 2);
+  // Geheimausgang
+  let secretMsg = '';
+  if (viaSecret && level.secretExit && !D.secretOpen[level.secretExit]) { D.secretOpen[level.secretExit] = true; secretMsg = `Geheimlevel entdeckt: ${levelById(level.secretExit).name}`; }
+  const gruft = LEVELS.find(l => l.coinsNeeded);
+  if (gruft && !D.secretOpen[gruft.id] && totalCoins(D) >= gruft.coinsNeeded) { D.secretOpen[gruft.id] = true; secretMsg = (secretMsg ? secretMsg + ' · ' : '') + 'Die Schaufelgruft hat sich geöffnet!'; }
+  // Rang
+  const info = LEVEL_INFO[id];
+  const rank = rankFor(level, { frames, deaths: game.deaths, coinsGot: D.coins[id].length, coinsTotal: info.coins, secretsGot: D.secrets[id], secretsTotal: info.secrets });
+  const oldRank = D.ranks[id], newRank = !oldRank || RANK_ORDER[rank] > RANK_ORDER[oldRank];
+  if (newRank) D.ranks[id] = rank;
   const old = D.best[id], record = !old || frames < old;
   const code = await encodeGhost({ level: id, name: D.name || 'Ich', frames, gear: { shovel: D.shovel, armor: D.armor }, rec: game.rec });
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
@@ -138,26 +168,31 @@ async function finish() {
   if (id === '1-2' && game.dirtTotal > 0 && game.dirtLeft() === 0) unlockWeapon('erdfresser');
   if (ghosts.some(g => !g.own && g.frames - frames >= 120)) unlockWeapon('geisterklinge');
   save.write();
+  checkAch();
   let up = '';
   if (record && online() && D.name) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
   stopMusic(); sfx('win');
   mode = 'result';
-  const next = LEVELS[li + 1];
+  const next = viaSecret && level.secretExit ? levelById(level.secretExit) : level.secret ? null : LEVELS.slice(li + 1).find(l => !l.secret);
   const starLbl = ['Geschafft', `Unter ${level.par} s`, 'Ohne Tod'];
+  const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${D.coins[id].includes(k) ? 'on' : ''} ${newCoins.includes(k) ? 'new' : ''}"></i>`).join('');
   show(`<div class="panel small result">
-    <h2>${level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
+    <div class="rankbig r${rank} ${newRank ? 'new' : ''}">${rank}</div>
+    <h2>${viaSecret ? 'Geheimer Ausgang!' : level.boss ? 'Boss besiegt!' : 'Geschafft!'}</h2>
     <p class="lvl">${esc(level.id)} · ${esc(level.name)}</p>
-    <div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s"><span>★</span><small>${starLbl[i]}</small></div>`).join('')}</div>
+    ${secretMsg ? `<p class="secretmsg">${esc(secretMsg)}</p>` : ''}
+    ${level.secret ? '' : `<div class="starrow">${got.map((g, i) => `<div class="star ${D.stars[id][i] ? 'on' : ''} ${newStars[i] ? 'new' : ''}" style="--d:${0.35 + i * 0.35}s"><span>★</span><small>${starLbl[i]}</small></div>`).join('')}</div>`}
+    <div class="coinrow">${coinRow}<small>Schaufelmünzen ${D.coins[id].length}/${info.coins}${info.secrets ? ` · Geheimnisse ${Math.min(D.secrets[id], info.secrets)}/${info.secrets}` : ''}</small></div>
     <div class="stats">
       <div><small>Zeit</small><b>${fmtTime(frames)}</b>${record ? '<em>Neue Bestzeit!</em>' : `<em>Best ${fmtTime(old)}</em>`}</div>
-      <div><small>Edelsteine</small><b id="tally">+0</b><em>${[bonus ? `${bonus} Erst-Bonus` : '', starGems ? `${starGems} Sterne` : ''].filter(Boolean).join(' · ')}</em></div>
+      <div><small>Edelsteine</small><b id="tally">+0</b><em>${[bonus ? `${bonus} Erst-Bonus` : '', starGems ? `${starGems} Sterne` : '', coinGems ? `${coinGems} Münzen` : ''].filter(Boolean).join(' · ')}</em></div>
       <div><small>Beste Kette</small><b>×${game.maxChain}</b></div>
     </div>
     ${ghosts.map(g => { const d = frames - g.frames; return `<p class="vs ${d <= 0 ? 'win' : 'lose'}">gegen ${esc(g.name)}: ${d <= 0 ? '−' : '+'}${(Math.abs(d) / 60).toFixed(2)} s</p>`; }).join('')}
     ${up ? `<p class="note">${up}</p>` : ''}
     <div class="row">
       <button data-a="restart">Nochmal</button>
-      ${next ? `<button class="big" data-a="play" data-id="${next.id}">Weiter</button>` : ''}
+      ${next ? `<button class="big" data-a="play" data-id="${next.id}">${viaSecret ? 'Geheimlevel!' : 'Weiter'}</button>` : ''}
       <button data-a="map">Karte</button>
     </div>
     <button class="ghostbtn" data-a="share" data-code="${esc(code)}">Diesen Lauf als Geist teilen</button>
@@ -173,7 +208,93 @@ async function finish() {
   };
   requestAnimationFrame(step);
   newStars.forEach((n, i) => n && setTimeout(() => sfx('star'), 350 + i * 350));
-  setTimeout(showReveals, 1200);
+  setTimeout(() => sfx(rank === 'S' ? 'legend' : 'star'), 1300);
+  setTimeout(showReveals, 1900);
+}
+
+/* ---------- Erfolge & Einblendungen ---------- */
+function toast(title, text, kind = '') {
+  let box = $('#toasts');
+  if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const el = document.createElement('div'); el.className = 'toast ' + kind;
+  el.innerHTML = `<b>${esc(title)}</b><span>${esc(text)}</span>`;
+  box.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 2800); setTimeout(() => el.remove(), 3300);
+}
+function checkAch() {
+  for (const a of ACH) {
+    if (D.ach[a.id] || !a.test(D)) continue;
+    D.ach[a.id] = true; D.gems += a.gems; D.earned += a.gems;
+    toast('Erfolg: ' + a.name, `${a.desc} +${a.gems} ◆`, 'ach'); sfx('achieve'); haptic('unlock');
+  }
+  save.write();
+}
+function achs() {
+  mode = 'menu';
+  const n = Object.keys(D.ach).length;
+  show(`<div class="panel">
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Erfolge</h2><span class="gems">${n} / ${ACH.length}</span></div>
+    <div class="bar"><i style="width:${n / ACH.length * 100}%"></i></div>
+    <div class="achgrid">${ACH.map(a => `<div class="achc ${D.ach[a.id] ? 'on' : ''}"><b>${D.ach[a.id] ? '★' : '☆'} ${esc(a.name)}</b><small>${esc(a.desc)}</small><em>+${a.gems} ◆</em></div>`).join('')}</div>
+  </div>`);
+}
+function wardrobe(msg = '') {
+  mode = 'menu';
+  show(`<div class="panel">
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Garderobe</h2><span class="gems">Schal</span></div>
+    <div class="wardrobe">${SCARVES.map(sc => { const ok = sc.ok(D); return `<button class="sc ${D.scarf === sc.id ? 'on' : ''} ${ok ? '' : 'locked'}" data-a="${ok ? 'scarf' : 'nope'}" data-id="${sc.id}">
+      <canvas data-sc="${sc.id}" width="168" height="96"></canvas><b>${esc(sc.name)}</b><small>${ok ? (D.scarf === sc.id ? 'Getragen' : 'Anziehen') : esc(sc.need)}</small></button>`; }).join('')}</div>
+    ${msg ? `<p class="msg">${msg}</p>` : ''}
+  </div>`);
+  const id = ++forgeAnim;
+  const tick = () => {
+    if (id !== forgeAnim) return;
+    let any = false;
+    for (const cv of document.querySelectorAll('[data-sc]')) {
+      any = true; const keep = R.scarfStyle; R.scarfStyle = cv.dataset.sc;
+      stage(cv, 42, 24, () => R.figure(S.hero(D.armor, D.shovel, D.weapon), 22, 9, 1, 1, menuT, 8, null, 0, 16, 2, 0));
+      R.scarfStyle = keep;
+    }
+    if (any) requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+/* ---------- Tagesschatz ---------- */
+function dailyReady() { return D.daily.last !== today(); }
+function claimDaily() {
+  if (!dailyReady()) return;
+  D.daily.streak = D.daily.last === yesterday() ? D.daily.streak + 1 : 1;
+  D.daily.last = today();
+  const gems = 50 * Math.min(7, D.daily.streak) + (D.daily.streak % 7 === 0 ? 500 : 0);
+  D.gems += gems; D.earned += gems; save.write(); checkAch();
+  sfx('legend'); haptic('chest');
+  const el = document.createElement('div'); el.className = 'reveal gear';
+  el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:#ffd84a;--g:#ffb020">
+    <p class="rar">Tagesschatz · Tag ${D.daily.streak}</p>
+    <div class="dchest">◆</div><h2>+${gems} Edelsteine</h2>
+    <p class="perk">${D.daily.streak % 7 === 0 ? 'Wochenbonus! +500 extra.' : `Morgen gibt es mehr: Tag ${D.daily.streak + 1} bringt ${50 * Math.min(7, D.daily.streak + 1)}.`}</p>
+    <div class="row"><button class="big" data-r="close">Einsacken</button></div></div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', e => { if (e.target.closest('[data-r]')) { el.remove(); title(); } });
+}
+
+/* ---------- Easter Egg: Retro-Modus ---------- */
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
+let konami = 0, logoTaps = [];
+addEventListener('keydown', e => { konami = e.code === KONAMI[konami] ? konami + 1 : e.code === KONAMI[0] ? 1 : 0; if (konami === KONAMI.length) { konami = 0; toggleRetro(); } });
+function toggleRetro() {
+  D.retro = !D.retro; D.stats.retro = (D.stats.retro || 0) + 1; save.write(); checkAch();
+  sfx('secret'); toast(D.retro ? 'Retro-Modus an' : 'Retro-Modus aus', D.retro ? 'Wie damals auf dem grauen Kasten.' : 'Zurück in Farbe.', 'ach');
+}
+const RETRO = [[15, 56, 15], [48, 98, 48], [139, 172, 15], [155, 188, 15]];
+function retroFilter() {
+  const im = ctx.getImageData(0, 0, VW, VH), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11, c = RETRO[l < 50 ? 0 : l < 100 ? 1 : l < 170 ? 2 : 3];
+    d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2];
+  }
+  ctx.putImageData(im, 0, 0);
 }
 
 /* ---------- Vibration (Android; iPhones unterstützen das im Browser nicht) ---------- */
@@ -250,17 +371,20 @@ function title() {
   mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
   playMusic(THEMES.karte.music);
   show(`<div class="title">
-    <h1>Schaufel<span>held</span></h1>
+    <h1 data-a="logo">Schaufel<span>held</span></h1>
     <p>Grabe. Springe. Schmiede dich nach oben.</p>
     <button class="big" data-a="map">Spielen</button>
     <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer</button><button data-a="options">Optionen</button></div>
-    <p class="gems">◆ ${D.gems}</p>
+    <p class="gems">◆ ${D.gems} · ${completion(D)} % erkundet</p>
+    ${dailyReady() ? `<button class="daily" data-a="daily">Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : `<p class="note">Tagesschatz geholt · Serie ${D.daily.streak} ${D.daily.streak === 1 ? 'Tag' : 'Tage'}</p>`}
     ${installTip()}
   </div>`);
 }
 
 let curWorld = 0;
-const worldOpen = wi => WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
+const worldOpen = wi => wi === WORLDS.length ? true : WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
+const levelOpen = id => { const l = levelById(id); return l.secret ? !!D.secretOpen[id] : LEVELS.findIndex(x => x.id === id) < D.unlocked; };
+const ALLW = () => [...WORLDS, SECRET_WORLD];
 function installTip() {
   const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
   if (!isTouch || standalone || window.__SH_BUNDLE) return '';
@@ -271,23 +395,29 @@ function map(sel, wi) {
   mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true;
   playMusic(THEMES.karte.music);
   if (wi != null) curWorld = wi;
-  else if (sel) curWorld = Math.max(0, WORLDS.findIndex(w => w.levels.includes(sel)));
-  const w = WORLDS[curWorld];
-  const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' 🔒'}</button>`).join('');
-  const cards = w.levels.map((id, i) => {
-    const l = levelById(id), open = LEVELS.findIndex(x => x.id === id) < D.unlocked, best = D.best[id];
-    return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
-      <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>
-      <span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => `<em class="${v ? 'on' : ''}">★</em>`).join('')}</span>
-      <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}</small></button>`;
+  else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
+  const w = ALLW()[curWorld];
+  const nSec = SECRET_WORLD.levels.filter(id => D.secretOpen[id]).length;
+  const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' 🔒'}</button>`).join('')
+    + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`;
+  const cards = w.levels.map(id => {
+    const l = levelById(id), open = levelOpen(id), best = D.best[id], info = LEVEL_INFO[id], rk = D.ranks[id];
+    if (l.secret && !open) return `<button class="card locked secretcard" data-a="nope"><span class="no">???</span><b>???</b>
+      <small>${l.coinsNeeded ? `Öffnet sich bei ${l.coinsNeeded} Schaufelmünzen (${totalCoins(D)})` : `Irgendwo in ${esc(l.from)} …`}</small></button>`;
+    const coins = Array.from({ length: info.coins }, (_, k) => `<i class="${(D.coins[id] || []).includes(k) ? 'on' : ''}"></i>`).join('');
+    return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme} ${l.secret ? 'secretcard' : ''}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
+      <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>${rk ? `<span class="rank r${rk}">${rk}</span>` : ''}
+      ${l.secret ? '' : `<span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => `<em class="${v ? 'on' : ''}">★</em>`).join('')}</span>`}
+      <span class="ccoins">${coins}</span>
+      <small>${open ? (best ? '⏱ ' + fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
   }).join('');
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="title">‹</button><h2>Welt ${w.id} · ${esc(w.name)}</h2><span class="gems">★ ${w.levels.reduce((n, id) => n + (D.stars[id] || []).filter(Boolean).length, 0)}/${w.levels.length * 3} · ◆ ${D.gems}</span></div>
+    <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${completion(D)} % · ◆ ${D.gems}</span></div>
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
-    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffenkammer ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="options">Optionen</button></div>
-    <p class="note soon">Welt 3 · Pilzwald von Moderbrück — in Arbeit</p>
+    <div class="row"><button data-a="forge">Schmiede</button><button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="wardrobe">Garderobe</button><button data-a="options">Optionen</button></div>
+    <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · Welt 4 · Kristallmagen — in Arbeit</p>
   </div>`);
   if (sel) detail(sel);
 }
@@ -394,7 +524,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.6</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.7</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -418,6 +548,11 @@ ui.addEventListener('click', async e => {
     case 'map': goFullscreen(); return map();
     case 'forge': return forge();
     case 'armory': return armory();
+    case 'achs': return achs();
+    case 'wardrobe': return wardrobe();
+    case 'scarf': D.scarf = id; save.write(); sfx('buy'); return wardrobe(`${esc(SCARVES.find(x => x.id === id).name)} angezogen.`);
+    case 'daily': return claimDaily();
+    case 'logo': { const now = Date.now(); logoTaps = logoTaps.filter(t => now - t < 3000); logoTaps.push(now); if (logoTaps.length >= 7) { logoTaps = []; toggleRetro(); } return; }
     case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
     case 'options': return options();
     case 'pick': return map(id);

@@ -85,6 +85,8 @@ Levels bestehen aus 20 Kacheln breiten Segmenten mit 14 Reihen. Legende:
 E  Ziel         G  Edelstein     h  Apfel             T  Truhe
 i  Schild       b  Käfer         o  Blorb             v  Fledermaus    M  Boss
 Q  Altar (geheime Waffe)
+Welt 3:  c  Bröckelpilz   s  Sporenspucker   N  Boss Morchelmutter
+Geheim:  F  falsche Wand   H  unsichtbarer Block   O  Schaufelmünze   Y  Geheimtür
 Welt 2:  m / n  waagrechte / senkrechte Schwebeplattform   V  Dampfrohr (hebt 6 Kacheln)
          R  Erz (ab Adamantium)   z  Zahnrad (Gefahr, Pogo möglich)   k  Zahnritter   u  Kuckuck   W  Boss Pendelwerk
 ```
@@ -92,12 +94,34 @@ Welt 2:  m / n  waagrechte / senkrechte Schwebeplattform   V  Dampfrohr (hebt 6 
 Faustregeln: Sprunghöhe 2 Kacheln, Sprungweite 3 Kacheln Lücke. Mit Pilz 4 Kacheln, mit Schaufel-Sprung auf Pilz 6.
 Danach `node tools/test.mjs` laufen lassen.
 
+## Geheimnisse und Sammelkram
+
+- **Schaufelmünzen:** 3 pro Level (48 insgesamt). Gespeichert wird erst beim Erreichen des Ziels.
+- **Falsche Wände (F):** sehen aus wie Boden, haben einen feinen Riss und brechen mit Hieb oder Schaufel-Sprung. Dahinter liegen abgedeckte Kammern.
+- **Unsichtbare Blöcke (H):** erscheinen, wenn man von unten dagegenspringt.
+- **Geheimtüren (Y):** führen zu Geheimlevels (1-G Goldader, 2-G Tresor der Zeit, 3-G Myzelnetz). Die Schaufelgruft (X-0) öffnet sich bei 30 Münzen und enthält die Spürschaufel.
+- **Ränge S–C:** aus Zeit, Toden, Münzen und Geheimnissen.
+- **Rausch:** Siege, Ketten und Funde füllen die Leiste; voll gibt es 10 Sekunden doppelte Edelsteine. Treffer leeren sie.
+- **Goldene Gegner:** selten, mehr Leben, viel Beute.
+- **Truhen:** Seltenheit wird beim Öffnen ausgewürfelt (gewöhnlich bis legendär).
+- **Erfolge (30), Tagesschatz mit Serie, Garderobe (7 Schal-Stile), Gesamtfortschritt in Prozent.**
+
+<details><summary>Spoiler: Easter Eggs</summary>
+
+- Konami-Code auf der Tastatur oder 7× schnell auf das Logo tippen: Retro-Modus in Game-Boy-Grün.
+- 15 Sekunden nichts tun: Der Held schläft ein.
+- Auf der Fahnenspitze landen: +100.
+- Als Name „Raphi“ eintragen: Krone.
+- Schilder in geheimen Kammern.
+
+</details>
+
 ## Sterne, Ketten und Waffen
 
 - **Sterne:** Jedes Level hat drei: geschafft, unter der Zielzeit, ohne Tod. Jeder neue Stern bringt 50 Edelsteine.
 - **Pogo-Ketten:** Ab drei Schaufel-Abprallern ohne Bodenkontakt gibt es Bonus-Edelsteine, die mit der Kette wachsen.
 - **Edelstein-Serien:** Schnell hintereinander eingesammelte Steine klingen jedes Mal einen Halbton höher.
-- **Legendäre und mythische Waffen (10):** Nicht kaufbar. Jede verlangt eine bestimmte Tat. In der Waffenkammer stehen nur Rätsel-Hinweise.
+- **Legendäre und mythische Waffen (11):** Nicht kaufbar. Jede verlangt eine bestimmte Tat. In der Waffenkammer stehen nur Rätsel-Hinweise.
 
 <details><summary>Spoiler: alle Bedingungen</summary>
 
@@ -112,6 +136,7 @@ Danach `node tools/test.mjs` laufen lassen.
 | Maulwurfkralle | Mythisch | Boss ohne Schaden besiegen | Erdwelle beim Hieb |
 | Seelenschaufel | Mythisch | 20 Tode insgesamt | einmal pro Level auferstehen |
 | Pendelhammer | Mythisch | Pendelwerk nur mit Schaufel-Sprüngen besiegen | Druckwelle bei jedem Abpraller |
+| Spürschaufel | Legendär | Ende der Schaufelgruft erreichen | zeigt falsche Wände, unsichtbare Blöcke und Münzen |
 | Urfunke | Mythisch | Altar hoch über dem Dornenkamm (Pilz-Superprung auf dem Plateau, dann Wolkenpfad) | doppelter Schaden, brennende Hiebe |
 
 </details>
@@ -152,7 +177,8 @@ Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für meh
 - **Etappe 1:** Welt 1 mit 3 Levels und Boss, Schmiede bis Stahl, Geister lokal und per Code, PWA.
 - **Etappe 1.5:** 9 legendäre/mythische Waffen, geheimer Himmelspfad, Sterne, Pogo-Ketten, Hit-Stop, Edelstein-Serien.
 - **Etappe 2 (diese Version):** Welt 2 *Uhrturm von Zahnfels* mit Schwebeplattformen, Dampfrohren, Zahnrädern, Zahnrittern, Kuckucken, Erz und Boss *Pendelwerk*; Titan- und Adamantium-Stufe; 10. Waffe; Einzeldatei zum lokalen Testen.
-- **Etappe 2.5:** Erste Relikte (Funkenrute, Flügelstiefel).
+- **Etappe 3 (diese Version):** Welt 3 *Pilzwald von Moderbrück* mit Boss *Morchelmutter*, 4 Geheimlevels, Schaufelmünzen, falsche Wände, unsichtbare Blöcke, Rausch, Erfolge, Ränge, Tagesschatz, Garderobe, Easter Eggs.
+- **Danach:** Welt 4 *Kristallmagen*, erste Relikte (Funkenrute, Flügelstiefel), Level-Editor.
 - **Etappe 3:** Endloser Schacht-Modus mit erzeugten Levels und Tages-Seed für faire Geister-Rennen.
 - **Etappe 4:** Level-Editor mit Teilen per Code.
 - Danach: weitere Welten (Pilzwald, Lavaschmiede, Wolkenwerft, Kristallmagen) bis zur Urlicht-Stufe.

@@ -130,6 +130,58 @@ export function golemSprite(flash) {
   });
 }
 
+export function spitterSprite(open) {
+  return memo('spit' + open, () => {
+    const rows = ['....kkkkkk....', '..kkGgGGgGkk..', '.kGGgGGGGgGGk.', 'kGgGGGgGGGgGGk', 'kkkkkkkkkkkkkk', '...kwwwwwwk...', '...kwk' + (open ? 'kk' : 'ww') + 'kwk...', '...kwwwwwwk...', '....kwwwwk....', '....kkkkkk....', '...kgkk.kgk...', '...kk....kk...'];
+    const r = fromRows(rows, { k: K, G: '#a03ac8', g: '#e0a0ff', w: '#f0e0c8' }); return [r, flipX(r), tint(r, '#fff'), tint(flipX(r), '#fff')];
+  });
+}
+export function morchelSprite(flash) {
+  return memo('morchel' + flash, () => {
+    const W = 32, H = 32, c = mk(W, H), x = c.getContext('2d'), m = [];
+    for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) {
+      let col = null;
+      const cap = ((i - 16) / 15) ** 2 + ((y - 11) / 11) ** 2 < 1 && y < 18;
+      if (cap) col = (Math.floor(i / 3) + Math.floor(y / 3)) % 2 ? '#7a3a5a' : '#a85078';
+      if (cap && (i - 16) ** 2 + (y - 5) ** 2 < 6) col = '#ffd0e8';
+      if (cap && ((i - 8) ** 2 + (y - 10) ** 2 < 4 || (i - 24) ** 2 + (y - 9) ** 2 < 4)) col = '#ffd0e8';
+      if (y >= 17 && i >= 9 && i <= 22) col = y < 19 ? '#5a2a40' : '#e8dcc8';
+      if (y >= 21 && y <= 23 && (i === 12 || i === 19)) col = '#ff3a3a';
+      if (y === 26 && i >= 13 && i <= 18) col = '#5a2a40';
+      if (y >= 30 && ((i >= 8 && i <= 12) || (i >= 19 && i <= 23))) col = '#c8b8a0';
+      m.push(col);
+    }
+    for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) {
+      const col = m[y * W + i];
+      if (col) { x.fillStyle = flash ? '#ffffff' : col; x.fillRect(i, y, 1, 1); }
+      else if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => i + a >= 0 && i + a < W && y + b >= 0 && y + b < H && m[(y + b) * W + i + a])) { x.fillStyle = K; x.fillRect(i, y, 1, 1); }
+    }
+    return [c, flipX(c)];
+  });
+}
+export function doorSprite() {
+  return memo('door', () => fromRows([
+    '...kkkkkkkkkk...', '..kWWWWWWWWWWk..', '.kWwwwwwwwwwwWk.', 'kWwkkkkkkkkkkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk',
+    'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdyykwWk', 'kWwkdddkkdyykwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk',
+    'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkdddkkdddkwWk', 'kWwkkkkkkkkkkwWk', 'kWWWWWWWWWWWWWWk', 'kkkkkkkkkkkkkkkk'],
+    { k: K, W: '#8a8a98', w: '#5a5a6a', d: '#6b4426', y: '#ffd84a' }));
+}
+export function coinSprite(f) {
+  // Drehende goldene Schaufelmünze: Breite variiert mit dem Drehwinkel
+  return memo('coin' + f, () => {
+    const c = mk(12, 12), x = c.getContext('2d'), w = [12, 10, 6, 2, 6, 10][f];
+    const x0 = (12 - w) / 2;
+    for (let y = 0; y < 12; y++) for (let i = 0; i < w; i++) {
+      const dx = (i + 0.5 - w / 2) / (w / 2), dy = (y + 0.5 - 6) / 6, d = dx * dx + dy * dy;
+      if (d > 1) continue;
+      x.fillStyle = d > 0.72 ? K : d > 0.5 ? '#c08a20' : (dx < -0.2 && dy < -0.2) ? '#fff6b0' : '#ffd84a';
+      x.fillRect(x0 + i, y, 1, 1);
+    }
+    if (w >= 6) { x.fillStyle = '#7a5010'; x.fillRect(5, 3, 2, 5); x.fillRect(4, 7, 4, 2); }
+    return c;
+  });
+}
+
 export const GEMCOL = { 1: ['#2fbf4f', '#9fffaf'], 5: ['#2f7fff', '#a8d4ff'], 20: ['#e0304f', '#ffa0b4'], 50: ['#e0a020', '#fff08f'] };
 export function gemSprite(v) { return memo('gem' + v, () => { const [d, l] = GEMCOL[v] || GEMCOL[1]; return fromRows(GEM, { k: K, D: d, L: l, W: '#ffffff' }); }); }
 export function heart(full) { return memo('heart' + full, () => fromRows(HEART, { k: K, R: full ? '#ff3f5f' : '#3a2040', W: full ? '#ffffff' : '#4a2a50' })); }
@@ -227,6 +279,14 @@ export function tileset(th) {
       for (const [a, b] of [[3, 3], [9, 5], [5, 10], [11, 11]]) { px(x, '#b04cff', a, b, 3, 3); px(x, '#f0c0ff', a, b, 1, 1); }
       px(x, '#4a3a5a', 1, 1, 14, 1);
     });
+    t.used = tile(x => {
+      px(x, K, 0, 0, 16, 16); px(x, '#c08a20', 1, 1, 14, 14); px(x, '#ffd84a', 1, 1, 14, 2); px(x, '#7a5010', 1, 13, 14, 2);
+      for (const [a, b] of [[2, 3], [12, 3], [2, 11], [12, 11]]) px(x, '#7a5010', a, b, 2, 2);
+    });
+    t.crumble = tile(x => {
+      px(x, K, 0, 0, 16, 9); px(x, '#c86a8a', 1, 1, 14, 6); px(x, '#ffb0c8', 2, 1, 4, 1); px(x, '#8a3a5a', 1, 6, 14, 1);
+      px(x, '#ffffff', 4, 3, 2, 2); px(x, '#ffffff', 10, 2, 2, 2); px(x, K, 6, 9, 4, 4); px(x, '#e8dcc8', 7, 9, 2, 4);
+    });
     t.gate = tile(x => { for (let i = 1; i < 16; i += 5) { px(x, K, i, 0, 3, 16); px(x, '#8a8aa0', i + 1, 0, 1, 16); } px(x, K, 0, 6, 16, 3); px(x, '#b0b0c8', 0, 7, 16, 1); });
     return t;
   });
@@ -274,6 +334,16 @@ export function backdrop(th, vh) {
           if (d < R0 + tooth && (d > R0 * 0.68 || d < R0 * 0.28 || Math.abs(Math.sin(a * 2)) < 0.14 || Math.abs(Math.cos(a * 2)) < 0.14)) fx.fillRect((gx + dx + W) % W, gy + y, 1, 1);
         }
       }
+    }
+    if (th.deco === 'pilz') {
+      // Riesenpilze und Leuchtpunkte im Hintergrund
+      nx.fillStyle = th.near;
+      for (let k = 0; k < 9; k++) {
+        const mx = Math.floor(r() * W), stem = 20 + r() * 50, cap = 8 + r() * 14, base = vh - 20;
+        nx.fillRect(mx - 2, base - stem, 4 + Math.floor(cap / 6), stem + 20);
+        for (let y = 0; y < cap; y++) { const w = Math.round(Math.sqrt(1 - (y / cap) ** 2) * cap * 1.6); nx.fillRect(mx - w, base - stem - y, w * 2 + 2, 1); }
+      }
+      for (let k = 0; k < 30; k++) { fx.fillStyle = k % 3 ? '#7affc860' : '#ffb0e080'; fx.fillRect(Math.floor(r() * W), Math.floor(vh * (0.2 + r() * 0.6)), 1, 1); }
     }
     if (th.deco === 'kristall' || th.deco === 'lava') {
       // Tropfsteine von oben

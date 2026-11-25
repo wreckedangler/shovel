@@ -51,6 +51,27 @@ export const THEMES = {
     music: { bpm: 172,
       lead: 'A4 A4 . C5 . A4 . E5 D5 . C5 . B4 - - . A4 A4 . C5 . A4 . F5 E5 . D5 . E5 - - .',
       bass: 'A1 A2 A1 A2 A1 A2 A1 A2 F1 F2 F1 F2 E1 E2 E1 E2 A1 A2 A1 A2 A1 A2 A1 A2 D2 D3 D2 D3 E1 E2 E1 E2' } },
+  pilz: {
+    sky: ['#0a1a24', '#1a3a3a', '#3a6a5a'], far: '#1a3438', near: '#0e2226', deco: 'pilz',
+    dirt: '#3a2e36', dirtL: '#6a5060', dirtD: '#201820', grass: '#7adf9a', grassD: '#2a8a5a',
+    stone: '#566a6a', stoneL: '#9ab8b0', plank: '#9a7050', stars: '#c8ffe0',
+    music: { bpm: 118,
+      lead: 'D5 . F5 . A5 . G5 . F5 E5 D5 . C5 - - . D5 . F5 . A5 . C6 . A5 G5 F5 . E5 - - .',
+      bass: 'D2 . A2 . D3 . A2 . A#1 . F2 . C2 . G2 . D2 . A2 . D3 . A2 . A#1 . C2 . A1 . A2 .' } },
+  grotte: {
+    sky: ['#040a10', '#0a1a20', '#10282a'], far: '#0e2024', near: '#081416', deco: 'pilz',
+    dirt: '#2a2430', dirtL: '#4a4050', dirtD: '#16121a', grass: '#5ad0c8', grassD: '#1a7a78',
+    stone: '#4a5458', stoneL: '#8a9a9a', plank: '#7a5a48', stars: '#7affe0',
+    music: { bpm: 96,
+      lead: 'E5 . . B4 . . G5 . F#5 . . D5 . . E5 - B4 . . E5 . . G5 . A5 . . F#5 . . E5 - -',
+      bass: 'E2 . . . B1 . . . C2 . . . D2 . . . E2 . . . B1 . . . C2 . . . B1 . . .' } },
+  moder: {
+    sky: ['#100a18', '#2a1430', '#5a2a4a'], far: '#2a1830', near: '#180c1c', deco: 'pilz',
+    dirt: '#3a2430', dirtL: '#6a4050', dirtD: '#1e1018', grass: '#e070a0', grassD: '#8a3060',
+    stone: '#5a4a56', stoneL: '#9a8090', plank: '#8a5a48', stars: '#ffb0d8',
+    music: { bpm: 176,
+      lead: 'D5 D5 . F5 . D5 . A5 G5 . F5 . E5 - - . D5 D5 . F5 . D5 . A#5 A5 . G5 . A5 - - .',
+      bass: 'D2 D3 D2 D3 D2 D3 D2 D3 A#1 A#2 A#1 A#2 A1 A2 A1 A2 D2 D3 D2 D3 D2 D3 D2 D3 G1 G2 G1 G2 A1 A2 A1 A2' } },
   karte: {
     sky: ['#120a1e', '#2a1640', '#4a2058'], far: '#2e1846', near: '#1c0e2e', deco: 'baum',
     dirt: '#5a3426', dirtL: '#8c5638', dirtD: '#3a2018', grass: '#56d065', grassD: '#2a8a3c',

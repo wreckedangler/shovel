@@ -44,6 +44,10 @@ export const WEAPONS = [
     perk: 'Schaufel-Sprünge lösen eine Druckwelle aus, die alles daneben trifft.',
     hint: 'Das Pendelwerk fällt nur durch Sprünge. Keine Klinge, die es seitlich berührt.',
     cond: 'Das Pendelwerk ausschliesslich mit Schaufel-Sprüngen besiegen.' },
+  { id: 'spuerschaufel', name: 'Spürschaufel', rar: 'legendaer', dark: '#2a6a5a', light: '#9affd8', handle: '#3a2a1a',
+    perk: 'Zeigt falsche Wände und unsichtbare Blöcke. Schaufelmünzen pulsieren durch Wände.',
+    hint: 'Ganz unten, wo die alten Schaufler ruhen, liegt ein Werkzeug, das Geheimnisse riecht.',
+    cond: 'Das Ende der Schaufelgruft erreichen.', secret: true },
   { id: 'urfunke', name: 'Urfunke', rar: 'mythisch', dark: '#c02a00', light: '#ffe070', handle: '#400a00', secret: true,
     perk: 'Doppelter Schaden, jeder Hieb brennt.',
     hint: 'Über dem Dornenkamm, wo kein gewöhnlicher Sprung hinreicht, glimmt etwas.',
@@ -54,7 +58,7 @@ export const weaponById = id => WEAPONS.find(w => w.id === id) || null;
 
 // Wirkung im Spiel
 export function weaponMods(id) {
-  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 16, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false, quake: false };
+  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 16, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false, quake: false, seer: false };
   switch (id) {
     case 'federklinge': m.run = 2.35; m.jump = 6.05; m.reach = 4; break;
     case 'blitzspaten': m.run = 2.3; m.atkLen = 9; break;
@@ -65,6 +69,7 @@ export function weaponMods(id) {
     case 'maulwurfkralle': m.wave = true; break;
     case 'seelenschaufel': m.soul = true; break;
     case 'pendelhammer': m.quake = true; break;
+    case 'spuerschaufel': m.seer = true; break;
     case 'urfunke': m.dmgMul = 2; m.fire = true; break;
   }
   return m;

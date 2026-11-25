@@ -11,10 +11,12 @@ const DEF = {
   weapon: null,    // ausgerüstete Waffe (null = Schaufel)
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
+  coins: {}, secrets: {}, secretOpen: {}, ach: {}, ranks: {}, daily: { last: '', streak: 0 }, scarf: 'auto', retro: false,
+  stats: { dug: 0, bestChain: 0, golden: 0, rush: 0, legendChest: 0, flag: 0, sleep: 0, bossClean: 0, retro: 0 },
 };
 const fresh = () => JSON.parse(JSON.stringify(DEF));
 const data = fresh();
-try { const raw = localStorage.getItem(KEY); if (raw) Object.assign(data, JSON.parse(raw)); } catch {}
+try { const raw = localStorage.getItem(KEY); if (raw) { const o = JSON.parse(raw); Object.assign(data, o, { stats: { ...data.stats, ...(o.stats || {}) }, daily: { ...data.daily, ...(o.daily || {}) } }); } } catch {}
 
 export const save = {
   get d() { return data; },

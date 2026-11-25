@@ -4,7 +4,7 @@ import { SHOVEL, ARMOR } from './gear.js';
 import { weaponMods } from './weapons.js';
 
 export const T = 16;
-const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X', 'V', 'R']);
+const SOLID = new Set(['#', 'D', 'S', 'B', '^', 'X', 'V', 'R', 'F', 'J', 'c']);
 const GRAV = 0.36, MAXFALL = 6.5, BOUNCE = 5.5;
 
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -33,6 +33,8 @@ export class Game {
     this.rand = rng(opt.seed || 7);
     this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = [];
     this.frame = 0; this.gems = 0; this.deaths = 0; this.dirtTotal = 0;
+    this.secretTotal = 0; this.secretsFound = 0; this.coins = []; this.crumbles = new Map();
+    this.rush = 0; this.rushT = 0; this.idle = 0; this.flagBonus = false; this.exit = null;
     this.done = false; this.shake = 0; this.sign = null; this.boss = null;
     this.rec = [];
     const signs = [];
@@ -40,7 +42,8 @@ export class Game {
       const c = this.tiles[y][x];
       if (c === 'D') this.dirtTotal++;
       if (c === 'V') this.vents.push({ tx: x, ty: y });
-      if ('.#=DSB^XVR'.includes(c)) continue;
+      if (c === 'H') this.secretTotal++;
+      if ('.#=DSB^XVRFHJc'.includes(c)) continue;
       this.tiles[y][x] = '.';
       const px = x * T, py = y * T;
       switch (c) {
@@ -49,6 +52,10 @@ export class Game {
         case 'o': this.add(blorb(px + 2, py + 6)); break;
         case 'v': this.add(bat(px + 2, py + 2)); break;
         case 'G': this.add(gem(px + 4, py + 4, 5, true)); break;
+        case 'O': this.add({ type: 'coin', x: px + 2, y: py + 2, w: 12, h: 12, idx: 0 }); break;
+        case 'Y': this.add({ type: 'door', x: px, y: py - 8, w: 16, h: 24 }); break;
+        case 's': this.add(spitter(px + 1, py + 4)); break;
+        case 'N': this.boss = this.add(morchel(px - 8, py - 14)); break;
         case 'h': this.add({ type: 'apple', x: px + 4, y: py + 8, w: 8, h: 8 }); break;
         case 'T': this.add({ type: 'chest', x: px + 1, y: py + 4, w: 14, h: 12, open: false, key: `${level.id}:${x}:${y}` }); break;
         case 'Q': this.add({ type: 'altar', x: px - 4, y: py - 8, w: 24, h: 24, taken: false }); break;
@@ -65,6 +72,32 @@ export class Game {
       }
     }
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
+    this.secretTotal += countFakeGroups(this.tiles);
+    // Hinter falschen Wänden verborgene Kammern bleiben abgedeckt, bis die Wand bricht
+    this.hidden = new Set();
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      if (this.tiles[y][x] !== 'F') continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const cells = new Set(), st = [[x + dx, y + dy]]; let open = true;
+        while (st.length && open) {
+          const [a, b] = st.pop(), k = a + ',' + b;
+          if (cells.has(k) || this.hidden.has(k)) continue;
+          const c = this.tile(a, b);
+          if (SOLID.has(c)) continue;
+          if (b < 0 || b >= this.h || a < 0 || a >= this.w) { open = false; break; }
+          cells.add(k); if (cells.size > 60) { open = false; break; }
+          st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]);
+        }
+        if (open) for (const k of cells) this.hidden.add(k);
+      }
+    }
+    // Münzen in fester Reihenfolge nummerieren (für den Spielstand)
+    this.ents.filter(e => e.type === 'coin').sort((a, b) => a.x - b.x || a.y - b.y).forEach((c, i) => { c.idx = i; });
+    // Seltene goldene Gegner (deterministisch pro Level)
+    for (const e of this.ents) if (e.foe && e !== this.boss && ['beetle', 'blorb', 'knight', 'bat'].includes(e.type) && this.rand() < 0.07) {
+      e.golden = true; e.hp += 2; e.loot = 60;
+    }
+    this.coinTotal = this.ents.filter(e => e.type === 'coin').length;
     if (!this.spawn) this.spawn = { x: 24, y: 100 };
     this.check = { ...this.spawn };
     const p = this.p = {
@@ -80,6 +113,37 @@ export class Game {
   ev(name, x, y, v) { this.events.push({ name, x, y, v }); }
   num(x, y, txt, col = '#fff') { this.nums.push({ x, y, txt: String(txt), col, life: 40 }); }
   // Dampfstoss: 70 von 120 Frames aktiv, Säule 6 Kacheln über dem Rohr
+  // Geheimnisse
+  secret(x, y, label) {
+    this.secretsFound++; this.ev('secret', x, y);
+    this.banner = { text: label || 'GEHEIMNIS!', sub: `${this.secretsFound} / ${this.secretTotal}`, col: '#7dffcf', t: 80 };
+    this.burst(x, y, 24, 'spark', 2.5, 0.02, 30); this.freeze = Math.max(this.freeze, 8);
+  }
+  revealBlock(tx, ty) {
+    this.tiles[ty][tx] = 'J'; this.shake = 4;
+    this.dropGems(tx * T + 8, ty * T - 2, 25);
+    this.secret(tx * T + 8, ty * T + 8, 'VERSTECKTER BLOCK!');
+  }
+  // Bröckelplattformen: zerfallen kurz nach dem Betreten, wachsen nach 3 Sekunden nach
+  stepCrumbles() {
+    for (const [k, c] of this.crumbles) {
+      c.t++;
+      if (c.state === 'shake' && c.t > 22) { this.tiles[c.ty][c.tx] = '.'; c.state = 'gone'; c.t = 0; this.burst(c.tx * T + 8, c.ty * T + 6, 8, 'crumble', 1.5); this.ev('crumble'); }
+      else if (c.state === 'gone' && c.t > 180) {
+        const p = this.p, box = { x: c.tx * T, y: c.ty * T, w: T, h: T };
+        if (!overlap(p, box)) { this.tiles[c.ty][c.tx] = 'c'; this.crumbles.delete(k); }
+      }
+    }
+  }
+  touchCrumble(tx, ty) {
+    const k = tx + ',' + ty;
+    if (!this.crumbles.has(k)) this.crumbles.set(k, { tx, ty, t: 0, state: 'shake' });
+  }
+  addRush(n) {
+    if (this.rushT > 0) return;
+    this.rush = Math.max(0, Math.min(100, this.rush + n));
+    if (this.rush >= 100) { this.rushT = 600; this.rush = 100; this.ev('rush'); this.banner = { text: 'RAUSCH!', sub: 'ALLES ZÄHLT DOPPELT', col: '#ffd84a', t: 70 }; this.freeze = Math.max(this.freeze, 12); }
+  }
   ventOn(v) { return (this.frame + v.tx * 23) % 120 < 70; }
   dirtLeft() { let n = 0; for (const r of this.tiles) for (const c of r) if (c === 'D') n++; return n; }
 
@@ -117,7 +181,10 @@ export class Game {
       }
     } else if (b.vy < 0) {
       const ty = Math.floor(b.y / T);
-      for (let tx = l; tx <= r; tx++) if (this.solid(tx, ty)) { b.y = (ty + 1) * T; b.vy = 0; b.hitCeil = true; break; }
+      for (let tx = l; tx <= r; tx++) {
+        if (b === this.p && this.tile(tx, ty) === 'H') { this.revealBlock(tx, ty); b.y = (ty + 1) * T; b.vy = 0; break; }
+        if (this.solid(tx, ty)) { b.y = (ty + 1) * T; b.vy = 0; b.hitCeil = true; break; }
+      }
     }
   }
 
@@ -141,6 +208,24 @@ export class Game {
     if (!this.mod.area) return;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (this.tile(tx + dx, ty + dy) === 'D') this.breakTile(tx + dx, ty + dy);
   }
+  breakFake(tx, ty) {
+    // Falsche Wand: alle verbundenen F-Kacheln brechen zusammen
+    const stack = [[tx, ty]]; let n = 0;
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      if (this.tile(x, y) !== 'F') continue;
+      this.tiles[y][x] = '.'; n++;
+      this.revealAround(x, y);
+      this.burst(x * T + 8, y * T + 8, 10, 'dirt', 2);
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    if (n) { this.shake = 5; this.ev('crack'); this.secret(tx * T + 8, ty * T + 8, 'GEHEIMER GANG!'); }
+  }
+  revealAround(x, y) {
+    const st = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+    while (st.length) { const [a, b] = st.pop(), k = a + ',' + b; if (!this.hidden.has(k)) continue; this.hidden.delete(k); st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); }
+  }
+  isHidden(px, py) { return this.hidden.size > 0 && this.hidden.has(Math.floor(px / T) + ',' + Math.floor(py / T)); }
   breakTile(tx, ty) {
     const c = this.tile(tx, ty);
     if (c !== 'D' && c !== 'S' && c !== 'R') return;
@@ -161,6 +246,12 @@ export class Game {
     if (this.streakT > 0 && --this.streakT === 0) this.streak = 0;
     if (!this.done) this.frame++;
     for (const pl of this.plats) pl.update(this, pl);
+    this.stepCrumbles();
+    if (this.rushT > 0) { this.rushT--; this.rush = this.rushT / 6; if (this.frame % 2 === 0) this.parts.push({ x: this.p.x + 5, y: this.p.y + 10, vx: -this.p.vx * 0.3, vy: -0.2, life: 18, col: 'gold', grav: 0 }); if (!this.rushT) this.rush = 0; }
+    else if (this.rush > 0) this.rush = Math.max(0, this.rush - 0.06);
+    const anyIn = inp.left || inp.right || inp.jump || inp.attack || inp.down;
+    this.idle = anyIn ? 0 : this.idle + 1;
+    if (this.idle === 900) this.ev('sleep');
     this.stepPlayer(inp);
     for (const e of this.ents) if (!e.dead && e.update) e.update(this, e);
     this.contacts();
@@ -247,6 +338,7 @@ export class Game {
     if (p.onGround) {
       if (!wasGround && fallV > 3) { p.land = 6; this.burst(cx(p), p.y + p.h, 5, 'dust', 1, 0, 14); }
       p.dashUsed = false;
+      for (let tx = Math.floor(p.x / T); tx <= Math.floor((p.x + p.w - 0.01) / T); tx++) if (this.tile(tx, Math.floor((p.y + p.h + 1) / T)) === 'c') this.touchCrumble(tx, Math.floor((p.y + p.h + 1) / T));
       if (this.chain >= 3) this.ev('chainEnd', p.x, p.y, this.chain);
       this.chain = 0;
       p.jumping = false; p.groundC = p.ground && p.ground.c;
@@ -279,6 +371,7 @@ export class Game {
     for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
       const c = this.tile(tx, ty);
       if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) { this.dig(tx, ty); hit = true; }
+      if (c === 'F') { this.breakFake(tx, ty); hit = true; }
     }
     if (hit && this.mod.quake) {
       // Pendelhammer: Druckwelle trifft alles in der Nähe
@@ -287,7 +380,7 @@ export class Game {
     }
     if (hit) {
       p.vy = -BOUNCE * sh.pogo; p.jumping = false; p.safe = 10; p.dashUsed = false;
-      this.chain++; this.maxChain = Math.max(this.maxChain, this.chain);
+      this.chain++; this.maxChain = Math.max(this.maxChain, this.chain); this.addRush(5);
       this.freeze = Math.max(this.freeze, 3);
       this.ev('bounce', p.x, p.y, this.chain);
       this.burst(cx(p), p.y + p.h, 6, 'spark', 1.6, 0.05, 14);
@@ -322,6 +415,7 @@ export class Game {
       for (let tx = Math.floor(box.x / T); tx <= Math.floor((box.x + box.w - 0.01) / T); tx++) {
         const c = this.tile(tx, ty);
         if (c === 'D' || (c === 'S' && sh.stone) || (c === 'R' && sh.ore)) this.dig(tx, ty);
+        else if (c === 'F') this.breakFake(tx, ty);
         else if ((c === 'S' || c === 'R') && !p.hits.has('clink')) {
           p.hits.add('clink'); this.ev('clink'); this.burst(tx * T + (p.face > 0 ? 0 : 16), p.y + 7, 6, 'spark', 2, 0.05, 12);
         }
@@ -330,14 +424,19 @@ export class Game {
 
   openChest(e) {
     e.open = true; this.ev('chest', e.x, e.y, e.key); this.shake = 4; this.freeze = 10;
-    this.burst(cx(e), e.y, 16, 'spark', 2.5, 0.05, 20);
-    this.dropGems(cx(e), e.y, 80);
+    // Seltenheit wird beim Öffnen ausgewürfelt; Tresor-Truhen in Geheimlevels sind immer legendär
+    const r = this.level.bigChest ? 0.99 : this.rand();
+    const R = r < 0.6 ? ['GEWÖHNLICH', '#e8d6f0', 80] : r < 0.88 ? ['SELTEN', '#4fd2ff', 160] : r < 0.98 ? ['EPISCH', '#c58bff', 320] : ['LEGENDÄR', '#ffd84a', 700];
+    this.banner = { text: 'TRUHE: ' + R[0], sub: '+' + R[2], col: R[1], t: 80 };
+    this.ev('chestRare', e.x, e.y, r);
+    this.burst(cx(e), e.y, 16 + Math.round(r * 30), r >= 0.88 ? 'gold' : 'spark', 2.5, 0.05, 30);
+    this.dropGems(cx(e), e.y, R[2]);
   }
 
   hurtPlayer(dmg, dir, spike) {
     const p = this.p;
     if (p.inv > 0 || p.dead || this.done) { if (spike) { p.vy = -6; p.onGround = false; } return; }
-    p.hp -= dmg; this.hurtCount++; this.bossHurt++;
+    p.hp -= dmg; this.hurtCount++; this.bossHurt++; if (!this.rushT) this.rush = Math.max(0, this.rush - 45);
     p.inv = this.ar.inv || 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
     this.shake = 5; this.ev('hurt');
@@ -376,16 +475,22 @@ export class Game {
       if (e.dead || !overlap(p, e)) continue;
       switch (e.type) {
         case 'gem': if (e.age > 10) {
-          e.dead = true; const v = e.val * this.mod.gemMul; this.gems += v;
+          e.dead = true; const v = e.val * this.mod.gemMul * (this.rushT > 0 ? 2 : 1); this.gems += v; this.addRush(e.val >= 5 ? 2 : 0.6);
           this.streak++; this.streakT = 45;
           this.ev('gem', e.x, e.y, this.streak);
           if (v >= 5) this.num(e.x + 3, e.y - 2, '+' + v, '#a8d4ff');
           this.burst(e.x + 3, e.y + 3, 4, 'spark', 1, 0, 10);
         } break;
-        case 'altar': if (!e.taken) { e.taken = true; this.ev('unlock', e.x, e.y, 'urfunke'); this.burst(cx(e), e.y + 4, 40, 'fire', 3, -0.05, 50); this.shake = 8; } break;
+        case 'coin': e.dead = true; this.coins.push(e.idx); this.ev('coin', e.x, e.y, e.idx); this.freeze = Math.max(this.freeze, 10);
+          this.banner = { text: 'SCHAUFELMÜNZE!', sub: `${this.coins.length} / ${this.coinTotal}`, col: '#ffd84a', t: 70 }; this.burst(e.x + 6, e.y + 6, 30, 'gold', 3, 0.03, 40); this.addRush(20); break;
+        case 'door': if (!this.done) { this.done = true; this.exit = 'secret'; this.ev('win'); this.burst(e.x + 8, e.y + 12, 30, 'spark', 3, 0.05, 40); } break;
+        case 'altar': if (!e.taken) { e.taken = true; this.ev('unlock', e.x, e.y, this.level.altar || 'urfunke'); this.burst(cx(e), e.y + 4, 40, 'fire', 3, -0.05, 50); this.shake = 8; } break;
         case 'apple': if (p.hp < p.maxhp) { e.dead = true; p.hp = Math.min(p.maxhp, p.hp + 2); this.ev('heal'); } break;
         case 'lantern': if (!e.lit) { for (const o of this.ents) if (o.type === 'lantern') o.lit = false; e.lit = true; this.check = { x: e.x - 1, y: e.y }; this.ev('check'); this.burst(e.x + 4, e.y + 4, 14, 'spark', 1.5, 0, 24); } break;
-        case 'goal': if (!this.done && !(this.boss && !this.boss.dead)) { this.done = true; this.ev('win'); this.burst(cx(e), e.y + 6, 30, 'spark', 3, 0.05, 40); } break;
+        case 'goal':
+          // Easter Egg: auf der Fahnenspitze landen
+          if (!this.flagBonus && p.vy > 0 && p.y + p.h <= e.y + 12 && !this.done) { this.flagBonus = true; this.gems += 100; this.ev('flag'); this.banner = { text: 'FAHNENSPITZE!', sub: '+100', col: '#7dffcf', t: 70 }; this.burst(e.x + 6, e.y, 30, 'gold', 3, 0.05, 40); }
+          if (!this.done && !(this.boss && !this.boss.dead)) { this.done = true; this.ev('win'); this.burst(cx(e), e.y + 6, 30, 'spark', 3, 0.05, 40); } break;
         case 'sign': this.sign = e.text; break;
         case 'rock': if (!e.landed) { e.dead = true; this.hurtPlayer(1, sign(cx(p) - cx(e))); } break;
         case 'cog': if (p.safe <= 0) this.hurtPlayer(1, sign(cx(p) - cx(e))); break;
@@ -412,6 +517,7 @@ export class Game {
     this.bossClean = this.bossHurt === 0;
     if (b.type === 'mole' && this.bossClean) this.ev('unlock', b.x, b.y, 'maulwurfkralle');
     if (b.type === 'golem' && !b.nonPogo) this.ev('unlock', b.x, b.y, 'pendelhammer');
+    if (this.bossClean) this.ev('bossClean');
   }
 }
 
@@ -442,7 +548,8 @@ function hurtFoe(g, e, dmg, dir, src) {
   if (dir && e !== g.boss) e.vx = dir * 1.8;
   if (e.hp <= 0) {
     if (e === g.boss) return g.bossDefeated(e);
-    e.dead = true; g.kills++; g.freeze = Math.max(g.freeze, 5); g.ev('poof', e.x, e.y);
+    e.dead = true; g.kills++; g.freeze = Math.max(g.freeze, 5); g.ev(e.golden ? 'golden' : 'poof', e.x, e.y); g.addRush(e.golden ? 40 : 12);
+    if (e.golden) { g.banner = { text: 'GOLDENER GEGNER!', col: '#ffd84a', t: 60 }; g.burst(e.x + e.w / 2, e.y, 30, 'gold', 3, 0.05, 40); }
     g.burst(e.x + e.w / 2, e.y + e.h / 2, 14, 'poof', 2, 0.02, 24);
     g.dropGems(e.x + e.w / 2, e.y, e.loot || 8);
   }
@@ -617,10 +724,15 @@ function kuckuck(x, y) {
     } });
 }
 function eproj(x, y, vx, vy, kind) {
-  const sz = { shock: [12, 10], gear: [12, 12], bolt: [4, 8] }[kind];
+  const sz = { shock: [12, 10], gear: [12, 12], bolt: [4, 8], spore: [7, 7] }[kind];
   return { type: 'eproj', kind, x, y, w: sz[0], h: sz[1], vx, vy, dmg: 1, life: kind === 'gear' ? 300 : 160, bounces: 0,
     update(g, e) {
       if (--e.life <= 0) { e.dead = true; return; }
+      if (kind === 'spore') {
+        e.vy = Math.min(5, e.vy + 0.18); e.x += e.vx; e.y += e.vy;
+        if (g.solid(Math.floor((e.x + 3) / T), Math.floor((e.y + 6) / T))) { e.dead = true; g.burst(e.x + 3, e.y + 4, 8, 'spore', 1.4); }
+        return;
+      }
       if (kind === 'bolt') { e.y += e.vy; if (g.solid(Math.floor((e.x + 2) / T), Math.floor((e.y + e.h) / T))) { e.dead = true; g.burst(e.x + 2, e.y + 6, 5, 'spark', 1.2); } return; }
       if (kind === 'shock') { g.moveX(e); if (e.hitWall) { e.dead = true; g.burst(e.x + 6, e.y + 6, 8, 'dust', 1.5); } if (g.frame % 2) g.parts.push({ x: e.x + 2 + g.rand() * 8, y: e.y + 8, vx: 0, vy: -1.2, life: 12, col: 'spark', grav: 0.05 }); return; }
       e.vy = Math.min(MAXFALL, e.vy + GRAV * 0.8); const vy = e.vy;
@@ -666,4 +778,71 @@ function golem(x, y) {
           return;
       }
     } });
+}
+
+/* ---------- Welt 3: Pilzwald ---------- */
+function spitter(x, y) {
+  return foeBase({ type: 'spitter', x, y, w: 14, h: 12, hp: 2, dmg: 1, t: 30, face: -1, loot: 12,
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      const dx = cx(g.p) - cx(e); e.face = sign(dx);
+      if (++e.t % 110 === 0 && Math.abs(dx) < 150) {
+        const v = Math.max(-2.4, Math.min(2.4, dx / 45));
+        g.add(eproj(cx(e) - 3, e.y - 2, v, -3.6, 'spore')); g.ev('blob', e.x, e.y); e.puff = 10;
+      }
+      if (e.puff) e.puff--;
+    } });
+}
+function morchel(x, y) {
+  return foeBase({ type: 'morchel', title: 'MORCHELMUTTER', x, y, w: 30, h: 30, hp: 38, maxhp: 38, dmg: 2, state: 'idle', t: 0, face: -1, cyc: 0, home: { x, y },
+    update(g, e) {
+      if (e.iframe) e.iframe--; if (e.flash) e.flash--;
+      const p = g.p, dx = cx(p) - cx(e), fast = e.hp <= e.maxhp / 2 ? 1.3 : 1;
+      const grav = () => { e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); g.moveY(e); };
+      switch (e.state) {
+        case 'idle': grav(); return;
+        case 'roar': e.vx = 0; grav(); if (e.t % 10 === 0) g.shake = 3; if (--e.t <= 0) { e.state = 'walk'; e.t = 60; } return;
+        case 'walk': e.face = sign(dx); e.vx = e.face * 0.5 * fast; grav(); if (--e.t <= 0) { e.state = ['hop', 'volley', 'hop', 'summon'][e.cyc++ % 4]; e.t = 30; e.hops = 3; } return;
+        case 'hop':
+          grav();
+          if (e.onGround) {
+            e.vx = 0;
+            if (e.landed) { e.landed = false; g.shake = 6; g.ev('thud'); for (const d of [-1, 1]) g.add(eproj(cx(e) - 6 + d * 12, e.y + e.h - 10, d * 2.6 * fast, 0, 'shock')); if (--e.hops <= 0) { e.state = 'tired'; e.t = 70; return; } }
+            if (--e.t <= 0) { e.vy = -6.4; e.vx = Math.max(-2.6, Math.min(2.6, dx / 40)); e.landed = true; e.t = 14; g.ev('boing'); }
+          }
+          return;
+        case 'volley':
+          e.vx = 0; grav();
+          if (e.t % 6 === 0 && e.t > 0) { const k = (30 - e.t) / 6; g.add(eproj(cx(e) - 3, e.y, (k - 2) * 0.9 * fast + sign(dx) * 0.6, -4.4, 'spore')); g.ev('blob'); }
+          if (--e.t <= 0) { e.state = 'walk'; e.t = 70; }
+          return;
+        case 'summon':
+          e.vx = 0; grav();
+          if (e.t === 15 && g.ents.filter(o => o.type === 'blorb' && !o.dead).length < 3) for (const d of [-1, 1]) { const b = blorbAt(cx(e) + d * 24, e.y + 10); b.vy = -3; g.add(b); }
+          if (--e.t <= 0) { e.state = 'walk'; e.t = 60; }
+          return;
+        case 'tired': e.vx = 0; grav(); if (--e.t <= 0) { e.state = 'walk'; e.t = 50; } return;
+        case 'dying':
+          e.vx = 0; grav();
+          if (e.t % 8 === 0) { g.burst(e.x + g.rand() * e.w, e.y + g.rand() * e.h, 10, 'spore', 2.5, 0, 24); g.ev('boom'); g.shake = 6; }
+          if (--e.t <= 0) {
+            e.dead = true; g.dropGems(cx(e), e.y, 500);
+            g.add({ type: 'goal', x: Math.round(cx(e) / T) * T + 2, y: e.y + e.h - 48, w: 12, h: 48 });
+            g.setGate('.'); g.ev('win2');
+          }
+          return;
+      }
+    } });
+}
+function blorbAt(x, y) { return blorb(x, y); }
+
+// Zusammenhängende falsche Wände zählen als ein Geheimnis
+export function countFakeGroups(tiles) {
+  const seen = new Set(); let n = 0;
+  for (let y = 0; y < tiles.length; y++) for (let x = 0; x < tiles[y].length; x++) {
+    if (tiles[y][x] !== 'F' || seen.has(x + ',' + y)) continue;
+    n++; const st = [[x, y]];
+    while (st.length) { const [a, b] = st.pop(), k = a + ',' + b; if (seen.has(k) || !tiles[b] || tiles[b][a] !== 'F') continue; seen.add(k); st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); }
+  }
+  return n;
 }

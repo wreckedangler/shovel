@@ -168,5 +168,6 @@ export const WEAPON_ART = {
   maulwurfkralle: ['.........kSSSSk...', '........kSkkkkk...', 'kkkkkkkkkSSSSSSk..', 'kHhhhhhhkSkkkkk...', 'kkkkkkkkkSSSSSSk..', '........kSkkkkk...', '.........kSSSSk...'],
   seelenschaufel: ['.........kkkkkk...', '........kSSSSSSk..', 'kkkkkkkkkkkkkkSSk.', 'kHhhhhhhkSk...kSk.', 'kkkkkkkkkSk....kk.', '.........kk.......', '..................'],
   pendelhammer: ['.........kkkkkk...', '.........kSSSSk...', 'kkkkkkkkkSSWSSSk..', 'kHhhhhhhkSSSSSSSk.', 'kkkkkkkkkSSSSSSk..', '.........kSSSSk...', '.........kkkkkk...'],
+  spuerschaufel: ['.........kkk......', '........kSWSk.....', 'kkkkkkkkkSSSSk....', 'kHhhhhhhkSWSWSk...', 'kkkkkkkkkSSSSk....', '........kSWSk.....', '.........kkk......'],
   urfunke: ['...........k.k....', '..........kxkxk...', 'kkkkkkkkk.kSxSxk..', 'kHhhhhhhkkSSWSSSk.', 'kkkkkkkkkSSSSSk...', '.........kkkkk....', '..................'],
 };

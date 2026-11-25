@@ -50,6 +50,7 @@ export class Renderer {
     for (const gh of ghosts) this.ghost(gh, g.frame);
     this.player(g);
     for (const q of g.parts) {
+      if (q.z) { x.globalAlpha = Math.min(1, q.life / 20); S.drawText(x, 'Z', Math.round(q.x), Math.round(q.y), '#ffffff'); x.globalAlpha = 1; continue; }
       x.fillStyle = partCol(q.col, th, g, q);
       const s = q.life > 12 ? 2 : 1;
       x.fillRect(Math.round(q.x), Math.round(q.y), s, s);
@@ -62,7 +63,8 @@ export class Renderer {
     x.globalAlpha = 1;
     x.restore();
 
-    if (g.level.theme === 'hoehle' || g.level.theme === 'bau') this.dark(g, cx, cy, g.level.theme === 'bau' ? 0.35 : 0.55);
+    const darkA = { hoehle: 0.55, bau: 0.35, grotte: 0.78, moder: 0.35 }[g.level.theme];
+    if (darkA) this.dark(g, cx, cy, darkA);
     this.hud(g, ghosts);
   }
 
@@ -73,7 +75,7 @@ export class Renderer {
       if (!on) { if ((this.t >> 3) & 1) { x.fillStyle = '#ffffff30'; x.fillRect(bx + 6, by - 3, 4, 2); } continue; }
       for (let k = 0; k < 14; k++) {
         const ph = (this.t * 2.2 + k * 7 + v.tx * 13) % 96, sx = bx + 3 + ((k * 5 + this.t) % 10), sy = by - ph;
-        x.fillStyle = ph > 70 ? '#ffffff30' : ph > 40 ? '#ffffff60' : '#ffffffa0';
+        x.fillStyle = g.level.theme === 'pilz' || g.level.theme === 'grotte' ? (ph > 50 ? '#9affc860' : '#c8ffe0b0') : ph > 70 ? '#ffffff30' : ph > 40 ? '#ffffff60' : '#ffffffa0';
         x.fillRect(Math.round(sx), Math.round(sy), ph > 50 ? 3 : 2, ph > 50 ? 3 : 2);
       }
     }
@@ -83,18 +85,37 @@ export class Renderer {
     const x = this.x, ts = S.tileset(th);
     const x0 = Math.floor(cx / T), x1 = Math.ceil((cx + this.W) / T), y0 = Math.max(0, Math.floor(cy / T)), y1 = Math.min(g.h - 1, Math.ceil((cy + this.H) / T));
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
-      const c = g.tile(tx, ty); if (c === '.') continue;
+      const c = g.tile(tx, ty);
+      if (g.hidden.size && g.hidden.has(tx + ',' + ty)) { x.drawImage(ts.fill[(tx * 7 + ty * 13) % 3], tx * T, ty * T); if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.18)'; x.fillRect(tx * T, ty * T, T, T); } continue; }
+      if (c === '.') continue;
       const v = (tx * 7 + ty * 13) % 3, px = tx * T, py = ty * T;
       let img;
-      if (c === '#') { if (tx < 0 || tx >= g.w) continue; img = g.tile(tx, ty - 1) === '#' && ty > 0 ? ts.fill[v] : ts.top[v]; }
+      if (c === '#' || c === 'F') { if (tx < 0 || tx >= g.w) continue; const up = g.tile(tx, ty - 1); img = (up === '#' || up === 'F') && ty > 0 ? ts.fill[v] : ts.top[v]; }
+      else if (c === 'H') { if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.35)'; x.fillRect(px + 2, py + 2, 12, 12); } continue; }
+      else if (c === 'J') img = ts.used;
+      else if (c === 'c') { const cr = g.crumbles.get(tx + ',' + ty); x.drawImage(ts.crumble, px + (cr && cr.state === 'shake' ? ((this.t >> 1) & 1) * 2 - 1 : 0), py); continue; }
       else if (c === 'D') img = ts.dirt; else if (c === 'S') img = ts.stone; else if (c === '^') img = ts.spike;
       else if (c === '=') img = ts.plank; else if (c === 'B') img = ts.mush; else if (c === 'X') img = ts.gate;
       else if (c === 'V') img = ts.vent; else if (c === 'R') img = ts.ore;
       if (img) x.drawImage(img, px, py);
+      if (c === 'F') {
+        // Feiner Riss als Hinweis; mit der Spürschaufel leuchtet die Wand
+        x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 7, py + 6, 1, 4); x.fillRect(px + 8, py + 9, 2, 1);
+        if (g.mod.seer && (this.t >> 3) & 1) { x.fillStyle = 'rgba(125,255,207,0.3)'; x.fillRect(px, py, 16, 16); }
+      }
     }
   }
 
   ent(g, e, th) {
+    if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
+    this.ent0(g, e, th);
+    if (e.golden && !e.dead) {
+      const x = this.x;
+      if ((this.t + e.x) % 12 < 2) { x.fillStyle = '#fff6b0'; x.fillRect(Math.round(e.x + Math.random() * e.w), Math.round(e.y + Math.random() * e.h), 1, 1); }
+      x.globalAlpha = 0.45; x.fillStyle = '#ffd84a'; x.fillRect(Math.round(e.x), Math.round(e.y), e.w, e.h); x.globalAlpha = 1;
+    }
+  }
+  ent0(g, e, th) {
     const x = this.x, f = this.t;
     switch (e.type) {
       case 'gem': {
@@ -129,12 +150,28 @@ export class Renderer {
         return;
       }
       case 'chest': x.drawImage(S.chestSprite(e.open), e.x, e.y); return;
+      case 'coin': {
+        const fr = Math.floor(f / 6 + e.idx) % 6, bob = Math.round(Math.sin(f / 15 + e.idx) * 1.5);
+        x.fillStyle = 'rgba(255,216,74,0.15)'; x.beginPath(); x.arc(e.x + 6, e.y + 6 + bob, 9 + Math.sin(f / 8), 0, 7); x.fill();
+        x.drawImage(S.coinSprite(fr), Math.round(e.x), Math.round(e.y) + bob);
+        if (f % 20 === 0) g.parts.push({ x: e.x + Math.random() * 12, y: e.y + Math.random() * 12, vx: 0, vy: -0.3, life: 16, col: 'gold', grav: 0 });
+        return;
+      }
+      case 'door': x.drawImage(S.doorSprite(), e.x, e.y); if ((f >> 4) & 1) { x.fillStyle = '#ffd84a'; x.fillRect(e.x + 7, e.y - 4, 2, 2); } return;
+      case 'spitter': x.drawImage(S.spitterSprite(e.puff > 0)[(e.face > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return;
+      case 'morchel': {
+        const sp = S.morchelSprite(e.flash > 0 || (e.state === 'dying' && (f >> 2) & 1)), sq = e.state === 'tired' ? 2 : 0;
+        x.drawImage(sp[e.face > 0 ? 1 : 0], Math.round(e.x) - 1, Math.round(e.y) - 2 + sq, 32, 32 - sq);
+        if (e.state === 'tired') for (let k = 0; k < 3; k++) { const a = f / 8 + k * 2.1; x.fillStyle = '#ffe066'; x.fillRect(Math.round(e.x + 15 + Math.cos(a) * 12), Math.round(e.y - 5 + Math.sin(a) * 3), 2, 2); }
+        return;
+      }
       case 'cog': x.drawImage(S.cogSprite((f >> 2) % 4), Math.round(e.x) - 1, Math.round(e.y) - 1); return;
       case 'knight': x.drawImage(S.knightSprite()[(e.dir > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return;
       case 'kuckuck': x.drawImage(S.cuckooSprite()[(e.dir > 0 ? 0 : 1) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y) - 1 + ((f >> 3) & 1)); return;
       case 'eproj': {
         const ex = Math.round(e.x), ey = Math.round(e.y);
         if (e.kind === 'gear') x.drawImage(S.cogSprite((f >> 1) % 4, 4, 6), ex - 1, ey - 1);
+        else if (e.kind === 'spore') { x.fillStyle = K; x.fillRect(ex, ey + 1, 7, 5); x.fillRect(ex + 1, ey, 5, 7); x.fillStyle = (f >> 2) & 1 ? '#c86aff' : '#e0a0ff'; x.fillRect(ex + 1, ey + 1, 5, 5); x.fillStyle = '#fff'; x.fillRect(ex + 2, ey + 2, 1, 1); }
         else if (e.kind === 'bolt') { x.fillStyle = K; x.fillRect(ex, ey, 4, 8); x.fillStyle = '#e0b040'; x.fillRect(ex + 1, ey + 1, 2, 6); x.fillStyle = '#fff'; x.fillRect(ex + 1, ey + 6, 2, 1); }
         else { for (let k = 0; k < 3; k++) { const hh = 4 + ((f + k * 3) % 6); x.fillStyle = k === 1 ? '#ffffff' : '#ffd84a'; x.fillRect(ex + k * 4, ey + 10 - hh, 3, hh); } }
         return;
@@ -196,6 +233,12 @@ export class Renderer {
     const p = g.p; if (p.dead) return;
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
     const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
+    if (g.idle > 900 && !p.dead) {
+      // Easter Egg: der Held schläft ein
+      if (this.t % 40 === 0) g.parts.push({ x: p.x + (p.face > 0 ? 8 : 0), y: p.y - 6, vx: 0.15 * p.face, vy: -0.35, life: 60, col: 'zzz', grav: 0, z: 1 });
+      this.figure(hs, p.x, p.y + 2, p.face, 0, 0, 8, null, 3, 16, 0, 0);
+      return;
+    }
     if (p.dash > 0) { this.x.globalAlpha = 0.6; }
     this.figure(hs, p.x, p.y, p.face, g.pose(), p.anim, p.atk, p.hurt > 0 ? hs.white : null, p.land, p.atkLen || 16, p.vx, p.vy);
     this.x.globalAlpha = 1;
@@ -249,6 +292,13 @@ export class Renderer {
       if (!white && vy > 2) { x.globalAlpha = 0.5; x.fillStyle = '#ffffff'; for (let k = 0; k < 3; k++) x.fillRect(X + 1 + k * 4, Y - 6 - ((this.t * 3 + k * 5) % 8), 1, 4); x.globalAlpha = 1; }
     }
     if (hs.fx && !white) this.fx(hs.fx, X, Y, face, true);
+    // Easter Egg: wer „Raphi“ heisst, trägt eine Krone
+    if (this.crown && !white && hs.scarf) {
+      const cx0 = face > 0 ? X - 1 : X + 1, cy0 = Y - 13 + (pose === 0 ? 0 : 0);
+      x.fillStyle = K; x.fillRect(cx0 + 1, cy0, 9, 5);
+      x.fillStyle = '#ffd84a'; x.fillRect(cx0 + 2, cy0 + 2, 7, 2); x.fillRect(cx0 + 2, cy0 + 1, 1, 1); x.fillRect(cx0 + 5, cy0, 1, 2); x.fillRect(cx0 + 8, cy0 + 1, 1, 1);
+      x.fillStyle = '#e0304f'; x.fillRect(cx0 + 5, cy0 + 2, 1, 1);
+    }
   }
   // Langer Schal, der im Fahrtwind flattert (Erkennungszeichen des Helden)
   scarf(hs, X, Y, face, pose, vx, vy) {
@@ -261,18 +311,29 @@ export class Renderer {
       const wave = Math.sin(t / (4 - speed * 1.5) - k * 0.75) * (0.4 + speed * 0.9 + (pose === 2 || pose === 4 ? 0.6 : 0)) * Math.min(k, 4) * 0.45;
       pts.push([ax - face * k * (1.1 + speed * 0.9), ay + droop + wave]);
     }
-    const [c1, c2] = hs.scarf;
+    let [c1, c2] = hs.scarf;
+    const st = this.scarfStyle || 'auto';
+    const fixed = { gold: ['#ffd84a', '#c08a20'], nacht: ['#1e2a6a', '#ffffff'], geist: ['#9af0ff', '#e8ffff'], retro: ['#8bac0f', '#306230'] }[st];
+    if (fixed) [c1, c2] = fixed;
+    const colAt = k => {
+      if (st === 'regen') return `hsl(${(k * 40 + t * 4) % 360},90%,62%)`;
+      if (st === 'feuer') return ['#fff2a0', '#ffd84a', '#ff9a30', '#ff5a20', '#c02a00'][Math.min(4, Math.floor(k / n * 5 + (Math.sin(t / 3 + k) > 0.6 ? 1 : 0)))];
+      if (st === 'nacht') return (k * 7 + Math.floor(t / 10)) % 5 === 0 ? c2 : c1;
+      return k % 3 === 2 ? c2 : c1;
+    };
+    if (st === 'geist') x.globalAlpha = 0.75;
     for (const pass of [0, 1]) {
       pts.forEach(([px, py], k) => {
         const th = k < n * 0.6 ? 2 : 1;
-        x.fillStyle = pass === 0 ? K : (k % 3 === 2 ? c2 : c1);
+        x.fillStyle = pass === 0 ? K : colAt(k);
         if (pass === 0) x.fillRect(Math.round(px) - 1, Math.round(py) - 1, th + 2, th + 2);
         else x.fillRect(Math.round(px), Math.round(py), th, th);
       });
     }
     // Schalende: zwei Zipfel
     const [ex, ey] = pts[n - 1];
-    x.fillStyle = c2; x.fillRect(Math.round(ex - face), Math.round(ey + 1), 1, 2); x.fillRect(Math.round(ex - face * 2), Math.round(ey), 1, 1);
+    if (st === 'feuer' && t % 4 === 0 && this.x === this.gx) { /* Funken nur im Spiel */ }
+    x.fillStyle = colAt(n - 1); x.fillRect(Math.round(ex - face), Math.round(ey + 1), 1, 2); x.fillRect(Math.round(ex - face * 2), Math.round(ey), 1, 1);
   }
   // Effekte der hohen Rüstungsstufen. front=false: hinter dem Helden, true: davor.
   fx(kind, X, Y, face, front) {
@@ -344,6 +405,13 @@ export class Renderer {
     if (this.bump > 0) this.bump--;
     S.drawText(x, g.gems, 16, 17 - (this.bump > 6 ? 1 : 0), this.bump > 0 ? '#ffd84a' : '#fff');
     x.translate(0, -gy0);
+    // Schaufelmünzen des Levels
+    for (let k = 0; k < g.coinTotal; k++) { const got = g.coins.includes(k); x.fillStyle = K; x.fillRect(6 + k * 8, 26 + gy0, 7, 7); x.fillStyle = got ? '#ffd84a' : '#3a2a40'; x.fillRect(7 + k * 8, 27 + gy0, 5, 5); if (got) { x.fillStyle = '#fff6b0'; x.fillRect(7 + k * 8, 27 + gy0, 2, 2); } }
+    // Rausch-Leiste
+    const rw = 40, rx = 6, ry = 35 + gy0;
+    x.fillStyle = K; x.fillRect(rx - 1, ry - 1, rw + 2, 5); x.fillStyle = '#2a1a3a'; x.fillRect(rx, ry, rw, 3);
+    x.fillStyle = g.rushT > 0 ? ((this.t >> 2) & 1 ? '#ffd84a' : '#ff7ae0') : '#ff9a30'; x.fillRect(rx, ry, Math.round(rw * g.rush / 100), 3);
+    if (g.rushT > 0) S.drawText(x, 'RAUSCH ×2', rx + rw + 4, ry - 1, '#ffd84a');
     if (g.chain >= 2) {
       const c = g.chain >= 8 ? '#ff7ae0' : g.chain >= 4 ? '#ffd84a' : '#ffffff';
       S.drawText(x, 'KETTE', W - 30, 30, '#c4abd8', 1, 'center');
@@ -407,6 +475,9 @@ function partCol(c, th, g, q) {
     case 'soul': return alt ? '#b07aff' : '#ffffff';
     case 'star': return alt ? '#d8c8ff' : '#ffffff';
     case 'ore': return alt ? '#b04cff' : '#f0c0ff';
+    case 'gold': return alt ? '#ffd84a' : '#fff6b0';
+    case 'crumble': return alt ? '#c86a8a' : '#ffb0c8';
+    case 'zzz': return '#ffffff';
     default: return '#fff';
   }
 }
