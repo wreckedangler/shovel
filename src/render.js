@@ -3,6 +3,7 @@ import { COSMETICS } from './loot.js';
 const COSMETIC_COL = Object.fromEntries(COSMETICS.filter(c => c.col).map(c => [c.id, c.col]));
 const COSMETIC_FILTER = Object.fromEntries(COSMETICS.filter(c => c.filter).map(c => [c.id, c.filter]));
 import { T } from './game.js';
+import { Atmo } from './atmo.js';
 import { THEMES } from './themes.js';
 import { TIERS } from './gear.js';
 import { weaponById, RARITY } from './weapons.js';
@@ -44,6 +45,10 @@ export class Renderer {
       for (let k = ox - img.width; k < W; k += img.width) x.drawImage(img, k, Math.round(-cy * f * 0.3));
     }
 
+    const A = this.atmo || (this.atmo = new Atmo());
+    if (A.level !== g.level) A.reset(g.level, W, H); A.W = W; A.H = H;
+    A.weather(x, g, cx, cy, this.t, false);
+    A.rays(x, cx, this.t, g.level.theme);
     x.save(); x.translate(-cx, -cy);
     this.tiles(g, th, cx, cy);
     this.steam(g);
@@ -66,8 +71,9 @@ export class Renderer {
     x.globalAlpha = 1;
     x.restore();
 
-    const darkA = { hoehle: 0.55, bau: 0.35, grotte: 0.78, moder: 0.35 }[g.level.theme];
-    if (darkA) this.dark(g, cx, cy, darkA);
+    A.light(x, g, cx, cy, this.t);
+    A.fore(x, g.level.theme, cx, cy, H);
+    A.weather(x, g, cx, cy, this.t, true);
     this.hud(g, ghosts);
   }
 
@@ -482,6 +488,7 @@ export class Renderer {
     const tx = W < 220 ? Math.max(W / 2, 6 + per * 8 + 26) : W / 2;
     S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
+    if (g.level.gen) { S.drawText(x, 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
     for (const gh of ghosts) {
       const d = g.frame - gh.frames;
       S.drawText(x, `${gh.name} ${fmtTime(gh.frames)}`, tx, gy, '#8fe8ff', 1, 'center'); gy += 7;

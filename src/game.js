@@ -310,6 +310,7 @@ export class Game {
     }
     p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
     if (p.onGround) p.airLeft = this.airJumps;
+    if (p.onGround && Math.abs(p.vx) > 1 && this.frame % 13 === 0) this.ev('step', p.x, p.y, p.groundC);
     if (p.onGround && !p.plat && p.groundC !== 'c' && this.frame % 10 === 0) this.lastSafe = { x: p.x, y: p.y };
     if (this.relic.schild && this.shieldT > 0) this.shieldT--;
     p.jbuf = i.jumpP ? 7 : Math.max(0, p.jbuf - 1);

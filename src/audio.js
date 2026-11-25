@@ -1,5 +1,5 @@
 // Chiptune-Soundeffekte und Musik, komplett synthetisiert (WebAudio, keine Dateien).
-let ac = null, master = null, musicGain = null, sfxGain = null;
+let ac = null, master = null, musicGain = null, sfxGain = null, musicFilter = null, ambGain = null, revIn = null, revWet = null;
 const st = { sfx: true, music: true };
 
 export function unlockAudio() {
@@ -7,8 +7,17 @@ export function unlockAudio() {
     try {
       ac = new (window.AudioContext || window.webkitAudioContext)();
       master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
-      musicGain = ac.createGain(); musicGain.gain.value = st.music ? 0.32 : 0; musicGain.connect(master);
+      musicFilter = ac.createBiquadFilter(); musicFilter.type = 'lowpass'; musicFilter.frequency.value = 18000; musicFilter.connect(master);
+      musicGain = ac.createGain(); musicGain.gain.value = st.music ? 0.32 : 0; musicGain.connect(musicFilter);
       sfxGain = ac.createGain(); sfxGain.gain.value = st.sfx ? 0.8 : 0; sfxGain.connect(master);
+      ambGain = ac.createGain(); ambGain.gain.value = st.sfx ? 0.5 : 0; ambGain.connect(master);
+      // Hall: erzeugte Impulsantwort, Effekte und Umgebung senden anteilig hinein
+      const len = ac.sampleRate * 2.4, ir = ac.createBuffer(2, len, ac.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3; }
+      const conv = ac.createConvolver(); conv.buffer = ir;
+      revIn = ac.createGain(); revWet = ac.createGain(); revWet.gain.value = 0;
+      revIn.connect(conv).connect(revWet).connect(master);
+      sfxGain.connect(revIn); ambGain.connect(revIn);
     } catch { ac = null; }
   }
   if (ac && ac.state === 'suspended') ac.resume().catch(() => {});
@@ -16,6 +25,7 @@ export function unlockAudio() {
 export function setAudio(sfx, music) {
   st.sfx = sfx; st.music = music;
   if (sfxGain) sfxGain.gain.value = sfx ? 0.8 : 0;
+  if (ambGain) ambGain.gain.value = sfx ? 0.5 : 0;
   if (musicGain) musicGain.gain.value = music ? 0.32 : 0;
 }
 
@@ -51,6 +61,7 @@ const SFX = {
   chainEnd: (n = 3) => [0, 4, 7, 12].slice(0, Math.min(4, n - 1)).forEach((s, i) => osc('square', 523 * 2 ** (s / 12), 523 * 2 ** (s / 12), 0.1, 0.07, i * 0.05)),
   dash: () => { noise(0.18, 0.25, 4000); osc('sine', 900, 300, 0.2, 0.12); },
   wave: () => { noise(0.25, 0.3, 500); osc('triangle', 140, 60, 0.2, 0.2); },
+  whoosh: () => { noise(2.6, 0.22, 500); osc('sine', 300, 60, 2.4, 0.08); },
   shield: () => { osc('triangle', 880, 1320, 0.12, 0.12); osc('sine', 1760, 1760, 0.2, 0.06, 0.04); },
   // Truhen: Klopfen, aufsteigende Stufen, Aufbruch je Seltenheit
   knock: v => osc('square', 90 + (v || 0) * 10, 60, 0.08, 0.14),
@@ -97,6 +108,85 @@ const SFX = {
 };
 export function sfx(name, v) { if (ac && SFX[name]) SFX[name](v); }
 
+/* ---------- Raum, Umgebung, Schritte, Spannung ---------- */
+// Hall je nach Ort: Höhlen hallen stark, Hallen mittel, draussen kaum
+export function setSpace(kind) {
+  if (!ac) return;
+  const wet = { cave: 0.55, hall: 0.3, open: 0.06 }[kind] ?? 0.06;
+  revWet.gain.setTargetAtTime(wet, ac.currentTime, 0.4);
+}
+// Gedämpfte Musik (Pause, Geheimkammer, wenig Leben)
+export function setMuffle(f) { if (ac) musicFilter.frequency.setTargetAtTime(f ? 700 : 18000, ac.currentTime, 0.25); }
+let intensity = 0;
+export function setIntensity(v) { intensity = Math.max(0, Math.min(1, v)); }
+
+let amb = null;
+function ambOsc(type, f0, f1, dur, vol, when = 0) { osc(type, f0, f1, dur, vol, when, ambGain); }
+function ambNoise(dur, vol, freq, type = 'bandpass', when = 0, q = 1) {
+  if (!ac) return; noise(0.0001, 0.0001);
+  const t = ac.currentTime + when, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = noiseBuf; s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(ambGain); s.start(t); s.stop(t + dur + 0.05);
+}
+// Dauerklang (Wind, Brummen) plus zufällige Ereignisse (Tropfen, Vögel, Ticken, Blubbern)
+const AMB = {
+  wald: { bed: [500, 0.05, 'lowpass'], ev: [[0.05, () => { const f = 2600 + Math.random() * 1600; ambOsc('sine', f, f * 1.25, 0.08, 0.035); ambOsc('sine', f * 1.2, f, 0.07, 0.03, 0.1); }], [0.03, () => ambNoise(1.2, 0.05, 900, 'bandpass')]] },
+  hoehle: { bed: [90, 0.06, 'lowpass'], drone: 55, ev: [[0.07, () => { const f = 1400 + Math.random() * 1400; ambOsc('sine', f, f * 0.6, 0.12, 0.06); }]] },
+  grotte: { bed: [120, 0.05, 'lowpass'], drone: 65, ev: [[0.09, () => { const f = 1800 + Math.random() * 1200; ambOsc('sine', f, f * 0.55, 0.14, 0.06); }], [0.02, () => ambOsc('triangle', 880, 880, 1.2, 0.012)]] },
+  bau: { bed: [200, 0.05, 'lowpass'], drone: 48, ev: [[0.04, () => ambNoise(0.4, 0.04, 300, 'lowpass')], [0.03, () => { const f = 1500 + Math.random() * 900; ambOsc('sine', f, f * 0.6, 0.1, 0.04); }]] },
+  dornen: { bed: [700, 0.09, 'bandpass', 0.6], ev: [[0.05, () => ambNoise(2.4, 0.08, 500 + Math.random() * 500, 'bandpass', 0, 1.5)]] },
+  uhrturm: { bed: [300, 0.025, 'lowpass'], tick: 0.5, ev: [[0.02, () => ambNoise(0.9, 0.06, 5000, 'highpass')]] },
+  glocke: { bed: [400, 0.03, 'lowpass'], tick: 1, ev: [[0.008, () => [220, 277, 330].forEach((f, i) => ambOsc('sine', f, f, 3, 0.02, i * 0.02))]] },
+  pendel: { bed: [300, 0.03, 'lowpass'], tick: 0.75, ev: [] },
+  pilz: { bed: [400, 0.03, 'lowpass'], ev: [[0.05, () => { ambOsc('sine', 300 + Math.random() * 200, 900, 0.12, 0.03); }], [0.03, () => ambOsc('triangle', 1200 + Math.random() * 600, 1200, 0.5, 0.01)]] },
+  moder: { bed: [160, 0.06, 'lowpass'], drone: 41, ev: [[0.1, () => { const f = 150 + Math.random() * 200; ambOsc('sine', f, f * 3, 0.09, 0.05); }]] },
+};
+export function setAmbience(theme) {
+  if (!ac) return;
+  if (amb && amb.theme === theme) return;
+  stopAmbience(); const A = AMB[theme]; if (!A) return;
+  amb = { theme, nodes: [], timer: 0 };
+  noise(0.0001, 0.0001);
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = noiseBuf; s.loop = true; f.type = A.bed[2]; f.frequency.value = A.bed[0]; if (A.bed[3]) f.Q.value = A.bed[3];
+  g.gain.value = 0; g.gain.setTargetAtTime(A.bed[1], ac.currentTime, 1);
+  s.connect(f).connect(g).connect(ambGain); s.start(); amb.nodes.push(s, g); amb.bedGain = g; amb.bedF = f;
+  if (A.drone) { const o = ac.createOscillator(), og = ac.createGain(); o.type = 'triangle'; o.frequency.value = A.drone; og.gain.value = 0; og.gain.setTargetAtTime(0.03, ac.currentTime, 2); o.connect(og).connect(ambGain); o.start(); amb.nodes.push(o, og); }
+  let tk = 0;
+  amb.timer = setInterval(() => {
+    if (!ac) return;
+    for (const [p, fn] of A.ev) if (Math.random() < p) fn();
+    if (A.tick && (tk += 0.1) >= A.tick) { tk = 0; noise(0.02, 0.05, 3500); osc('square', 2400, 2400, 0.01, 0.015, 0, ambGain); }
+    // Wind schwillt an und ab
+    if (amb.bedGain) amb.bedGain.gain.setTargetAtTime(A.bed[1] * (0.6 + Math.random() * 0.8), ac.currentTime, 0.8);
+  }, 100);
+}
+export function stopAmbience() {
+  if (!amb) return; clearInterval(amb.timer);
+  for (const n of amb.nodes) { try { if (n.gain) n.gain.setTargetAtTime(0, ac.currentTime, 0.3); else n.stop(ac.currentTime + 1); } catch {} }
+  amb = null;
+}
+// Schritte nach Untergrund
+export function stepSound(surface) {
+  if (!ac) return;
+  const v = 0.85 + Math.random() * 0.3;
+  switch (surface) {
+    case 'gras': noise(0.05, 0.05 * v, 2200); break;
+    case 'erde': noise(0.05, 0.07 * v, 700); osc('sine', 90, 60, 0.04, 0.05 * v); break;
+    case 'stein': noise(0.03, 0.06 * v, 3000); osc('square', 180 * v, 120, 0.02, 0.025); break;
+    case 'holz': osc('triangle', 220 * v, 160, 0.05, 0.09); noise(0.02, 0.03, 1500); break;
+    case 'metall': osc('square', 900 * v, 700, 0.03, 0.03); osc('triangle', 1800 * v, 1700, 0.06, 0.02); break;
+    case 'pilz': osc('sine', 260 * v, 420, 0.06, 0.06); break;
+  }
+}
+let heartT = 0;
+export function heartbeat(on) {
+  if (!ac || !on) return;
+  const t = ac.currentTime; if (t < heartT) return; heartT = t + 0.85;
+  osc('sine', 70, 40, 0.12, 0.25); osc('sine', 65, 38, 0.1, 0.18, 0.18);
+}
+
 /* ---------- Musik ---------- */
 const NOTE = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 const freq = n => { const m = n.match(/^([A-G]#?)(\d)$/); if (!m) return 0; return 440 * 2 ** ((NOTE[m[1]] + (+m[2] + 1) * 12 - 69) / 12); };
@@ -117,6 +207,13 @@ export function playMusic(m) {
       if (l !== '.' && l !== '-') { const d = dt * len(lead, i); osc('square', freq(l), freq(l), d * 0.9, 0.09, nextT - ac.currentTime, musicGain); osc('square', freq(l) * 1.005, freq(l) * 1.005, d * 0.6, 0.03, nextT - ac.currentTime + 0.01, musicGain); }
       if (b !== '.' && b !== '-') { const d = dt * len(bass, j); osc('triangle', freq(b), freq(b), d * 0.95, 0.22, nextT - ac.currentTime, musicGain); }
       if (step % 4 === 0) noiseHat(nextT - ac.currentTime, step % 8 === 0 ? 0.06 : 0.03);
+      // Spannungsschicht: Kick und Snare, sobald Gegner nahe sind
+      if (intensity > 0.05) {
+        const w = nextT - ac.currentTime;
+        if (step % 4 === 0) osc('sine', 130, 42, 0.14, 0.32 * intensity, w, musicGain);
+        if (step % 8 === 4) { noiseHat(w, 0.0001); const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(), t = ac.currentTime + w; s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = 1800; g.gain.setValueAtTime(0.16 * intensity, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12); s.connect(f).connect(g).connect(musicGain); s.start(t); s.stop(t + 0.14); }
+        if (step % 2 === 1 && intensity > 0.6) noiseHat(w, 0.025 * intensity);
+      }
       nextT += dt; step++;
     }
   }, 60);

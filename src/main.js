@@ -5,7 +5,7 @@ import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, ARMOR, PRICE, AVAILABLE } from './gear.js';
 import { Renderer } from './render.js';
 import { initInput, pollInput, clearInput, setStickMode } from './input.js';
-import { unlockAudio, sfx, playMusic, stopMusic, setAudio } from './audio.js';
+import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
 import { encodeGhost, decodeGhost, fmtTime } from './ghost.js';
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts } from './online.js';
@@ -14,6 +14,7 @@ import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
 import { relicMods, SHARD_PRICE, CHESTS } from './loot.js';
 import { generateLevel, BIOMES, STYLE_NAME } from './gen.js';
+import { darkness } from './atmo.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
 import { WEAPONS, RARITY, weaponById } from './weapons.js';
 import { SECRET_WORLD } from './levels.js';
@@ -78,13 +79,26 @@ function loop(now) {
   draw();
   requestAnimationFrame(loop);
 }
+const SURF = { wald: 'gras', dornen: 'gras', hoehle: 'stein', grotte: 'stein', bau: 'erde', uhrturm: 'metall', glocke: 'stein', pendel: 'metall', pilz: 'pilz', moder: 'erde' };
+const surfaceOf = c => c === '=' || c === 'm' || c === undefined ? 'holz' : c === 'D' ? 'erde' : c === 'S' || c === 'R' ? 'stein' : c === 'B' || c === 'c' ? 'pilz' : SURF[level.theme] || 'erde';
+let tension = 0;
 function tick() {
+  if (mode === 'descent') { menuT++; return descentTick(); }
   if (mode !== 'play' && mode !== 'won') { menuT++; return; }
   let inp = mode === 'play' ? pollInput() : { };
   if (D.cheatsOn.spiegel && mode === 'play') inp = { ...inp, left: inp.right, right: inp.left };
   if (game.sign) for (const c of CHEATS) if (!D.cheatsKnown[c.id] && game.sign.includes(c.code)) learnCheat(c);
   game.step(inp);
+  // Spannung: nahe Gegner oder Boss lassen die Musik anschwellen
+  if (mode === 'play') {
+    const p = game.p; let near = 0;
+    if (game.boss && !game.boss.dead && game.boss.state !== 'idle') near = 1;
+    else for (const e of game.ents) if (e.foe && !e.dead && !e.hidden) { const d = Math.hypot(e.x - p.x, e.y - p.y); if (d < 140) near = Math.max(near, 1 - d / 140 + 0.3); }
+    tension += (Math.min(1, near) - tension) * 0.02; if (game.frame % 15 === 0) setIntensity(tension);
+    heartbeat(p.hp > 0 && p.hp <= 1 && p.maxhp > 2);
+  }
   for (const e of game.events) {
+    if (e.name === 'step') { stepSound(surfaceOf(e.v)); continue; }
     sfx(e.name, e.v);
     haptic(e.name);
     if (e.name === 'unlock') unlockWeapon(e.v, true);
@@ -113,7 +127,7 @@ function draw() {
   const playing = game && mode !== 'menu';
   canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
   canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && D.cheatsOn.spiegel ? ' scaleX(-1)' : '');
-  if (game && mode !== 'menu') R.draw(game, ghosts); else drawMenuBg();
+  if (mode === 'descent') drawDescent(); else if (game && mode !== 'menu') R.draw(game, ghosts); else drawMenuBg();
   if (D.retro) retroFilter();
 }
 function drawMenuBg() {
@@ -161,18 +175,20 @@ async function startLevel(id, ghostCodes = []) {
   hideUI(); mode = 'play';
   touchEl.hidden = !isTouch; pauseBtn.hidden = false;
   playMusic(THEMES[level.theme].music);
+  setAmbience(level.theme); setMuffle(false); tension = 0; setIntensity(0);
+  setSpace(darkness(level) >= 0.6 ? 'cave' : ['uhrturm', 'glocke', 'pendel', 'bau'].includes(level.theme) ? 'hall' : 'open');
   goFullscreen();
   const wn = ALLW().find(w => w.levels.includes(id));
   const sub = level.gen ? `Tiefe ${level.depth} · ${BIOMES.find(b => b.id === level.theme).name} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
   setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
-function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); show(`
+function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true); show(`
   <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
   <button class="big" data-a="resume">Weiter</button>
   <button data-a="restart">Neu starten</button>
   <button data-a="map">Zur Karte</button>
   ${toggles()}</div>`); }
-function resume() { hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isTouch; pauseBtn.hidden = false; }
+function resume() { setMuffle(false); hideUI(); clearInput(); mode = 'play'; touchEl.hidden = !isTouch; pauseBtn.hidden = false; }
 
 async function finish() {
   if (level.gen) return finishEndless();
@@ -472,6 +488,50 @@ function cheatbook(msg = '') {
   </div>`);
   const inp = $('#cheatcode'); inp.addEventListener('keydown', e => { if (e.key === 'Enter') ui.querySelector('[data-a=cheatenter]').click(); });
 }
+/* ---------- Abstieg: nahtloser Übergang zur nächsten Tiefe ---------- */
+let desc = null;
+function startDescent(info) {
+  const next = levelById(genId(D.endless.seed, D.endless.depth));
+  desc = { ...info, t: 0, from: level, next, parts: [] };
+  mode = 'descent'; touchEl.hidden = true; pauseBtn.hidden = true; stopMusic(); stopAmbience(); setIntensity(0);
+  sfx('whoosh'); haptic('win');
+  if (info.keyHtml) setTimeout(() => toast('Schlüssel erhalten', info.keyHtml.replace(/<[^>]+>/g, ' ').trim(), 'ach'), 600);
+}
+function descentTick() {
+  const d = desc; if (!d) return;
+  d.t++;
+  if (d.t % 18 === 0) sfx('tick');
+  if (d.t === 95) sfx('rarStep', 2);
+  if (d.t >= 170) { desc = null; sfx('thud'); haptic('thud'); startLevel(d.next.id); }
+}
+addEventListener('pointerdown', () => { if (mode === 'descent' && desc && desc.t > 30) desc.t = Math.max(desc.t, 165); });
+function drawDescent() {
+  const d = desc; if (!d) return;
+  const t = d.t, mid = t > 95, th = THEMES[(mid ? d.next : d.from).theme], ts = S.tileset(th), bg = S.backdrop(th, VH);
+  ctx.drawImage(bg.sky, 0, 0, VW, VH); ctx.fillStyle = 'rgba(5,4,3,0.55)'; ctx.fillRect(0, 0, VW, VH);
+  // Schachtwände rasen nach oben
+  const sp = Math.min(9, 2 + t * 0.12) * (t > 150 ? (170 - t) / 20 : 1), off = (t * sp) % 16, wall = 3;
+  for (let y = -16; y < VH + 16; y += 16) for (let k = 0; k < wall; k++) {
+    ctx.drawImage(ts.fill[(k + Math.floor((y - off) / 16)) & 1 ? 1 : 0], k * 16, Math.round(y - off));
+    ctx.drawImage(ts.fill[((k * 3 + Math.floor((y - off) / 16)) % 3 + 3) % 3], VW - (k + 1) * 16, Math.round(y - off));
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(wall * 16, 0, 3, VH); ctx.fillRect(VW - wall * 16 - 3, 0, 3, VH);
+  // Fahrtwind
+  if (d.parts.length < 40) d.parts.push({ x: wall * 16 + Math.random() * (VW - wall * 32), y: VH + 4, v: 4 + Math.random() * 6 });
+  for (const q of d.parts) { q.y -= q.v * Math.min(1, t / 30); ctx.fillStyle = 'rgba(232,220,192,0.35)'; ctx.fillRect(Math.round(q.x), Math.round(q.y), 1, 6); if (q.y < -10) q.y = VH + 4; }
+  const hs = S.hero(D.armor, D.shovel, D.weapon); R.x = ctx; R.t = menuT;
+  const hy = VH * 0.42 + Math.sin(t / 8) * 3 + (t > 150 ? (t - 150) * 3 : 0);
+  R.figure(hs, VW / 2 - 5, Math.round(hy), 1, 2, t, 8, null, 0, 16, 0, 6);
+  // Tiefenzähler
+  const shown = mid ? d.dep + 1 : d.dep;
+  S.drawText(ctx, 'TIEFE', VW / 2, 16, '#a2937a', 1, 'center');
+  S.drawText(ctx, String(shown), VW / 2, 26, mid ? '#c58bff' : '#d4b46a', 3, 'center');
+  if (t > 20) S.drawText(ctx, `+${d.earned} EDELSTEINE · MÜNZEN ${d.coins}/${d.coinTotal}`, VW / 2, VH - 22, '#e8dcc0', 1, 'center');
+  if (d.rec && t > 40) S.drawText(ctx, 'NEUER TIEFENREKORD', VW / 2, VH - 13, (t >> 3) & 1 ? '#ffd84a' : '#fff2a0', 1, 'center');
+  if (mid && t < 130) { ctx.globalAlpha = (130 - t) / 35; ctx.fillStyle = '#c58bff'; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
+  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.2, VW / 2, VH / 2, VW * 0.7); vg.addColorStop(0, 'rgba(5,4,3,0)'); vg.addColorStop(1, 'rgba(5,4,3,0.85)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+  if (t > 150) { ctx.fillStyle = `rgba(5,4,3,${(t - 150) / 20})`; ctx.fillRect(0, 0, VW, VH); }
+}
 /* ---------- Endlose Tiefen ---------- */
 const endlessOpen = () => !!D.cleared['1-1'];
 const eSeed = () => { if (!D.endless.seed) { D.endless.seed = 1 + Math.floor(Math.random() * 999999); save.write(); } return D.endless.seed; };
@@ -491,7 +551,7 @@ function miniMap(L) {
   return c;
 }
 function endless(msg = '') {
-  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'endless';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'endless';
   playMusic(THEMES.karte.music);
   const seed = eSeed(), E = D.endless, cards = [];
   for (let k = 0; k < 4; k++) {
@@ -530,6 +590,7 @@ async function finishEndless() {
     if (rec && dep % 25 === 0) award('urlicht', `Tiefe ${dep}`); else if (rec && dep % 10 === 0) award('gold', `Tiefe ${dep}`); else if (dep % 5 === 0) award(dep % 10 === 0 ? 'eisen' : 'holz', `Tiefe ${dep}`);
   }
   save.write(); checkAch();
+  if (main) return startDescent({ dep, earned, coins, coinTotal: info.coins, keyHtml, rec: dep === E.best });
   stopMusic(); sfx('win'); mode = 'result';
   const coinRow = Array.from({ length: info.coins }, (_, k) => `<i class="${game.coins.includes(k) ? 'on new' : ''}"></i>`).join('');
   show(`<div class="panel small result">
@@ -557,7 +618,7 @@ function splash() {
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
 function title() {
-  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
   show(`<div class="title">
     <div data-a="logo">${logoImg()}</div>
@@ -587,7 +648,7 @@ function installTip() {
   return `<p class="tip">${ios ? 'Tipp: Teilen → „Zum Home-Bildschirm“ für Vollbild ohne Browserleisten.' : 'Tipp: Menü ⋮ → „App installieren“ für Vollbild und Offline-Spielen.'}</p>`;
 }
 function map(sel, wi) {
-  mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'map';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'map';
   playMusic(THEMES.karte.music);
   if (wi != null) curWorld = wi;
   else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
@@ -720,7 +781,7 @@ function options(msg = '') {
     ${toggles()}
     <label class="field">Geist-Code importieren<textarea id="code" rows="3" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
-    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.11</p>
+    <p class="note">${online() ? 'Online-Geister: aktiv.' : 'Online-Geister: aus (siehe README).'} Version 0.12</p>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -824,6 +885,7 @@ if (location.search.includes('debug')) window.__sh = { get game() { return game;
 
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
+if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id) };
 splash();
 refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); else if (document.querySelector('.splash')) splash(); });
 requestAnimationFrame(loop);

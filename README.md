@@ -230,3 +230,11 @@ Ab 1-1 gibt es im Kartenmenü den Tab **∞ Tiefen**. Jede Tiefe wird aus dem *W
 - **Neue Gegner:** Springkröte (`f`, springt dich an), Irrlicht (`w`, schwebt durch Wände, ideal für Pogo-Ketten), Stachelschnecke (`q`, Pogo auf den Panzer tut weh, von der Seite treffen).
 - **Belohnungen:** Edelsteine pro Tiefe, alle 5 Tiefen ein Schlüssel (10: Eisen/Gold, 25: Urlicht).
 - **Garantie:** Jedes Level wird beim Erzeugen auf Erreichbarkeit von Ziel und allen 3 Münzen geprüft (`reachable()`), sonst wird neu gewürfelt. `node tools/gentest.mjs 1000` prüft 1000 Levels, `GEN=seed:tiefe node tools/solve.mjs gen` spielt eines mit echter Physik durch.
+
+## Atmosphäre (v0.12, `src/atmo.js`, `src/audio.js`)
+
+- **Licht:** Höhlen, Grotten, Bau, Sumpf und generierte Höhlen sind dunkel. Licht spenden der Held (flackernd), Laternen, Münzen, Truhen, Irrlichter, Sprungpilze, Erz, goldene Gegner, Funken und das Ziel. Darüber liegt farbiges Licht.
+- **Vordergrund:** dunkle Silhouetten pro Thema (Ranken, Stalaktiten, Ketten, Zahnräder, Riesenpilze) ziehen schneller vorbei als die Welt.
+- **Wetter:** pro Level fest gewürfelt (Regen mit Blitzen, Laub, Blüten, Glühwürmchen, Tropfen, Staub, Wind, Glut, Funken, Schnee, Sporen, Leuchtteilchen, Nebel) plus Lichtstrahlen in hellen Gebieten.
+- **Ton:** Hall je nach Ort, Umgebungsklang pro Biom (Wind, Vögel, Tropfen, Brummen, Ticken, Glocken, Blubbern), Schritte je nach Untergrund, Spannungsschicht in der Musik bei nahen Gegnern und Bossen, gedämpfte Musik in der Pause, Herzschlag bei einem Herz.
+- **Abstieg:** In den endlosen Tiefen fällt der Held nach dem Ziel durch einen Schacht direkt in die nächste Tiefe (Antippen überspringt). Tiefenanzeige im Spiel.
