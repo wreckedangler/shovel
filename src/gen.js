@@ -3,7 +3,7 @@
 // Alle Bausteine halten die Sprungregeln ein: Lücke ≤ 3 Kacheln, Stufe ≤ 2 Kacheln, Pilz = 4 Kacheln.
 
 // Erhöhen, sobald sich erzeugte Levels ändern: Blutflecken älterer Versionen werden dann ausgeblendet.
-export const GEN_VERSION = 1;
+export const GEN_VERSION = 2;
 
 export function rng(seed) {
   let s = (seed >>> 0) || 1;
@@ -44,14 +44,18 @@ const diffOf = depth => Math.min(1, depth / 40);
 
 /* ---------- Waagrechte Bauarten ---------- */
 function horizontal(r, bio, style, depth, chased = false) {
-  const d = diffOf(depth), H = 14, W = ri(r, 90, 110) + Math.round(d * 50);
-  const g = new Grid(W + 60, H);
   const cave = style === 'hoehle', abyss = style === 'abgrund';
-  let x = 0, gy = 10, last = '', coins = 0, sinceCheck = 0; const TOP = cave ? 7 : 4;
+  // Zweistöckig (nur Pfad/Abgrund, nie bei Verfolgung): unterer Weg wie gewohnt, 6 Kacheln tiefer,
+  // darüber ein schwieriger oberer Weg mit mehr Beute
+  const two = !chased && (style === 'lauf' || abyss) && r() < 0.4, O = two ? 6 : 0;
+  const d = diffOf(depth), H = 14 + O, W = ri(r, 90, 110) + Math.round(d * 50);
+  const g = new Grid(W + 60, H);
+  let x = 0, gy = 10 + O, last = '', coins = 0, sinceCheck = 0; const TOP = (cave ? 7 : 4) + O + (two ? 2 : 0);
+  const checks = [];
   const foeP = 0.22 + d * 0.35;
   const groundFoe = () => pickW(r, bio.foes), airFoe = () => pickW(r, bio.air);
   const putGround = (a, b, y = gy) => { for (let k = a; k < b; k++) g.ground(k, y); };
-  const gems = (a, b, y) => { for (let k = a; k < b; k++) if (g.get(k, y) === '.') g.set(k, y, 'G'); };
+  const gems = (a, b, y) => { if (two && r() < 0.4) return; for (let k = a; k < b; k++) if (g.get(k, y) === '.') g.set(k, y, 'G'); };
   const arc = (x0, w, y0, hgt) => { for (let k = 0; k < w; k++) { const yy = y0 - Math.round(Math.sin((k + 0.5) / w * Math.PI) * hgt); if (g.get(x0 + k, yy) === '.') g.set(x0 + k, yy, 'G'); } };
   const maybeFoe = (a, b) => { if (b - a >= 3 && r() < foeP) g.set(ri(r, a + 1, b - 2), gy - 1, groundFoe()); if (r() < foeP * 0.5 && Object.keys(bio.air).length) g.set(ri(r, a, b - 1), gy - ri(r, 3, 4), airFoe()); };
   const coin = (cx, cy) => { if (coins < 3 && g.get(cx, cy) === '.') { g.set(cx, cy, 'O'); coins++; return true; } return false; };
@@ -63,10 +67,10 @@ function horizontal(r, bio, style, depth, chased = false) {
     gap() {
       const w = ri(r, 2, d > 0.4 ? 3 : 2); arc(x - 1, w + 2, gy - 2, 2);
       if (Object.keys(bio.air).includes('w') && r() < 0.25 + d * 0.3) g.set(x + Math.floor(w / 2), gy - 3, 'w');
-      x += w; let ny = Math.max(TOP, Math.min(11, gy + ri(r, w > 2 ? 0 : -1, 1))); ny = Math.max(ny, gy - (w > 2 ? 0 : 1)); gy = ny; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw;
+      x += w; let ny = Math.max(TOP, Math.min(11 + O, gy + ri(r, w > 2 ? 0 : -1, 1))); ny = Math.max(ny, gy - (w > 2 ? 0 : 1)); gy = ny; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw;
     },
     step() {
-      const up = (r() < 0.55 || gy >= 11) && gy > TOP, room = up ? Math.min(2, gy - TOP) : Math.min(3, 11 - gy);
+      const up = (r() < 0.55 || gy >= 11 + O) && gy > TOP, room = up ? Math.min(2, gy - TOP) : Math.min(3, 11 + O - gy);
       if (room < 1) return CH.flat(); const k = ri(r, 1, room);
       gy += up ? -k : k; const w = ri(r, 4, 7); putGround(x, x + w); maybeFoe(x, x + w); if (up) gems(x, x + 2, gy - 2); x += w;
     },
@@ -74,15 +78,15 @@ function horizontal(r, bio, style, depth, chased = false) {
       const pre = 2, w = ri(r, 2, d > 0.5 ? 3 : 2); putGround(x, x + pre + w + 3);
       for (let k = 0; k < w; k++) g.set(x + pre + k, gy, '^');
       arc(x + pre - 1, w + 2, gy - 2, 2);
-      if (r() < 0.4 && gy > 8) { for (let k = 0; k < 3; k++) g.set(x + pre + k - 1 + Math.floor(w / 2), gy - 3, '='); }
+      if (r() < 0.4 && gy > 8 + O) { for (let k = 0; k < 3; k++) g.set(x + pre + k - 1 + Math.floor(w / 2), gy - 3, '='); }
       x += pre + w + 3;
     },
     bridge() {
       const w = ri(r, 6, 9 + Math.round(d * 3)); let px = x;
       // Plattformen über einer Grube, Abstände ≤ 2, Höhenunterschied ≤ 2
       let py = gy;
-      while (px < x + w - 2) { const pw = ri(r, 2, 3); const ny = Math.max(5, Math.min(gy + 1, py + ri(r, -2, 2))); py = ny; for (let k = 0; k < pw; k++) g.set(px + k, py, '='); if (r() < 0.5) g.set(px + 1, py - 2, 'G'); if (r() < 0.2 && bio.air.w) g.set(px + pw, py - 2, 'w'); px += pw + ri(r, 1, 2); }
-      x = px; const lw = ri(r, 3, 5); gy = Math.max(Math.max(TOP, py - 2), Math.min(11, py + 1)); putGround(x, x + lw); x += lw;
+      while (px < x + w - 2) { const pw = ri(r, 2, 3); const ny = Math.max(5 + O + (two ? 2 : 0), Math.min(gy + 1, py + ri(r, -2, 2))); py = ny; for (let k = 0; k < pw; k++) g.set(px + k, py, '='); if (r() < 0.5) g.set(px + 1, py - 2, 'G'); if (r() < 0.2 && bio.air.w) g.set(px + pw, py - 2, 'w'); px += pw + ri(r, 1, 2); }
+      x = px; const lw = ri(r, 3, 5); gy = Math.max(Math.max(TOP, py - 2), Math.min(11 + O, py + 1)); putGround(x, x + lw); x += lw;
     },
     dirt() {
       const w = ri(r, 6, 9); putGround(x, x + w);
@@ -92,7 +96,7 @@ function horizontal(r, bio, style, depth, chased = false) {
       x += w;
     },
     shroom() {
-      if (gy < 9 || cave) return CH.step();
+      if (gy < 9 + O || cave) return CH.step();
       putGround(x, x + 3); g.set(x + 1, gy, 'B'); const ny = gy - 3; x += 3; const lw = ri(r, 4, 6);
       for (let k = x; k < x + lw; k++) g.ground(k, ny); gy = ny; gems(x, x + lw, gy - 2);
       if (r() < 0.6) coin(x + lw - 1, gy - 1); else maybeFoe(x, x + lw); x += lw;
@@ -105,21 +109,21 @@ function horizontal(r, bio, style, depth, chased = false) {
       x += w; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw;
     },
     vent() {
-      if (gy < 10 || cave) return CH.step();
+      if (gy < 10 + O || cave) return CH.step();
       putGround(x, x + 3); g.set(x + 1, gy, 'V'); x += 3; const ny = gy - 5, lw = ri(r, 4, 6);
       for (let k = x; k < x + lw; k++) g.ground(k, ny); gy = ny; gems(x - 2, x, gy - 3); x += lw;
     },
     cog() { const w = 7; putGround(x, x + w); g.set(x + 3, gy - 3, 'z'); gems(x + 1, x + 2, gy - 1); x += w; },
     pocket() {
       // Falsche Wand im Boden, darunter eine abgedeckte Kammer mit Münze oder Truhe
-      if (gy > 9) return CH.flat();
+      if (gy > 9 + O) return CH.flat();
       const w = 7; putGround(x, x + w); g.set(x + 2, gy, 'F'); g.set(x + 3, gy, 'F');
       for (let k = 1; k < 6; k++) g.set(x + k, gy + 1, '.');
       if (!coin(x + 5, gy + 1)) g.set(x + 5, gy + 1, 'T'); g.set(x + 1, gy + 1, 'G');
       x += w;
     },
     // Fallen (ab Tiefe 6)
-    icicles() { const w = 8; putGround(x, x + w); if (gy >= 6) { for (let k = 1; k < w - 1; k++) g.set(x + k, gy - 5, '#'); g.set(x + 2, gy - 4, 'L'); g.set(x + 5, gy - 4, 'L'); } x += w; },
+    icicles() { const w = 8; putGround(x, x + w); if (gy >= 6 + O) { for (let k = 1; k < w - 1; k++) g.set(x + k, gy - 5, '#'); g.set(x + 2, gy - 4, 'L'); g.set(x + 5, gy - 4, 'L'); } x += w; },
     saws() { const w = 9; putGround(x, x + w); g.set(x + 4, gy - 1, 'Z'); gems(x + 3, x + 6, gy - 3); x += w; },
     arrows() { const w = 10; putGround(x, x + w); g.set(x + w - 1, gy - 1, 'A'); if (r() < 0.5) gems(x + 2, x + 6, gy - 2); x += w; },
     flips() { const w = ri(r, 3, 5); for (let k = 0; k < w; k++) g.set(x + k, gy, 'K'); arc(x, w, gy - 2, 1); x += w; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw; },
@@ -137,13 +141,16 @@ function horizontal(r, bio, style, depth, chased = false) {
     if (depth >= 25) pool.troll = 0.5;
   }
   while (x < W - 10) {
-    if (sinceCheck > 38 && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); x += 4; sinceCheck = 0; continue; }
+    if (sinceCheck > 38 && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); checks.push(x + 1); x += 4; sinceCheck = 0; continue; }
     let name = pickW(r, pool); if (name === last && r() < 0.7) name = pickW(r, pool);
     const x0 = x, gy0 = gy; CH[name](); last = name; sinceCheck += x - x0; 
   }
   // Fehlende Münzen: Geheimkammer oder versteckter Block nachrüsten
-  while (coins < 3) { coins < 2 && gy <= 9 ? CH.pocket() : CH.arc(); }
+  while (coins < 3) { coins < 2 && gy <= 9 + O ? CH.pocket() : CH.arc(); }
   putGround(x, x + 12); g.set(x + 5, gy - 1, 'E'); for (let k = 0; k < 3; k++) g.set(x + 1 + k, gy - 3, 'G');
+  // Ohne Platz für einen oberen Weg: die leeren oberen Zeilen wieder abschneiden (normales Level)
+  let cut = 0;
+  if (two && !upperRoute(g, r, bio, d, checks, x)) while (cut < O && g.c[cut].every(c => c === '.')) cut++;
   // Höhlendecke folgt dem Boden mit 5 Kacheln Luft
   if (cave) {
     const topOf = k => { for (let y = 0; y < H; y++) if ('#^cBVF=DSm'.includes(g.get(k, y)) && k >= 0 && k < g.w) return y; return 99; };
@@ -155,7 +162,105 @@ function horizontal(r, bio, style, depth, chased = false) {
       if (ceil > 0 && r() < 0.04 && bio.air.v && g.get(k, ceil) === '.') g.set(k, ceil, 'v');
     }
   }
-  return g.rows().map(row => row.slice(0, x + 12));
+  return g.rows().slice(cut).map(row => row.slice(0, x + 12));
+}
+
+/* ---------- Oberer Weg (zweistöckige Levels) ----------
+   Schwebende Plattformen ('=') hoch über dem unteren Weg. Aufstieg über eine Treppe aus Plattformen
+   (Stufe 2) oder einen Pilz im Boden (Stufe 3). Lücken ≤ 3 nur gleich hoch oder abwärts, ≤ 2 auch 1 hoch.
+   Endet vor Kontrollpunkten und dem Ziel über sicherem Boden: man lässt sich einfach fallen. */
+function upperRoute(g, r, bio, d, checks, goalX) {
+  const H = g.h, W = goalX;
+  const free = c => c === '.' || c === 'G';
+  const gtop = [], occ = [];
+  for (let k = 0; k < g.w; k++) {
+    let a = H, b = H;
+    for (let y = 0; y < H; y++) { const c = g.c[y][k]; if (b === H && !free(c)) b = y; if (a === H && (SOLIDS.has(c) || c === '=' || c === 'm')) a = y; }
+    gtop.push(a); occ.push(b);
+  }
+  // höchste erlaubte Zeile (kleinster y-Wert ist am höchsten): genug Luft zum unteren Weg
+  const lim = (k, gapG, gapO) => k < 0 || k >= g.w ? -1 : Math.min(gtop[k] - gapG, occ[k] - gapO);
+  const cellsFree = (k, y) => y >= 2 && free(g.get(k, y)) && free(g.get(k, y - 1)) && free(g.get(k, y - 2));
+  const safeDrop = k => gtop[k] < H && occ[k] === gtop[k] && g.get(k, gtop[k]) !== '^' && gtop[k + 1] < H && g.get(k + 1, gtop[k + 1]) !== '^';
+  // gesperrte Bereiche: Start, um Kontrollpunkte, vor dem Ziel
+  const blocked = new Uint8Array(g.w); for (let k = 0; k < 14; k++) blocked[k] = 1;
+  for (const c of checks) for (let k = c - 4; k <= c + 2; k++) if (k >= 0) blocked[k] = 1;
+  for (let k = Math.max(0, W - 6); k < g.w; k++) blocked[k] = 1;
+  const foeP = 0.15 + d * 0.3, airKeys = Object.keys(bio.air);
+  const segs = [];
+  let k = 14;
+  while (k < W - 20) {
+    if (blocked[k]) { k++; continue; }
+    // Einstieg: zwei (mit Pilz drei) flache, leere Bodenkacheln auf festem Grund
+    const fy = gtop[k];
+    const flat = n => fy < H && [...Array(n).keys()].every(j => gtop[k + j] === fy && occ[k + j] === fy && g.get(k + j, fy) === '#' && g.get(k + j, fy + 1) === '#' && !blocked[k + j]);
+    if (!flat(2)) { k++; continue; }
+    const plan = [];  // {x, y, w, kind}
+    let py, px;
+    if (flat(3) && r() < 0.5) {
+      // Pilz im Boden (unterer Weg läuft einfach darüber)
+      plan.push({ shroom: k + 1, fy }); py = fy - 3; px = k + 3;
+    } else { py = fy - 2; px = k + 1; }
+    // Treppe nach oben bis in die obere Etage
+    const goalY = ri(r, 4, 6);
+    let okStairs = true;
+    while (true) {
+      const sw = ri(r, 2, 3);
+      let fits = true; for (let j = 0; j < sw; j++) if (blocked[px + j] || !cellsFree(px + j, py) || py > lim(px + j, 2, 2)) fits = false;
+      if (!fits) { okStairs = false; break; }
+      plan.push({ x: px, y: py, w: sw, kind: 'stair' });
+      const sg = ri(r, 1, d > 0.3 ? 2 : 1);
+      px += sw + sg;
+      if (py <= goalY + 1) break;
+      py -= 2;
+    }
+    if (!okStairs) { k++; continue; }
+    // oben entlang: nach Lücke ≤ 2 höchstens 1 Kachel hoch, nach Lücke 3 nur gleich hoch oder tiefer
+    let y = py, minY = py - 2, cx = px, commit = -1, upper = 0;
+    const segEnd = Math.min(W - 8, px + ri(r, 18, 40));
+    while (cx < segEnd) {
+      const pw = ri(r, 2, 5);
+      let m = 99; for (let j = 0; j < pw; j++) m = Math.min(m, lim(cx + j, 5, 4));
+      const ny = Math.max(minY, 3, Math.min(m, y + ri(r, -1, 1), 7));
+      if (ny > m) break;
+      let fits = true; for (let j = 0; j < pw; j++) if (blocked[cx + j] || !cellsFree(cx + j, ny)) fits = false;
+      if (!fits) break;
+      plan.push({ x: cx, y: ny, w: pw, kind: 'top' }); upper++; y = ny;
+      if (upper >= 2 && safeDrop(cx + pw)) commit = plan.length;
+      const gap = ri(r, 1, d > 0.3 ? 3 : 2);
+      cx += pw + gap; minY = gap === 3 ? y : y - 1;
+    }
+    if (commit < 0) { k++; continue; }
+    const used = plan.slice(0, commit);
+    segs.push(used);
+    const last = used[used.length - 1]; k = last.x + last.w + 6;
+  }
+  // Bauen + Beute: Edelsteine oben, eine Truhe pro Abschnitt, gelegentlich Luftgegner
+  let chest = 0; const tops = [];
+  for (const seg of segs) {
+    let segChest = false;
+    const topPl = seg.filter(p => p.kind === 'top');
+    const chestAt = topPl.length ? topPl[Math.min(topPl.length - 1, 1 + Math.floor(r() * (topPl.length - 1)))] : null;
+    for (const p of seg) {
+      if (p.shroom) { g.set(p.shroom, p.fy, 'B'); continue; }
+      for (let j = 0; j < p.w; j++) g.set(p.x + j, p.y, '=');
+      if (p.kind !== 'top') continue;
+      tops.push(p);
+      if (p === chestAt && p.w >= 2 && (!segChest && (chest === 0 || r() < 0.6))) { g.set(p.x + p.w - 1, p.y - 1, 'T'); segChest = true; chest++; for (let j = 0; j < p.w - 1; j++) g.set(p.x + j, p.y - 1, 'G'); }
+      else if (r() < 0.75) for (let j = 0; j < p.w; j++) g.set(p.x + j, p.y - (r() < 0.3 ? 2 : 1), 'G');
+      if (airKeys.length && r() < foeP * 0.5 && g.get(p.x + p.w + 1, p.y - 2) === '.') g.set(p.x + p.w + 1, p.y - 2, pickW(r, bio.air));
+    }
+  }
+  // Gelegentlich wandert eine Münze vom unteren auf den oberen Weg
+  if (tops.length >= 3 && r() < 0.4) {
+    const lowCoins = []; for (let y = 0; y < H; y++) for (let x = 0; x < g.w; x++) if (g.c[y][x] === 'O') lowCoins.push([x, y]);
+    const cand = tops.filter(p => g.get(p.x + Math.floor(p.w / 2), p.y - 2) === '.' || g.get(p.x + Math.floor(p.w / 2), p.y - 2) === 'G');
+    if (lowCoins.length && cand.length) {
+      const [lx, ly] = lowCoins[Math.floor(r() * lowCoins.length)], p = cand[Math.floor(r() * cand.length)];
+      g.set(lx, ly, 'G'); g.set(p.x + Math.floor(p.w / 2), p.y - 2, 'O');
+    }
+  }
+  return segs.length;
 }
 
 /* ---------- Senkrechter Schacht ---------- */

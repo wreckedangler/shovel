@@ -31,7 +31,7 @@ function run(seq) {
 }
 // Abstand zum Ziel (Höhe zählt stärker), Stürze in die Tiefe sind Sackgassen
 const goal0 = TARGET ? { x: TARGET[0] * 16, y: TARGET[1] * 16 - 34 } : new Game(L, gear).ents.find(e => e.type === 'goal');
-const score = g => -(Math.abs(goal0.x - g.p.x) + Math.abs(goal0.y + 34 - g.p.y) * (vertical ? 2 : 0.6)) - (g.p.y > (vertical ? (g.h - 2) * 16 : 172) ? 3000 : 0) + (g.p.onGround ? 0 : -60);
+const score = g => -(Math.abs(goal0.x - g.p.x) + Math.abs(goal0.y + 34 - g.p.y) * (vertical ? 2 : 0.6)) - (g.p.y > (vertical ? (g.h - 2) * 16 : 172 + (g.h - 14) * 16) ? 3000 : 0) + (g.p.onGround ? 0 : -60);
 
 let beam = [{ seq: [], s: 0 }];
 const W = +(process.env.BEAM || 50), MAX = 400, t0 = Date.now();
