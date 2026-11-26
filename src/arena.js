@@ -269,22 +269,27 @@ export class ShadeAI {
 
 /* ---------- Ein Duell (bis zwei Runden gewonnen) ---------- */
 export class Match {
+  // o.view: 'A' (Standard, eigener Kämpfer links) oder 'B' (Live-Duell als Gast: eigener Kämpfer ist B)
+  // o.live: beide Kämpfer menschlich, Eingaben kommen über step(ia, ib)
   constructor(o) {
     this.o = { ...o, arena: arenaById(o.arena), meGear: cleanGear(o.meGear), foe: { ...o.foe, gear: cleanGear(o.foe.gear), style: cleanStyle(o.foe.style) } };
+    this.view = o.view === 'B' ? 'B' : 'A'; this.live = !!o.live;
     this.score = [0, 0]; this.round = 0; this.events = []; this.over = false; this.result = null;
     this.stats = { frames: 0, approach: 0, atk: 0, airF: 0, pogoF: 0, jumps: 0, dealt: 0, taken: 0, pogoHits: 0 };
     this.newRound();
   }
   newRound() {
     const o = this.o, L = arenaLevel(o.arena), seed = (o.seed >>> 0) + this.round * 7919;
-    const A = this.A = new Game(L, o.meGear, { seed, pvp: true, autoPogo: o.autoPogo !== false });
-    const B = this.B = new Game(L, o.foe.gear, { seed, pvp: true, autoPogo: false });
+    const mine = this.view === 'A';
+    const A = this.A = new Game(L, mine ? o.meGear : o.foe.gear, { seed, pvp: true, autoPogo: mine ? o.autoPogo !== false : o.foe.autoPogo !== false });
+    const B = this.B = new Game(L, mine ? o.foe.gear : o.meGear, { seed, pvp: true, autoPogo: this.live ? (mine ? o.foe.autoPogo !== false : o.autoPogo !== false) : false });
     B.p.x = W_PX - A.p.x - B.p.w; B.p.face = -1; B.check = { x: B.p.x, y: B.p.y }; A.p.face = 1;
     for (const g of [A, B]) addHazards(g, o.arena);
     A.add(this.rival(A, B)); B.add(this.rival(B, A));
-    A.camFocus = { x: 0, y: 0, w: 0, h: 14, face: 0, vx: 0 };
-    A.drawExtra = (r, th) => this.drawFoe(r, th);
-    this.ai = new ShadeAI(seed ^ 0x5bd1, o.foe.style, o.skill ?? skillOf(o.foe.rating || START_RATING));
+    this.V = mine ? A : B; this.O = mine ? B : A;
+    this.V.camFocus = { x: 0, y: 0, w: 0, h: 14, face: 0, vx: 0 };
+    this.V.drawExtra = (r, th) => this.drawFoe(r, th);
+    this.ai = this.live ? null : new ShadeAI(seed ^ 0x5bd1, o.foe.style, o.skill ?? skillOf(o.foe.rating || START_RATING));
     this.state = 'intro'; this.t = 0; this.fightT = 0; this.roundWinner = null;
     this.ev('arenaRound', this.round + 1);
     this.camUpdate();
@@ -302,7 +307,7 @@ export class Match {
     // Standbild erst nach beiden Schritten (sonst verliert der Getroffene seinen Zug)
     this.pendFreeze = Math.max(this.pendFreeze || 0, to.freeze); to.freeze = fz;
     if (q.hp < hp0) {
-      const mine = from === this.A;
+      const mine = from === this.V;
       this.ev('pvpHit', mine ? 'foe' : 'me');
       this.pendFreeze = Math.max(this.pendFreeze || 0, 6);
       from.num(cx(q), q.y - 8, '-' + (hp0 - q.hp), mine ? '#ffd84a' : '#ff5a4a');
@@ -311,22 +316,25 @@ export class Match {
   }
   ev(name, v) { this.events.push({ name, v }); }
   camUpdate() {
-    const a = this.A.p, b = this.B.p, f = this.A.camFocus;
+    const a = this.V.p, b = this.O.p, f = this.V.camFocus;
     // Mitte zwischen beiden, aber der eigene Held bleibt immer im Bild
     f.x = (a.x + b.x) / 2; f.y = (a.y + b.y) / 2;
     if (b.dead) { f.x = a.x; f.y = a.y; }
   }
-  step(inp) {
+  // Ein Bild weiter. Gegen den Schatten: step(eigene Eingabe). Live: step(Eingabe A, Eingabe B).
+  step(inp, inpB) {
     this.events.length = 0;
-    const A = this.A, B = this.B, idle = {};
+    const A = this.A, B = this.B, V = this.V, idle = {};
     if (this.over) return;
+    this.frame = (this.frame || 0) + 1;
     if (this.state === 'fight') {
-      const ib = this.ai.think(B, A);
+      const ib = this.live ? inpB || idle : this.ai.think(B, A);
       // Reihenfolge wechselt jedes Bild: keiner hat den ersten Zug fest
-      if (this.fightT & 1) { B.step(ib); A.step(inp); for (const e of A.events) this.events.push(e); }
-      else { A.step(inp); const a0 = A.events.length; for (const e of A.events) this.events.push(e); B.step(ib); for (const e of A.events.slice(a0)) this.events.push(e); }
-      for (const e of B.events) if (FOE_SOUNDS.has(e.name)) this.events.push({ name: e.name, v: e.v, foe: true });
-      this.learn(inp);
+      if (this.fightT & 1) { B.step(ib); A.step(inp); } else { A.step(inp); B.step(ib); }
+      // Ereignisse aus Sicht des eigenen Kämpfers (Treffer des Gegners landen erst nach seinem Schritt)
+      for (const e of V.events) this.events.push(e);
+      for (const e of this.O.events) if (FOE_SOUNDS.has(e.name)) this.events.push({ name: e.name, v: e.v, foe: true });
+      this.learn(V === A ? inp : ib);
       this.fightT++;
       this.sudden();
       const aDown = A.p.dead || A.p.hp <= 0, bDown = B.p.dead || B.p.hp <= 0;
@@ -334,7 +342,7 @@ export class Match {
       else if (this.fightT >= ROUND.end) { const fa = A.p.hp / A.p.maxhp, fb = B.p.hp / B.p.maxhp; this.endRound(Math.abs(fa - fb) < 0.01 ? 0 : fa > fb ? 1 : 2); }
     } else {
       A.step(idle); B.step(idle);
-      for (const e of A.events) if (e.name !== 'step') this.events.push(e);
+      for (const e of V.events) if (e.name !== 'step') this.events.push(e);
       this.t++;
       if (this.state === 'intro' && this.t === ROUND.intro) { this.state = 'fight'; this.ev('arenaFight'); }
       if (this.state === 'outro' && this.t >= ROUND.outro) {
@@ -364,18 +372,30 @@ export class Match {
     this.state = 'outro'; this.t = 0; this.roundWinner = w;
     if (w) this.score[w - 1]++;
     for (const g of [this.A, this.B]) if (g.p.dead) g.p.dead = 1e9;
-    this.ev(w === 1 ? 'roundWin' : w === 2 ? 'roundLose' : 'roundDraw');
+    const mw = this.view === 'A' ? w : w ? 3 - w : 0;
+    this.ev(mw === 1 ? 'roundWin' : mw === 2 ? 'roundLose' : 'roundDraw');
   }
   finish() {
     this.over = true;
-    const [a, b] = this.score, s = this.stats, n = Math.max(1, s.frames);
+    const [a, b] = this.myScore(), s = this.stats, n = Math.max(1, s.frames);
     this.result = { won: a > b, draw: a === b, score: [a, b], rounds: this.round + 1,
       style: { aggr: s.approach / n, pogo: Math.min(1, s.pogoF / Math.max(1, s.airF) * 2.5), air: Math.min(1, s.jumps / (n / 60) / 1.2) }, stats: s };
     this.ev(a > b ? 'matchWin' : a < b ? 'matchLose' : 'matchDraw');
   }
+  // Punkte und Rundensieger aus Sicht des eigenen Kämpfers
+  myScore() { return this.view === 'A' ? [...this.score] : [this.score[1], this.score[0]]; }
+  myRoundWinner() { const w = this.roundWinner; return this.view === 'A' ? w : w ? 3 - w : 0; }
+  // Prüfsumme des Zustands (Live-Duell: beide Geräte müssen dasselbe rechnen)
+  checksum() {
+    let h = 2166136261 >>> 0;
+    const mix = v => { h = Math.imul(h ^ (Math.round(v * 64) | 0), 16777619) >>> 0; };
+    for (const g of [this.A, this.B]) { const p = g.p; mix(p.x); mix(p.y); mix(p.vx); mix(p.vy); mix(p.hp); mix(p.inv); mix(g.frame); }
+    mix(this.score[0]); mix(this.score[1]); mix(this.fightT); mix(this.round);
+    return h;
+  }
   // Den eigenen Stil mitschreiben: So kämpft später der eigene Schatten
   learn(i) {
-    const s = this.stats, p = this.A.p, q = this.B.p; s.frames++;
+    const s = this.stats, p = this.V.p, q = this.O.p; s.frames++;
     const toward = cx(q) > cx(p) ? i.right : i.left;
     if (toward) s.approach++;
     if (i.attackP) s.atk++;
@@ -384,7 +404,7 @@ export class Match {
   }
   /* ----- Zeichnen ----- */
   drawFoe(r, th) {
-    const B = this.B, p = B.p, al = r.alpha ?? 1, x = r.x;
+    const B = this.O, p = B.p, al = r.alpha ?? 1, x = r.x;
     // eigene Geschosse und Funken des Gegners (Hindernisse zeichnet schon das eigene Spiel)
     for (const e of B.ents) if (e.type === 'proj') r.ent(B, e, th);
     for (const q of B.parts) { x.fillStyle = q.col === 'fire' ? '#ff8a2a' : q.col === 'ghost' ? '#c9b8ff' : '#ffe6a0'; x.fillRect(Math.round(q.x), Math.round(q.y), q.life > 12 ? 2 : 1, q.life > 12 ? 2 : 1); }

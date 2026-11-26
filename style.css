@@ -546,3 +546,16 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .arena.result .rgems{font-size:18px;color:var(--gold-hi);margin:6px 0}
 .arena.result .rstat{font-size:12px;color:var(--mute)}
 @media (orientation:landscape) and (min-width:600px){.arena .acards{grid-template-columns:1fr 1fr}}
+/* Live-Duelle */
+.arena .alive{display:grid;grid-template-columns:1fr;gap:6px}
+.arena .acard.live{border-color:#5a1a1a;background:linear-gradient(90deg,rgba(200,40,40,.18),rgba(0,0,0,.35))}
+.arena .acard.live b{color:#ffb0a0}
+.arena .acard.live small{color:var(--mute);font-style:normal}
+.livewait{text-align:center}
+.livewait .lcode{display:flex;justify-content:center;gap:8px;margin:10px 0}
+.livewait .lcode b{display:inline-block;width:44px;padding:6px 0;font-weight:400;font-size:30px;color:var(--gold-hi);border:1px solid var(--gold);background:rgba(212,180,106,.08);text-shadow:0 0 12px rgba(255,216,74,.5)}
+.lspin{display:flex;justify-content:center;gap:6px;margin:10px 0}
+.lspin i{width:6px;height:6px;background:#ff8a6a;animation:lsp 1.2s infinite ease-in-out}
+.lspin i:nth-child(2){animation-delay:.2s}.lspin i:nth-child(3){animation-delay:.4s}
+@keyframes lsp{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
+.lcodein{display:block;margin:10px auto;width:180px;font:inherit;font-size:30px;letter-spacing:.4em;text-align:center;text-transform:uppercase;color:var(--gold-hi);background:rgba(0,0,0,.5);border:1px solid var(--gold);padding:6px;user-select:text;-webkit-user-select:text;touch-action:auto}

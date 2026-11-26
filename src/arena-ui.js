@@ -6,6 +6,8 @@ import { TIERS } from './gear.js';
 import { weaponById } from './weapons.js';
 import { RAR } from './loot.js';
 import * as S from './sprites.js';
+import { RealtimeSocket, LocalSocket, Lobby, Room, randomId, roomCode, LIVE_PROTOCOL } from './live.js';
+import { CONFIG } from './config.js';
 
 let C; // Kontext aus main.js
 export function initArena(ctx) { C = ctx; }
@@ -110,7 +112,13 @@ export async function arenaHub(msg = '') {
     <h3 class="ah3">Kampfplatz</h3>
     <div class="acards">${cards}</div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
-    <button class="big play" data-ar="seek">Gegner suchen<small>Regeln: zwei Siegrunden · ab 45 s rückt die Schattenwand vor</small></button>
+    <button class="big play" data-ar="seek">Gegen Schatten kämpfen<small>Regeln: zwei Siegrunden · ab 45 s rückt die Schattenwand vor</small></button>
+    <h3 class="ah3">Live-Duell</h3>
+    <div class="alive">
+      <button class="acard live" data-ar="lsearch"><span><b>Live-Gegner suchen</b><small>Ein echter Mensch, jetzt · zählt für den Rang</small></span></button>
+      <button class="acard live" data-ar="lhost"><span><b>Freund herausfordern</b><small>Code erstellen · Freundschaftsduell ohne Wertung</small></span></button>
+      <button class="acard live" data-ar="ljoin"><span><b>Code eingeben</b><small>Einem Freund beitreten</small></span></button>
+    </div>
   </div>`);
   for (const cv of document.querySelectorAll('[data-map]')) drawMap(cv, arenaById(cv.dataset.map));
   heroLoop('.ahero');
@@ -195,6 +203,122 @@ export function arenaResult(res) {
   setTimeout(() => requestAnimationFrame(run), 500);
 }
 
+/* ---------- Live-Duelle ---------- */
+let sock = null, lobby = null, room = null, liveKind = null, liveInfo = null, sessionId = null;
+async function getSock() {
+  if (!sock) sock = /[?&]livelocal/.test(location.search) ? new LocalSocket() : new RealtimeSocket(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+  await sock.connect();
+  return sock;
+}
+function meInfo() {
+  const a = A0(); sessionId = sessionId || randomId();
+  const ar = a.pick === 'zufall' ? ARENAS[Math.floor(Math.random() * ARENAS.length)].id : a.pick;
+  return { id: sessionId, name: myName(), rating: a.rating, gear: myGear(), autoPogo: C.D.autoPogo !== false, v: `${CONFIG.version}/${LIVE_PROTOCOL}`, arena: ar };
+}
+function waitPanel(title, body, code = '') {
+  C.setMenu('livewait');
+  C.show(`<div class="panel arena small livewait">
+    <h2>${C.esc(title)}</h2>
+    ${code ? `<div class="lcode">${code.split('').map(c => `<b>${c}</b>`).join('')}</div><p class="msg">Diesen Code deinem Freund geben. Er tippt ihn unter <i>Code eingeben</i> ein.</p>` : ''}
+    <p class="msg" id="lstatus">${C.esc(body)}</p>
+    <div class="lspin"><i></i><i></i><i></i></div>
+    <button data-ar="lcancel">Abbrechen</button>
+  </div>`);
+}
+const setStatus = t => { const el = document.getElementById('lstatus'); if (el) el.textContent = t; };
+function liveReset() { try { lobby && lobby.stop(); } catch {} lobby = null; try { room && room.close(); } catch {} room = null; }
+export function liveLeave() { if (room && !room.closed) room.quit(); liveReset(); }
+async function liveSearch() {
+  if (!online()) return arenaHub('Live-Duelle brauchen eine Internetverbindung.');
+  liveReset(); liveKind = 'ranked';
+  waitPanel('Live-Gegner suchen', 'Verbinde mit der Halle …');
+  try {
+    const s = await getSock(), me = meInfo();
+    lobby = new Lobby(s, me, {
+      count: n => setStatus(n > 1 ? `${n - 1} ${n === 2 ? 'Kämpfer wartet' : 'Kämpfer warten'} in der Halle. Suche den passenden …` : 'Du bist allein in der Halle. Warte auf einen Herausforderer …'),
+      found: r => { lobby = null; joinRoom(r.room, r.host, me); },
+    });
+    await lobby.start();
+    setStatus('Du bist in der Halle. Warte auf einen Herausforderer …');
+  } catch (e) { liveReset(); arenaHub('Keine Verbindung zur Halle: ' + C.esc(e.message || 'unbekannt')); }
+}
+async function liveHost() {
+  if (!online()) return arenaHub('Live-Duelle brauchen eine Internetverbindung.');
+  liveReset(); liveKind = 'friend';
+  const code = roomCode();
+  waitPanel('Freund herausfordern', 'Warte auf deinen Freund …', code);
+  try { await getSock(); joinRoom(code, true, meInfo()); } catch (e) { liveReset(); arenaHub('Keine Verbindung: ' + C.esc(e.message || 'unbekannt')); }
+}
+function liveJoinForm(msg = '') {
+  C.setMenu('livejoin');
+  C.show(`<div class="panel arena small">
+    <h2>Code eingeben</h2>
+    <input id="lcodein" class="lcodein" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD">
+    ${msg ? `<p class="msg">${msg}</p>` : ''}
+    <button class="big" data-ar="ljoingo">Beitreten</button>
+    <button data-ar="hub">Zurück</button>
+  </div>`);
+  const el = document.getElementById('lcodein'); el.focus();
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') document.querySelector('[data-ar=ljoingo]').click(); });
+}
+async function liveJoin() {
+  const code = (document.getElementById('lcodein').value || '').toUpperCase().replace(/[^A-Z]/g, '');
+  if (code.length !== 4) return liveJoinForm('Der Code hat vier Buchstaben.');
+  liveReset(); liveKind = 'friend';
+  waitPanel('Beitreten', `Suche Raum ${code} …`);
+  try { await getSock(); joinRoom(code, false, meInfo()); } catch (e) { liveReset(); arenaHub('Keine Verbindung: ' + C.esc(e.message || 'unbekannt')); }
+}
+async function joinRoom(code, host, me) {
+  room = new Room(sock, code, host, me, {
+    status: setStatus,
+    start: (duel, info) => { liveInfo = info; C.startLive(duel, info); },
+    end: reason => { const onResult = C.inMenu('liveresult'); room = null; if (onResult) { setStatus(reason); const b = document.querySelector('[data-ar=lagain]'); if (b) b.disabled = true; } else if (!C.inLive()) arenaHub(C.esc(reason)); },
+  });
+  try { await room.open(); if (!host) setStatus('Raum gefunden, verbinde …'); }
+  catch (e) { liveReset(); arenaHub('Raum nicht erreichbar: ' + C.esc(e.message || 'unbekannt')); }
+}
+// Ende eines Live-Duells (regulär, Aufgabe, Abbruch)
+export function liveResult(res, duel, quit) {
+  const a = A0(), D = C.D, foe = liveInfo ? liveInfo.foe : { name: 'Gegner', rating: a.rating };
+  let won = res && res.won, draw = res && res.draw, note = '', rated = liveKind === 'ranked';
+  if (quit) { won = false; draw = false; note = 'Du hast aufgegeben.'; }
+  else if (duel.ended && !(duel.m.over)) {
+    if (duel.desync) { rated = false; won = false; draw = true; note = duel.abortReason; }
+    else if (duel.peerGone) { won = true; draw = false; note = duel.abortReason + ' – Sieg durch Aufgabe.'; }
+    else { rated = false; draw = true; note = duel.abortReason || 'Duell abgebrochen'; }
+  }
+  const before = a.rating;
+  let d = 0, gems = 0, bonus = '';
+  if (rated) {
+    d = eloDelta(a.rating, foe.rating || a.rating, won ? 1 : draw ? 0.5 : 0, a.games);
+    a.rating = Math.max(0, a.rating + d); a.games++; a.best = Math.max(a.best, a.rating);
+    if (won) { a.wins++; a.streak++; a.bestStreak = Math.max(a.bestStreak, a.streak); } else if (draw) a.draws++; else { a.losses++; a.streak = 0; }
+    a.liveWins = (a.liveWins || 0) + (won ? 1 : 0); a.liveGames = (a.liveGames || 0) + 1;
+    gems = won ? 80 + 15 * Math.min(5, a.streak - 1) : draw ? 30 : 20;
+    if (won && a.dayWin !== C.today()) { a.dayWin = C.today(); bonus = C.grantKey('eisen', 1, 'Erster Arenasieg des Tages'); }
+    D.gems += gems; D.earned = (D.earned || 0) + gems;
+  }
+  if (res && res.style && !quit) { const st = cleanStyle(res.style); for (const k of ['aggr', 'pogo', 'air']) a.style[k] = Math.round((a.style[k] * 0.7 + st[k] * 0.3) * 1000) / 1000; }
+  C.save.write();
+  if (rated) upload(true);
+  if (quit) liveLeave();
+  const canAgain = !quit && room && !room.closed && !(duel.ended && !duel.m.over);
+  const sc = res ? res.score : [0, 0], k = rankOf(a.rating);
+  C.setMenu('liveresult');
+  C.show(`<div class="panel arena result ${won ? 'won' : draw ? 'draw' : 'lost'}">
+    <div class="rhead">${won ? 'SIEG' : draw ? 'GLEICHSTAND' : 'NIEDERLAGE'}</div>
+    <p class="rsub">Live gegen ${C.esc(foe.name)}${res ? ` · ${sc[0]} : ${sc[1]}` : ''}${rated ? '' : ' · ohne Wertung'}</p>
+    ${note ? `<p class="msg">${C.esc(note)}</p>` : ''}
+    ${rated ? `<div class="rrating"><span class="arating" id="rnum">${before}</span><b class="${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '+' : ''}${d}</b></div>${rankTag(a.rating)}<p class="rgems">${C.ic('gem')} +${gems}</p>${bonus}` : ''}
+    ${res && res.stats ? `<p class="rstat">${res.stats.dealt} Schaden ausgeteilt · ${res.stats.taken} eingesteckt${res.stats.pogoHits ? ` · ${res.stats.pogoHits}× Schaufel-Sprung getroffen` : ''}</p>` : ''}
+    <p class="msg" id="lstatus"></p>
+    ${canAgain ? '<button class="big play" data-ar="lagain">Revanche</button>' : ''}
+    <button data-ar="lleave">Zur Arena</button>
+  </div>`);
+  C.sfx(won ? 'legend' : 'poof');
+  if (rated && k.min > rankOf(before).min) setTimeout(() => { C.sfx('achieve'); C.moment('NEUER RANG', k.name.toUpperCase(), 'gold', 3.4); }, 900);
+}
+
 export function arenaClick(b) {
   const a = A0();
   switch (b.dataset.ar) {
@@ -204,13 +328,20 @@ export function arenaClick(b) {
     case 'reroll': C.sfx('click'); if (foe) skipped.add(foe.id); if (skipped.size > 6) skipped.clear(); seek(); return true;
     case 'fight': C.sfx('charge'); fight(); return true;
     case 'rematch': if (foe) { C.sfx('charge'); fight(); } return true;
+    case 'lsearch': C.sfx('click'); liveSearch(); return true;
+    case 'lhost': C.sfx('click'); liveHost(); return true;
+    case 'ljoin': C.sfx('click'); liveJoinForm(); return true;
+    case 'ljoingo': C.sfx('click'); liveJoin(); return true;
+    case 'lcancel': C.sfx('click'); liveReset(); arenaHub(); return true;
+    case 'lagain': if (room && !room.closed) { C.sfx('charge'); b.disabled = true; setStatus('Warte auf den Gegner …'); room.askAgain(); } return true;
+    case 'lleave': C.sfx('click'); liveLeave(); arenaHub(); return true;
   }
   return false;
 }
 
 /* ---------- Anzeige im Kampf (über dem Spielbild) ---------- */
 export function arenaHud(x, m, R, W, H) {
-  const A = m.A, B = m.B, cam = R.cam, t = R.t;
+  const A = m.V, B = m.O, cam = R.cam, t = R.t, sc0 = m.myScore();
   // Schattenwand
   const z = m.zone();
   if (z) {
@@ -240,7 +371,7 @@ export function arenaHud(x, m, R, W, H) {
   // Runden und Zeit (Mitte oben)
   const cxm = Math.round(W / 2), py = W < 300 ? 36 : 4;
   for (let i = 0; i < 2; i++) {
-    const on1 = m.score[0] > i, on2 = m.score[1] > i;
+    const on1 = sc0[0] > i, on2 = sc0[1] > i;
     x.fillStyle = '#140c1c'; x.fillRect(cxm - 14 - i * 7, py, 6, 6); x.fillRect(cxm + 8 + i * 7, py, 6, 6);
     x.fillStyle = on1 ? '#ffd84a' : '#3a3020'; x.fillRect(cxm - 13 - i * 7, py + 1, 4, 4);
     x.fillStyle = on2 ? '#ff5a4a' : '#3a2020'; x.fillRect(cxm + 9 + i * 7, py + 1, 4, 4);
@@ -259,10 +390,12 @@ export function arenaHud(x, m, R, W, H) {
   };
   if (m.state === 'intro') {
     const ar = m.o.arena;
-    if (m.t < 70) big(`RUNDE ${m.round + 1}`, m.round === 0 ? ar.name.toUpperCase() : `${m.score[0]} : ${m.score[1]}`, '#d4b46a');
+    if (m.t < 70) big(`RUNDE ${m.round + 1}`, m.round === 0 ? ar.name.toUpperCase() : `${sc0[0]} : ${sc0[1]}`, '#d4b46a');
     else big('KAMPF!', '', '#ffe6a0');
   } else if (m.state === 'outro') {
-    const w = m.roundWinner;
-    if (m.over || m.t > 20) big(w === 1 ? 'RUNDE GEWONNEN' : w === 2 ? 'RUNDE VERLOREN' : 'UNENTSCHIEDEN', `${m.score[0]} : ${m.score[1]}`, w === 1 ? '#ffd84a' : w === 2 ? '#ff5a4a' : '#c8beb0');
+    const w = m.myRoundWinner();
+    if (m.over || m.t > 20) big(w === 1 ? 'RUNDE GEWONNEN' : w === 2 ? 'RUNDE VERLOREN' : 'UNENTSCHIEDEN', `${sc0[0]} : ${sc0[1]}`, w === 1 ? '#ffd84a' : w === 2 ? '#ff5a4a' : '#c8beb0');
   } else if (m.fightT >= ROUND.sudden && m.fightT < ROUND.sudden + 90) big('SCHATTENWAND', 'Die Mauern nahen', '#c58bff');
+  if (m.netInfo && m.state === 'intro') S.drawText(x, `${m.netInfo.direct ? 'DIREKT' : 'UEBER SERVER'} · ${m.netInfo.rtt} MS`, cxm, H - 14, m.netInfo.direct ? '#7dffa0' : '#ffd84a', 1, 'center');
+  if (m.netWait > 20) { const a = Math.min(1, (m.netWait - 20) / 20); x.globalAlpha = a; S.drawText(x, 'WARTE AUF GEGNER …', cxm, H - 14, '#ffe6a0', 1, 'center'); x.globalAlpha = 1; }
 }

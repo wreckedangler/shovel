@@ -31,7 +31,7 @@ import { CONFIG } from './config.js';
 import { GEN_VERSION } from './gen.js';
 import { dayKey, dayNumber, daySeed, stageDepth, depthStage, msUntilTomorrow, MSG_A, MSG_B, msgText, encodeMark, decodeMark, shareText } from './daily.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
-import { initArena, arenaHub, arenaClick, arenaHud, arenaResult } from './arena-ui.js';
+import { initArena, arenaHub, arenaClick, arenaHud, arenaResult, liveResult, liveLeave } from './arena-ui.js';
 import { Match, rankOf } from './arena.js';
 import { WEAPONS, RARITY, weaponById, finishWeapons, hasRoyalChests } from './weapons.js';
 import { SECRET_WORLD, QUAL_WORLD } from './levels.js';
@@ -54,7 +54,7 @@ setAudio(D.sfx, D.music);
 initSkin();
 
 const embers = [];
-let match = null;
+let match = null, liveDuel = null;
 let curCodes = [], mode = 'menu', game = null, ghosts = [], level = null, doneT = 0, menuT = 0;
 
 // Auflösung je nach Gerät:
@@ -201,8 +201,9 @@ function drawMenuBg() {
 }
 
 /* ---------- Schatten-Arena ---------- */
-function startMatch(o) {
-  match = new Match(o); game = match.A; level = game.level; ghosts = []; doneT = 0;
+function startLive(duel, info) { duel.m.netInfo = info; startMatch(null, duel); }
+function startMatch(o, duel = null) {
+  liveDuel = duel; match = duel ? duel.m : new Match(o); game = match.V; level = game.level; ghosts = []; doneT = 0;
   R.snapCamera(game); clearInput(); hideUI(); mode = 'play';
   touchEl.hidden = !isTouch; pauseBtn.hidden = false;
   playMusic(THEMES[level.theme].music); setAmbience(level.theme); setMuffle(false); setIntensity(0.5);
@@ -212,9 +213,14 @@ function startMatch(o) {
 const FOE_SFX = new Set(['swing', 'bounce', 'shield', 'dash']);
 function arenaTick() {
   const m = match;
-  m.step(m.over ? {} : pollInput());
-  game = m.A; level = game.level;
-  for (const e of m.events) {
+  let evs;
+  if (liveDuel) {
+    const d = liveDuel;
+    d.tick(m.over || ui.querySelector('.panel') ? {} : pollInput()); evs = d.events; m.netWait = d.waiting ? d.stall : 0;
+    if (d.ended && !m.over) return arenaLeave(null);
+  } else { m.step(m.over ? {} : pollInput()); evs = m.events; }
+  game = m.V; level = game.level;
+  for (const e of evs) {
     if (e.name === 'step') { stepSound(surfaceOf(e.v)); continue; }
     if (e.foe && !FOE_SFX.has(e.name)) continue;
     switch (e.name) {
@@ -234,10 +240,11 @@ function arenaTick() {
   heartbeat(game.p.hp > 0 && game.p.hp <= 2 && m.state === 'fight');
   if (m.over && ++doneT === 90) arenaLeave(m.result);
 }
-function arenaLeave(res) {
-  match = null; game = null; mode = 'menu'; touchEl.hidden = true; pauseBtn.hidden = true; heartbeat(false);
+function arenaLeave(res, quit) {
+  const d = liveDuel;
+  match = null; liveDuel = null; game = null; mode = 'menu'; touchEl.hidden = true; pauseBtn.hidden = true; heartbeat(false);
   stopAmbience(); setIntensity(0); setMuffle(false); playMusic(THEMES.karte.music);
-  arenaResult(res);
+  if (d) liveResult(res, d, quit); else arenaResult(res);
 }
 
 /* ---------- Spielen ---------- */
@@ -260,6 +267,9 @@ async function startLevel(id, ghostCodes = []) {
   setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true);
+  // Live-Duell: das Spiel läuft weiter (der Gegner wartet nicht)
+  if (liveDuel) { mode = 'play'; return show(`<div class="panel small"><h2>Live-Duell</h2><p class="warn">Der Kampf läuft weiter. Aufgeben zählt als Niederlage.</p>
+  <button class="big" data-a="resume">Weiterkämpfen</button><button data-a="arenaquit">Aufgeben</button></div>`); }
   if (match) return show(`<div class="panel small"><h2>Rast</h2><p class="warn">Aufgeben zählt als Niederlage.</p>
   <button class="big" data-a="resume">Weiter</button><button data-a="arenaquit">Aufgeben</button>${toggles()}</div>`);
   show(`
@@ -925,7 +935,7 @@ function splash() {
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
 function title() {
-  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; match = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; match = null; liveDuel = null; liveLeave(); touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
   tsAbandoned(); announceUnlocks();
   const next = LEVELS.find(l => !l.secret && !l.qual && levelOpen(l.id) && !D.cleared[l.id]) || LEVELS.find(l => l.id === '3-B');
@@ -1188,7 +1198,7 @@ ui.addEventListener('click', async e => {
     case 'continue': goFullscreen(); return map(id);
     case 'treasury': return treasury();
     case 'arena': return arenaHub();
-    case 'arenaquit': { const m = match; if (!m) return title(); setMuffle(false); m.score[1] = 2; m.finish(); return arenaLeave(m.result); }
+    case 'arenaquit': { const m = match; if (!m) return title(); if (liveDuel) { setMuffle(false); return arenaLeave(null, true); } setMuffle(false); m.score[m.view === 'A' ? 1 : 0] = 2; m.finish(); return arenaLeave(m.result); }
     case 'tagesschacht': return tagesschacht();
     case 'reload': location.reload(); return;
     case 'checkupdate': { try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {} sfx('click'); location.reload(); return; }
@@ -1328,6 +1338,7 @@ applyA11y();
 tsRefresh();
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
 initArena({ D, save, sfx, show, ic, esc, R, stage, toast, moment, grantKey, today, startMatch, gear: () => ({ shovel: D.shovel, weapon: D.weapon, ...equipGear() }),
+  startLive, inLive: () => !!liveDuel,
   menuT: () => menuT, setMenu: m => { lastMenu = m; }, inMenu: m => lastMenu === m && mode === 'menu' });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-ar]'); if (b) { unlockAudio(); arenaClick(b); } });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });

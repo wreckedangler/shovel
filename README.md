@@ -323,3 +323,12 @@ Asynchrones PvP: Du kämpfst gegen den **Schatten** eines anderen Spielers – s
 - Elo-Wertung mit sieben Rängen; der erste Sieg des Tages gibt einen Eisenschlüssel.
 - Supabase: Tabelle `arena_shades` (eigener Schatten pro Gerät, geheimer Schlüssel nur über RPC `arena_upsert`), Kampfberichte über `arena_report` (höchstens alle 10 Minuten pro Schatten). Ohne Netz kämpfst du gegen 12 eingebaute **Wächter**.
 - `node tools/arenatest.mjs` prüft: Kämpfe enden, Seiten sind fair, Ausrüstung hilft ohne alles zu entscheiden, die KI findet jeden Gegner, Abläufe sind bitgenau wiederholbar.
+
+## Live-Duelle (v0.21, `src/live.js`)
+
+Echtzeit-PvP mit **Lockstep und Eingabeverzögerung**: Beide Geräte rechnen exakt dasselbe Duell (deterministische Engine, Prüfsumme alle 1,5 s), ausgetauscht werden nur die Tasteneingaben.
+
+- **Verbindung:** Supabase Realtime vermittelt nur (Halle mit Presence, Raum per Broadcast). Die Eingaben laufen per **WebRTC direkt** von Gerät zu Gerät; klappt das nicht (strenges Mobilfunk-NAT), gebündelt über den Supabase-Kanal. So bleibt das Gratis-Kontingent (100 Nachrichten/s) für viele gleichzeitige Duelle frei.
+- **Verzögerung:** aus der gemessenen Laufzeit (direkt: +3 Bilder Puffer, über Server: +5). Fehlt eine Eingabe, wartet das Spiel kurz; nach 8 s ohne Antwort gilt der Gegner als weg (Sieg durch Aufgabe).
+- **Modi:** „Live-Gegner suchen“ (zählt für den Rang), „Freund herausfordern“ mit 4-Buchstaben-Code (ohne Wertung), Revanche im selben Raum.
+- `node tools/livetest.mjs` simuliert zwei Geräte mit 50–370 ms Laufzeit und prüft, dass beide bitgenau gleich rechnen und gleich enden. Lokal im Browser: `?livelocal` verbindet zwei Tabs ohne Supabase.

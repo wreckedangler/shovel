@@ -26,10 +26,14 @@ export class Renderer {
     // Vorausblick: in Blickrichtung und mit dem Tempo, weich nachgeführt
     const want = p.face * (this.W < 260 ? 40 : 52) + p.vx * 10;
     this.lead = (this.lead ?? want) + (want - (this.lead ?? want)) * 0.05;
-    const x = Math.max(0, Math.min(g.w * T - this.W, p.x + p.w / 2 + this.lead - this.W / 2));
+    let x = p.x + p.w / 2 + this.lead - this.W / 2;
+    let y0 = p.y - this.H * 0.55;
+    // Duell: Mitte zwischen beiden, aber der eigene Held bleibt mit Rand im Bild
+    if (g.camFocus) { const q = g.p, m = Math.min(48, this.W * 0.22); x = Math.max(q.x + q.w + m - this.W, Math.min(q.x - m, x)); y0 = Math.max(q.y + 40 - this.H, Math.min(q.y - 30, y0)); }
+    x = Math.max(0, Math.min(g.w * T - this.W, x));
     const maxY = g.h * T - this.H;
     // Ist die Ansicht höher als das Level (Hochformat), sitzt der Boden unten und oben ist Himmel
-    const y = maxY < 0 ? maxY : Math.max(0, Math.min(maxY, p.y - this.H * 0.55));
+    const y = maxY < 0 ? maxY : Math.max(0, Math.min(maxY, y0));
     return { x, y };
   }
 
