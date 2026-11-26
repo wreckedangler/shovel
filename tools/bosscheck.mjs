@@ -25,8 +25,9 @@ for (const L of bosses) {
       inp.down = true;
     }
     if (hold > 0) { inp.jump = true; hold--; }
-    const bh = b.hp, wasAir = !p.onGround;
+    const bh = b.hp, wasAir = !p.onGround, hc = g.headChain;
     g.step(inp);
+    if (hc === 0) chain = 0;   // das Spiel hat eine Landung gezählt (z. B. kurz auf einem Sims)
     if (started && !b.dead && b.hp < bh && g.p.pogo !== false && wasAir) { chain++; maxChain = Math.max(maxChain, chain); }
     if (g.p.onGround && wasAir) { if (started) landings++; chain = 0; }
     if (b.dead || b.state === 'dying') { killed = true; break; }

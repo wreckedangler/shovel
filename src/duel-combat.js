@@ -2,6 +2,46 @@ import { T, cx, fsin, fcos } from './core.js';
 import { eproj, foeBase, hurtFoe } from './foes.js';
 import { clearLegend, legendStep } from './legend-duels.js';
 import { DUELS } from './duels.js';
+import { sense, predictX, choose, dodgeDir, windT, restT, steer } from './brain.js';
+
+// Neue Fassung (enemyRevision 2): weniger Leben, dafür wählt das Boss-Gehirn die Attacke nach Lage,
+// die Meister bewegen sich in den Pausen, halten ihren Lieblingsabstand und weichen Schaufel-Sprüngen aus.
+export const DUEL_HP2 = { 'D-1': 60, 'D-2': 66, 'D-3': 62, 'D-4': 70, 'D-5': 84 };
+const PREF = { 'D-1': 110, 'D-2': 90, 'D-3': 120, 'D-4': 100, 'D-5': 95 };
+const clampX = (b, x) => Math.max(11 * T, Math.min(43 * T - b.w, x));
+function weight(a, s, b, sig) {
+  const ground = !s.air, d = s.dist;
+  let w = 0.6;
+  if (a === 'lunge' || a === 'return') w = (ground ? 1.4 : 0.5) * (d < 40 ? 0.5 : d > 190 ? 0.6 : 1);
+  else if (a === 'fan') w = (d > 100 ? 1.3 : 0.6) + (s.air ? 0.3 : 0);
+  else if (a === 'tide' || a === 'forge' || a === 'nova') w = ground ? 1.2 : 0.4;
+  else if (a === 'undertow') w = (ground ? 0.8 : 0.4) + (d > 120 ? 0.8 : 0);
+  else if (a === 'anchor') w = d > 60 && d < 170 ? 1.1 : 0.6;
+  else if (a === 'chime' || a === 'echo') w = d < 110 ? 1.3 : 0.7;
+  else if (['rain', 'meteor', 'record', 'palimpsest'].includes(a)) w = 0.9 + (ground && Math.abs(s.vx) < 0.6 ? 0.5 : 0) + (d > 140 ? 0.4 : 0);
+  return w + (sig ? 0.3 : 0);
+}
+function think(g, b) {
+  const s = sense(g, b);
+  if (b.state === 'rest') {
+    b.y = Math.min(11 * T - b.h, b.y + 2);
+    const pref = PREF[b.design.id] || 100, want = s.dist < pref - 30 ? -1 : s.dist > pref + 40 ? 1 : 0;
+    b.vx = steer(b.vx || 0, s.dir * want * 1.2 * s.A.speed, 0.15);
+    const d = dodgeDir(g, b, s);
+    if (d && !b.hopT) { b.vx = (b.x - 11 * T < 30 ? 1 : 43 * T - b.w - b.x < 30 ? -1 : d) * 3.2; b.hopT = 16; g.ev('boing'); }
+    if (b.hopT > 0) { b.hopT--; b.y = 11 * T - b.h - Math.round(fsin(Math.PI * b.hopT / 16) * 20); }
+    b.x = clampX(b, b.x + b.vx);
+  }
+  if (--b.t > 0) return;
+  b.vx = 0; b.hopT = 0; b.y = Math.min(b.y, 11 * T - b.h);
+  const P = b.design.patterns, pool = b.phase === 1 ? P[0] : [...new Set([...P[1], ...P[0]])];
+  const W = {}; for (const a of pool) W[a] = weight(a, s, b, b.phase === 2 && !P[0].includes(a));
+  b.action = choose(g, b, W);
+  const warn = windT(g, b.phase === 1 ? 46 : 36, 26);
+  b.face = predictX(s, warn) < cx(b) ? -1 : 1;
+  b.marks = []; b.state = 'warn'; b.t = warn;
+  if (b.action === 'meteor' || b.action === 'rain') { const at = predictX(s, warn); b.marks = [at - 26, at, at + 26]; }
+}
 
 function volley(g,b,kind,speeds) {
   for (const [vx,vy] of speeds) {
@@ -78,6 +118,7 @@ function update(g,b) {
     g.burst(cx(b),b.y+10,26,'star',2.4); g.ev('bossStart');
   }
   if (b.legend) { legendStep(g,b); return; }
+  if ((b.state==='roar' || b.state==='rest') && g.enemyRevision >= 2) return think(g,b);
   if (b.state==='roar' || b.state==='rest') {
     if (b.state==='rest') b.y=Math.min(11*T-b.h,b.y+2);
     if (--b.t>0) return;
@@ -99,7 +140,7 @@ function update(g,b) {
     return;
   }
   strike(g,b,b.t++);
-  if (b.t>=52) { b.state='rest'; b.t=b.phase===1?55:38; b.marks=[]; }
+  if (b.t>=52) { b.state='rest'; b.t=b.phase===1?55:38; b.marks=[]; if (g.enemyRevision >= 2) b.t=restT(g,b.t,24); }
 }
 
 export function duelBoss(index) {
@@ -115,6 +156,6 @@ export function duelBoss(index) {
     hurtBy(g,b,damage,dir,source) {
       if (b.state==='idle' || b.state==='dying' || b.state==='roar') return;
       if (b.legend) { g.ev('clink'); return; }
-      hurtFoe(g,b,b.state==='rest'?damage:Math.max(1,Math.floor(damage/3)),dir,source);
+      hurtFoe(g,b,b.state==='rest'?damage:Math.max(1,Math.floor(damage/(g.enemyRevision >= 2 ? 2 : 3))),dir,source);
     }});
 }

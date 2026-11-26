@@ -7,6 +7,9 @@ import { setsActive, setPre, setPost, setHit } from './sets.js';
 import { populateHunt } from './hunters.js';
 import { SHOVEL } from './gear.js';
 import { armorStats, loadout, pvpNormalize } from './armor.js';
+import { aiLevelOf } from './brain.js';
+import { BOSS_HP2, bossHpMul } from './bosses2.js';
+import { DUEL_HP2 } from './duel-combat.js';
 import { weaponMods } from './weapons.js';
 
 import { T, SOLID, GRAV, MAXFALL, BOUNCE, overlap, cx, sign, fsin, fcos, fdist, compact, rng } from './core.js';
@@ -17,7 +20,9 @@ export { T, fsin, fcos } from './core.js';
 export class Game {
   constructor(level, gear, opt = {}) {
     this.level = level;
-    this.enemyRevision = opt.enemyRevision ?? 1;
+    this.enemyRevision = opt.enemyRevision ?? 2;
+    // Stärke der Boss-KI (0–4, Standard 2), steht in jeder Wiederholung
+    this.aiLevel = aiLevelOf(opt.ai);
     this.armorRevision = opt.armorRevision ?? 1;
     this.sh = SHOVEL[gear.shovel];
     // Rüstung aus vier Teilen (altes Format { armor: n } = alle Teile Stufe n, ergibt exakt die alten Werte)
@@ -168,6 +173,11 @@ export class Game {
     for (const e of this.ents) if (e.foe && e !== this.boss && MAKERS[e.type] && this.rand() < eliteP) {
       e.elite = ['schnell', 'zaeh', 'teilt'][Math.floor(this.rand() * 3)];
       if (e.elite === 'zaeh') { e.hp *= 3; } e.loot = (e.loot || 8) * 3;
+    }
+    // Neue Boss-Fassung: weniger Leben, klügere KI; Lebenspunkte skalieren mit der KI-Stärke
+    if (this.boss && this.enemyRevision >= 2 && !this.boss.legend) {
+      const b = this.boss, base = BOSS_HP2[b.type] ?? (b.type === 'duelist' ? DUEL_HP2[b.design.id] : null) ?? b.maxhp;
+      b.hp = b.maxhp = Math.max(4, Math.round(base * bossHpMul(this)));
     }
     this.bossTier = opt.bossTier || 0;
     if (this.boss && this.bossTier) { this.boss.hp = this.boss.maxhp = Math.round(this.boss.maxhp * (1 + 0.3 * Math.min(4, this.bossTier))); }

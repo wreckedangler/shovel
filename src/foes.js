@@ -1,5 +1,6 @@
 // Gegner, Bosse, Fallen-Objekte und Projektile. Jeder Eintrag ist eine Fabrik: (x, y) → Objekt mit update(g, e).
 import { T, GRAV, MAXFALL, BOUNCE, overlap, cx, sign, fsin, fcos, fdist } from './core.js';
+import { moleAI, golemAI, morchelAI } from './bosses2.js';
 
 /* ---------- Objekte & Gegner ---------- */
 function gem(x, y, val, fixed) {
@@ -43,7 +44,13 @@ function beetle(x, y) {
   return foeBase({ type: 'beetle', x, y, w: 14, h: 9, hp: 1, dmg: 1, dir: -1, loot: 8,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
-      if (Math.abs(e.vx) > 0.6) e.vx *= 0.85; else e.vx = 0.45 * e.dir;
+      if (g.enemyRevision >= 2) {
+        // trippelnder Gang; steht der Held vor ihm auf gleicher Höhe, rennt er kurz los
+        e.gait = (e.gait || 0) + 1; if (e.rush) e.rush--;
+        const dx = cx(g.p) - cx(e), row = Math.abs(g.p.y + g.p.h - (e.y + e.h)) < 10;
+        if (!e.rush && e.onGround && row && sign(dx) === e.dir && Math.abs(dx) < 72 * (g.stealth || 1) && e.gait % 40 === 0) { e.rush = 28; g.burst(cx(e), e.y + e.h, 4, 'dust', 1); }
+        if (Math.abs(e.vx) > 1.6) e.vx *= 0.85; else e.vx = (e.rush ? 1.15 : 0.45 + fsin(e.gait * 0.16) * 0.14) * e.dir;
+      } else if (Math.abs(e.vx) > 0.6) e.vx *= 0.85; else e.vx = 0.45 * e.dir;
       e.vy = Math.min(MAXFALL, e.vy + GRAV);
       g.moveX(e);
       if (e.hitWall) e.dir *= -1;
@@ -87,12 +94,13 @@ function toad(x, y) {
         if (--e.t <= 0 && Math.abs(dx) < 120 * (g.stealth || 1)) {
           // nicht in Abgründe springen
           const longHop = g.enemyRevision && Math.abs(dx) > 62;
-          const speed = longHop ? 2.05 : 1.6, lift = longHop ? 5.1 : 4.6;
+          let speed = longHop ? 2.05 : 1.6, lift = longHop ? 5.1 : 4.6;
+          if (g.enemyRevision >= 2) { lift = 4.2 + g.rand() * 1.1; speed = Math.max(1.1, Math.min(2.3, (Math.abs(dx) + g.p.vx * e.face * 20) / (2 * lift / GRAV))); }
           const reach = g.enemyRevision ? speed * (2 * lift / GRAV - 1) : 34;
           const land = Math.floor((cx(e) + e.face * reach) / T);
           let safe = false; for (let k = 0; k < 4; k++) if (g.solid(land, Math.floor((e.y + e.h) / T) + k)) safe = true;
           if (safe) { e.vx = e.face * speed; e.vy = -lift; g.ev('boing', e.x, e.y); }
-          e.t = 70 + Math.floor(g.rand() * 40);
+          e.t = (g.enemyRevision >= 2 ? 50 : 70) + Math.floor(g.rand() * 40);
         }
       }
       if (e.y > g.h * T + 20) e.dead = true;
@@ -115,7 +123,8 @@ function snail(x, y) {
   return foeBase({ type: 'snail', x, y, w: 14, h: 10, hp: 3, dmg: 1, dir: -1, loot: 14, spiky: true,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
-      if (Math.abs(e.vx) > 0.4) e.vx *= 0.85; else e.vx = 0.22 * e.dir;
+      e.gait = (e.gait || 0) + 1;
+      if (Math.abs(e.vx) > 0.4) e.vx *= 0.85; else e.vx = (g.enemyRevision >= 2 ? 0.3 * Math.max(0, fsin(e.gait * 0.07)) + 0.04 : 0.22) * e.dir;
       e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); if (e.hitWall) e.dir *= -1; g.moveY(e);
       if (e.onGround) { const ahead = Math.floor((e.dir > 0 ? e.x + e.w + 1 : e.x - 1) / T); if (!g.solid(ahead, Math.floor((e.y + e.h + 2) / T))) e.dir *= -1; }
       if (e.y > g.h * T + 20) e.dead = true;
@@ -129,7 +138,11 @@ function blorb(x, y) {
       if (e.onGround) {
         e.vx *= 0.75;
         const dx = cx(g.p) - cx(e);
-        if (--e.t <= 0 && Math.abs(dx) < 150 * (g.stealth || 1)) { e.vy = -4.2; e.vx = sign(dx) * 1.3; e.t = 70; g.ev('blob', e.x, e.y); }
+        if (--e.t <= 0 && Math.abs(dx) < 150 * (g.stealth || 1)) {
+          if (g.enemyRevision >= 2) { e.vy = -3.6 - g.rand() * 1.4; e.vx = sign(dx) * Math.min(1.8, 0.6 + Math.abs(dx) / 60); e.t = 44 + Math.floor(g.rand() * 30); }
+          else { e.vy = -4.2; e.vx = sign(dx) * 1.3; e.t = 70; }
+          g.ev('blob', e.x, e.y);
+        } else if (g.enemyRevision >= 2 && e.t % 22 === 0) e.vy = -1.4;
       }
       g.moveX(e); g.moveY(e);
       if (e.y > g.h * T + 20) e.dead = true;
@@ -142,6 +155,15 @@ function bat(x, y) {
       const dx = cx(g.p) - cx(e), dy = g.p.y - e.y;
       if (e.state === 'hang') { const st = g.stealth || 1; if (Math.abs(dx) < 96 * st && Math.abs(dy) < 110 * st) { e.state = 'fly'; g.ev('screech', e.x, e.y); } return; }
       e.t++;
+      if (g.enemyRevision >= 2) {
+        if (!e.dive && e.t % 110 === 60 && dy > 10 && Math.abs(dx) < 90) { e.dive = 34; g.ev('screech', e.x, e.y); }
+        if (e.dive) {
+          e.dive--;
+          e.vx = Math.max(-2.1, Math.min(2.1, e.vx + sign(dx) * 0.12));
+          e.vy = e.dive > 16 ? 1.7 : -1.5;
+          e.x += e.vx; e.y += e.vy; return;
+        }
+      }
       e.vx = Math.max(-1.25, Math.min(1.25, e.vx + sign(dx) * 0.05));
       e.vy = Math.max(-0.9, Math.min(0.9, dy * 0.02)) + fsin(e.t / 9) * 0.9;
       e.x += e.vx; e.y += e.vy;
@@ -152,6 +174,7 @@ function mole(x, y) {
   const m = foeBase({ type: 'mole', x, y, w: 30, h: 26, hp: 24, maxhp: 24, dmg: 2, state: 'idle', t: 0, face: -1, next: 'charge',
     home: { x, y },
     update(g, e) {
+      if (g.enemyRevision >= 2) return moleAI(g, e);
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const p = g.p, dx = cx(p) - cx(e), fast = e.hp <= e.maxhp / 2 ? 1.35 : 1;
       const grav = () => { e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); g.moveY(e); };
@@ -276,8 +299,14 @@ function knight(x, y) {
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const dx = cx(g.p) - cx(e);
-      if (++e.t % 80 === 0 && Math.abs(dx) < 130 * (g.stealth || 1)) e.dir = sign(dx);
-      if (Math.abs(e.vx) > 0.5) e.vx *= 0.85; else e.vx = 0.35 * e.dir;
+      if (++e.t % (g.enemyRevision >= 2 ? 45 : 80) === 0 && Math.abs(dx) < 130 * (g.stealth || 1)) e.dir = sign(dx);
+      if (g.enemyRevision >= 2) {
+        const row = Math.abs(g.p.y + g.p.h - (e.y + e.h)) < 12;
+        if (e.windup) { e.vx = 0; if (--e.windup === 0) { e.lunge = 14; g.ev('swing', e.x, e.y); } }
+        else if (e.lunge) { e.lunge--; e.vx = e.dir * 2.2; if (!e.lunge) e.vx = -e.dir * 0.8; }
+        else if (e.onGround && row && sign(dx) === e.dir && Math.abs(dx) < 64 && e.t % 20 === 0) { e.windup = 18; e.vx = 0; }
+        else if (Math.abs(e.vx) > 0.5) e.vx *= 0.85; else e.vx = 0.35 * e.dir;
+      } else if (Math.abs(e.vx) > 0.5) e.vx *= 0.85; else e.vx = 0.35 * e.dir;
       e.vy = Math.min(MAXFALL, e.vy + GRAV);
       g.moveX(e); if (e.hitWall) e.dir *= -1;
       g.moveY(e);
@@ -289,9 +318,18 @@ function kuckuck(x, y) {
   return foeBase({ type: 'kuckuck', x, y, w: 14, h: 10, hp: 1, dmg: 1, ox: x, oy: y, dir: 1, t: 0, loot: 10,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
-      e.t++; e.x += e.dir * 0.8;
-      if (e.x > e.ox + 56) e.dir = -1; if (e.x < e.ox - 56) e.dir = 1;
-      e.y = e.oy + fsin(e.t / 20) * 3;
+      e.t++;
+      if (g.enemyRevision >= 2) {
+        const dx = cx(g.p) - cx(e);
+        if (Math.abs(dx) < 110 && e.t % 30 === 0) e.dir = sign(dx) || e.dir;
+        e.x += e.dir * (0.8 + fsin(e.t / 13) * 0.35);
+        if (e.x > e.ox + 56) e.dir = -1; if (e.x < e.ox - 56) e.dir = 1;
+        e.y = e.oy + fsin(e.t / 20) * 6 + fsin(e.t / 7) * 1.5;
+      } else {
+        e.x += e.dir * 0.8;
+        if (e.x > e.ox + 56) e.dir = -1; if (e.x < e.ox - 56) e.dir = 1;
+        e.y = e.oy + fsin(e.t / 20) * 3;
+      }
       if (e.t % 110 === 0 && Math.abs(cx(g.p) - cx(e)) < 120 * (g.stealth || 1) && g.p.y > e.y) { g.add(eproj(cx(e) - 2, e.y + e.h, 0, 2.4, 'bolt')); g.ev('screech'); }
     } });
 }
@@ -316,6 +354,7 @@ function eproj(x, y, vx, vy, kind) {
 function golem(x, y) {
   return foeBase({ type: 'golem', title: 'PENDELWERK', x, y, w: 28, h: 30, hp: 32, maxhp: 32, dmg: 2, state: 'idle', t: 0, face: -1, cyc: 0, home: { x, y },
     update(g, e) {
+      if (g.enemyRevision >= 2) return golemAI(g, e);
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const p = g.p, dx = cx(p) - cx(e), fast = e.hp <= e.maxhp / 2 ? 1.3 : 1;
       const grav = () => { e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); g.moveY(e); };
@@ -369,7 +408,7 @@ function spitter(x, y) {
           e.face = sign(dx);
           if (++e.t % 96 === 0 && Math.abs(dx) < 150 * (g.stealth || 1)) {
             e.windup = 15;
-            e.aim = Math.max(-2.4, Math.min(2.4, dx / 45));
+            e.aim = Math.max(-2.4, Math.min(2.4, (dx + (g.enemyRevision >= 2 ? g.p.vx * 22 : 0)) / 45));
           }
         }
         return;
@@ -385,6 +424,7 @@ function spitter(x, y) {
 function morchel(x, y) {
   return foeBase({ type: 'morchel', title: 'MORCHELMUTTER', x, y, w: 30, h: 30, hp: 38, maxhp: 38, dmg: 2, state: 'idle', t: 0, face: -1, cyc: 0, home: { x, y },
     update(g, e) {
+      if (g.enemyRevision >= 2) return morchelAI(g, e);
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const p = g.p, dx = cx(p) - cx(e), fast = e.hp <= e.maxhp / 2 ? 1.3 : 1;
       const grav = () => { e.vy = Math.min(MAXFALL, e.vy + GRAV); g.moveX(e); g.moveY(e); };

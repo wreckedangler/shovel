@@ -19,6 +19,7 @@ async function decodeGhost(code) {
 }
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter , cloudSave, cloudLoad, uploadDeaths } from './online.js';
+import { AI_LEVELS, AI_DEFAULT, AI_HINT, aiLevelOf } from './brain.js';
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
@@ -264,7 +265,7 @@ function arenaLeave(res, quit) {
 async function startLevel(id, ghostCodes = []) {
   match = null;
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, roamerSeed: level.gen ? (level.seed ^ Math.imul(level.depth, 2654435761)) >>> 0 : Math.floor(Math.random() * 0x100000000), cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
+  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, roamerSeed: level.gen ? (level.seed ^ Math.imul(level.depth, 2654435761)) >>> 0 : Math.floor(Math.random() * 0x100000000), cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ai: aiLevelOf(D.ai), ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -353,7 +354,7 @@ async function finish() {
   save.write();
   checkAch();
   let up = '';
-  if (record && online() && D.name) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
+  if (record && online() && D.name && game.aiLevel === AI_DEFAULT) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
   stopMusic(); sfx('win');
   mode = 'result';
   const next = viaSecret && level.secretExit ? levelById(level.secretExit) : level.secret ? null : level.qual ? null : LEVELS.slice(li + 1).find(l => !l.secret && !l.qual);
@@ -654,7 +655,7 @@ const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => 
 const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
 function runOpts(L) {
   if (!L.gen) return {};
-  if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { daily: true, elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
+  if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { daily: true, ai: AI_DEFAULT, elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
   const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
   if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
   if (hcRun(L)) o.noCheck = true;
@@ -1181,6 +1182,9 @@ function options(msg = '') {
       ${isTouch ? `<button data-a="a11y" data-id="swapAB" class="${A.swapAB ? 'on' : ''}">A/B ${A.swapAB ? 'getauscht' : 'normal'}</button>` : ''}
       <button data-a="autopogo" class="${D.autoPogo !== false ? 'on' : ''}">Schaufel-Sprung: ${D.autoPogo !== false ? 'B im Fallen' : 'nur ▼ halten'}</button>
     </div>
+    <h3 class="sub">Test</h3>
+    <div class="row toggles"><button data-a="aistrength" class="${aiLevelOf(D.ai) !== AI_DEFAULT ? 'on' : ''}">KI-Stärke der Bosse: ${AI_LEVELS[aiLevelOf(D.ai)]}</button></div>
+    <p class="note">${AI_HINT[aiLevelOf(D.ai)]} Gilt ab dem nächsten Start eines Levels. Abweichend vom Standard (Ritter) werden keine Geister hochgeladen; der Tagesschacht spielt immer mit Ritter.</p>
     <h3 class="sub">Spielstand sichern</h3>
     <p class="note">${save.loadedFrom === 'sicherung' ? '<b style="color:#ff9a80">Der Spielstand wurde aus der Notfall-Kopie wiederhergestellt.</b> ' : ''}Der Browser kann gespeicherte Daten löschen (Safari nach 7 Tagen ohne Besuch). Sichere deinen Spielstand als Code, z. B. in deinen Notizen.${D.lastBackup ? ` Letzte Sicherung: ${new Date(D.lastBackup).toLocaleDateString('de-CH')}.` : ' Noch nie gesichert.'}</p>
     <div class="row"><button class="big" data-a="exportsave">Spielstand als Code</button></div>
@@ -1304,6 +1308,7 @@ ui.addEventListener('click', async e => {
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
     case 'vibrate': D.vibrate = !D.vibrate; save.write(); haptic('hit'); b.outerHTML = toggles().match(/<button data-a="vibrate".*?<\/button>/s)[0]; return;
+    case 'aistrength': D.ai = (aiLevelOf(D.ai) + 1) % AI_LEVELS.length; save.write(); return options('KI-Stärke: ' + AI_LEVELS[D.ai]);
     case 'autopogo': D.autoPogo = D.autoPogo === false; save.write(); return options(D.autoPogo ? 'B im Fallen löst den Schaufel-Sprung aus. ▼ halten geht weiterhin.' : 'Schaufel-Sprung nur noch mit ▼ halten.');
     case 'quality': D.quality = { auto: 'hoch', hoch: 'niedrig', niedrig: 'auto' }[D.quality] || 'auto'; save.write(); applyA11y(); return options();
     case 'a11y': { const A = D.a11y;

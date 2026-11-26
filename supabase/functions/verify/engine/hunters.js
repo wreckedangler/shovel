@@ -1,6 +1,7 @@
 import { T, GRAV, MAXFALL, cx, fsin } from './core.js';
 import { foeBase, hurtFoe, eproj } from './foes.js';
 import { HUNTS } from './hunts.js';
+import { sense, predictX, choose, dodgeDir, windT, restT, steer } from './brain.js';
 
 // Alle Attacken haben eine sichtbare Ausholzeit. Ziel und Blickrichtung stehen
 // ab Beginn der Warnung fest, sodass selbst die letzte Stufe ausweichbar ist.
@@ -63,6 +64,36 @@ function move(g, e, stride) {
   if (e.x !== limit) { e.x = limit; e.vx = 0; }
 }
 
+// Neue Fassung (enemyRevision 2): Anführer planen ihre nächste Attacke nach Lage, suchen den passenden Abstand
+// und weichen Schaufel-Sprüngen aus. Das Ziel wird auf die vorhergesagte Position gelegt und steht ab der Warnung fest.
+const MELEE = ['dash', 'jump'], GROUND = ['shock', 'quake'], SKY = ['bolt', 'rain'];
+function intent(g, e, s) {
+  const W = {};
+  for (const a of new Set(e.pattern)) {
+    W[a] = MELEE.includes(a) ? (s.dist < 130 && !s.air ? 1.4 : 0.5)
+      : GROUND.includes(a) ? (s.air ? 0.3 : 1.2)
+      : SKY.includes(a) ? 0.8 + (s.air ? 0.6 : 0) + (s.dist > 150 ? 0.4 : 0)
+      : a === 'rest' ? 0.3 : (s.dist > 70 ? 1.2 : 0.5);
+  }
+  return choose(g, e, W);
+}
+function chiefStalk(g, e) {
+  const s = sense(g, e);
+  e.face = s.dir;
+  if (!e.intent) e.intent = intent(g, e, s);
+  const a = e.intent, pref = MELEE.includes(a) || GROUND.includes(a) ? 46 : SKY.includes(a) ? 120 : 100;
+  const want = e.design.move === 'guard' ? 0 : s.dist > pref + 25 ? 1 : s.dist < pref - 25 ? -1 : 0;
+  e.vx = steer(e.vx, s.dir * want * (0.34 + e.rank * 0.055) * 1.3 * s.A.speed, 0.08);
+  const d = e.design.move !== 'fly' && e.onGround ? dodgeDir(g, e, s) : 0;
+  if (d) { e.vy = -4.4; e.vx = d * 2.4; g.ev('boing'); }
+  move(g, e, want !== 0);
+  if (--e.t <= 0 && !g.p.dead) {
+    e.action = a; e.intent = null;
+    e.targetX = Math.round(predictX(s, 30));
+    e.state = 'warn'; e.t = windT(g, Math.max(17, 44 - e.rank * 2) + (windupBonus[e.action] || 0), 17);
+    e.windup = e.t; e.vx = 0;
+  }
+}
 function updateHunter(g, e) {
   if (e.iframe) e.iframe--;
   if (e.flash) e.flash--;
@@ -81,6 +112,7 @@ function updateHunter(g, e) {
     if (--e.t <= 0) { e.state = 'stalk'; e.t = e.rank >= 6 ? 1 : 35; }
     return;
   }
+  if (e.state === 'stalk' && e.isChief && g.enemyRevision >= 2) return chiefStalk(g, e);
   if (e.state === 'stalk') {
     const dx = cx(g.p) - cx(e);
     const near = Math.abs(dx) < (e.isChief ? 340 : 145);
@@ -118,6 +150,7 @@ function updateHunter(g, e) {
     const enraged = e.isChief && e.hp * 2 <= e.maxhp;
     e.t = (enraged ? 46 : 78) - (e.isChief ? 4 : 2) * e.rank + (e.action === 'rest' ? 25 : 0);
     if (g.enemyRevision && e.isChief && e.rank >= 8) e.t = Math.max(enraged ? 32 : 55, e.t);
+    if (g.enemyRevision >= 2 && e.isChief) e.t = restT(g, e.t, 24);
   }
 }
 
@@ -126,7 +159,7 @@ function hunter(design, hunt, rank, slot, isChief, revision) {
   const h = revision ? footprints[design.shape][1] : isChief ? 25 + rank : 13 + slot;
   const x = (isChief ? 50 : [10, 20, revision ? 24 : 28][slot]) * T;  // neue Fassung: nicht direkt neben der Laterne (31)
   const y = (design.move === 'fly' ? 9.5 : 11) * T - h;
-  const hp = isChief ? 14 + rank * 7 : 1 + Math.floor((rank + slot) / 2);
+  const hp = isChief ? (revision >= 2 ? 12 + rank * 5 : 14 + rank * 7) : 1 + Math.floor((rank + slot) / 2);
   return foeBase({ type: 'hunter', design, rank, colors: hunt.colors, x, y, w, h, home: { x, y },
     title: design.name.toUpperCase(), isChief, hp, maxhp: hp,
     dmg: isChief ? 1 + Math.floor(rank / 3) : 1 + Math.floor(rank / 5),
