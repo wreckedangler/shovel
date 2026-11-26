@@ -1020,6 +1020,7 @@ function options(msg = '') {
     <label class="field">Geist-Code importieren<textarea id="code" rows="2" placeholder="SH1.…"></textarea></label>
     <button data-a="import">Importieren</button>
     <p class="note">${online() ? 'Online: verbunden.' : 'Online: aus (wird mit Supabase aktiv).'} Version ${CONFIG.version} · Generator ${GEN_VERSION}</p>
+    <button data-a="checkupdate">Nach Update suchen</button>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
     <button class="danger" data-a="reset">Spielstand löschen</button>
   </div>`);
@@ -1048,6 +1049,7 @@ ui.addEventListener('click', async e => {
     case 'treasury': return treasury();
     case 'tagesschacht': return tagesschacht();
     case 'reload': location.reload(); return;
+    case 'checkupdate': { try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {} sfx('click'); location.reload(); return; }
     case 'tsshare': tsShare(); return;
     case 'tsmsg': return tsMessage();
     case 'tsmsgset': { const p = game.p; D.ts.msg = { ma: +$('#ma').value, mb: +$('#mb').value, mx: Math.round(p.x), my: Math.round(p.y), mk: D.ts.k }; save.write(); sfx('secret'); return resume(); }
@@ -1148,7 +1150,7 @@ function goFullscreen() {
 
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.__SH_BUNDLE) {
   const hadCtl = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('sw.js').then(r => setInterval(() => r.update().catch(() => {}), 30 * 60000)).catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => setInterval(() => r.update().catch(() => {}), 30 * 60000)).catch(() => {});
   // Neue Version: nicht mitten im Spiel neu laden, sondern Bescheid geben
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadCtl) return; updateReady = true; toast('Neue Version bereit', 'Im Titelmenü antippen zum Aktualisieren.', 'ach'); if (mode === 'menu' && document.querySelector('.title')) title(); });
 }
