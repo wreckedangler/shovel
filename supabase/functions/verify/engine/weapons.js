@@ -58,7 +58,7 @@ export const WEAPONS = [
 ];
 
 // Signaturwaffen der Meisterduelle: eigene Mechanik (sets.js), Fundbedingung im jeweiligen Duell
-const SIG = (id, name, dark, light, handle, perk, hint, cond) => WEAPONS.push({ id, name, rar: 'mythisch', dark, light, handle, sig: true, perk, hint, cond });
+const SIG = (id, name, dark, light, handle, perk, hint, cond) => WEAPONS.push(/** @type {any} */ ({ id, name, rar: 'mythisch', dark, light, handle, sig: true, perk, hint, cond }));
 SIG('rosenschliff', 'Rosenschliff', '#a04a70', '#ffc8dc', '#2a2630', 'Der erste Stich setzt die lose Spitze hinter dem Ziel ab. Der nächste Stich binnen 1,2 s zieht sie zurück und trifft auf dem Rückweg für 2 Schaden.',
   'Sereia heilt sich an deinem Leid. Lass sie hungern.', 'Sereia besiegen, ohne dass ein Rückstoss ihr Leben zurückgibt.');
 SIG('kielbrecher', 'Kielbrecher', '#3c7a74', '#f3bd72', '#14262e', 'Ein Bodenhieb legt den Anker aus. Der nächste Luftangriff zieht dich bis zu 48 px zu ihm zurück.',

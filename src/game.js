@@ -67,7 +67,7 @@ export class Game {
     // Statistiken für Sterne und Waffen-Bedingungen
     this.kills = 0; this.hurtCount = 0; this.bossHurt = 0; this.bossClean = false;
     this.emberSwings = 0; this.carryingEmber = false; this.altarWarned = false;
-    this.chain = 0; this.maxChain = 0; this.soulUsed = false; this.streak = 0; this.streakT = 0;
+    this.chain = 0; this.maxChain = 0; this.headChain = 0; this.soulUsed = false; this.streak = 0; this.streakT = 0;
     this.freeze = 0; this.nums = []; this.banner = null;
     this.tiles = level.map.map(r => r.split(''));
     this.h = this.tiles.length;
@@ -511,6 +511,7 @@ export class Game {
       }
     }
     if (p.onGround) {
+      this.headChain = 0;
       if (!wasGround && fallV > 3) { p.land = this.af.ice ? 0 : 6; this.burst(cx(p), p.y + p.h, 5, 'dust', 1, 0, 14); }
       if (!wasGround && fallV > 5 && this.af.stomp) this.quakeAt(cx(p), p.y + p.h, 30, 1);
       p.dashUsed = false;
@@ -539,7 +540,11 @@ export class Game {
       if (e.dead || !overlap(box, e)) continue;
       if (e.type === 'saw' || (e.type === 'icicle' && e.state !== 'gone')) { this.hurtPlayer(2, sign(cx(p) - cx(e)) || 1, true); hit = true; }
       else if (e.foe && !e.hidden && e.spiky && !(e.frozen > 0)) { this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)) || 1, true); this.ev('clink'); hit = true; }
-      else if (e.foe && !e.hidden) { this.hitFoe(e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true; }
+      else if (e.foe && !e.hidden) {
+        // Bosse lassen sich nicht vom Kopf aus erledigen: der dritte Abpraller in Folge wirft dich ab
+        if ((e === this.boss || e.isChief) && !e.legend && ++this.headChain >= 3) return this.shakeOff(e);  // zählt bis zur nächsten Landung
+        this.hitFoe(e, this.dmg * (sh.pogoDmg || 1), 0, 'pogo'); hit = true;
+      }
       else if (e.type === 'chest' && !e.open) { this.openChest(e); hit = true; }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y, 8, 'stone'); hit = true; }
       else if (e.type === 'cog') { hit = true; this.burst(cx(p), p.y + p.h, 6, 'spark', 2, 0.05, 12); this.ev('clink'); }
@@ -576,6 +581,13 @@ export class Game {
     }
   }
 
+  shakeOff(e) {
+    const p = this.p, dir = sign(cx(p) - cx(e)) || -p.face;
+    p.pogoLatch = false;
+    p.vx = dir * 3.6; p.vy = -4.5; p.onGround = false; p.jumping = false;
+    this.ev('clink'); this.num(cx(p), p.y - 8, 'ABGEWORFEN', '#ff8a6a'); this.burst(cx(p), p.y + p.h, 10, 'spark', 2, 0.05, 16);
+    this.hurtPlayer(1, dir);
+  }
   swing(hits) {
     const p = this.p, sh = this.sh, H = hits || p.hits;
     const R = this.reach;
