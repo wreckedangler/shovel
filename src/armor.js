@@ -102,7 +102,7 @@ export const EFFECTS = {
 /* ---------- Einzigartige Stücke ---------- */
 // Aussehen (look): b = Grundform, d = Verzierungen, m = Material (Palette), f = leuchtende Effekte [art, farbe], s = Beinstil, sc = Schalfarben
 // Grundformen: Helm 0–11 = Formen der Stufen, 'kapuze', 'maske', 'grosshelm', 'kronhelm'; Brust 0–11; Umhang 'kurz', 'lang', 'zerfetzt', 'fluegel', 'kragen'; Hose = Stil
-// rar: 0 gewöhnlich · 1 selten · 2 episch · 3 legendär. Basis-Stufe der Werte richtet sich nach der Seltenheit,
+// rar: 0 gewöhnlich · 1 selten · 2 episch · 3 legendär. Die Stufe (Eisen bis Urlicht) steht unten in TIER_OF,
 // geschmiedete Stufen desselben Platzes heben sie an (siehe pieceOf).
 const BASE_TIER = [0, 1, 2, 3];
 const U = [];
@@ -238,6 +238,24 @@ export const setPieces = set => U.filter(u => u.set === set).map(u => u.id);
 export const UNIQUES = U;
 const BY_ID = new Map(U.map(u => [u.id, u]));
 export const uniqueById = id => BY_ID.get(id) || null;
+// Stufe jedes Stücks: seine Werte entsprechen mindestens dieser Schmiedestufe (geschmiedet höher geht weiterhin).
+// Holz und Bronze bleiben den geschmiedeten Teilen. Truhenfunde: gewöhnlich Eisen/Stahl, selten Titan/Adamantium,
+// episch Mithril bis Drachenknochen (stärkere Effekte = höhere Stufe). Boss-Stücke und Meister-Sets nach Fortschritt.
+// legacy: alte Basis-Stufe (für Wiederholungen von vor dieser Einteilung, armorRevision 0).
+const TIER_OF = {
+  2: ['laternenhelm', 'rabenhelm', 'elsternhaube', 'gerberwams', 'igelbrust', 'goldwams', 'magnetmantel', 'stillemantel', 'glueckslumpen', 'eislaeufer', 'dornensohlen', 'eisenschienen'], // Eisen
+  3: ['hoernerhelm', 'wachthelm', 'lauscherkappe', 'federleib', 'edelsteinpanzer', 'soeldnerhemd', 'sturmmantel', 'wanderermantel', 'daunenumhang', 'sprintstiefel', 'federschritt', 'leisetreter'], // Stahl
+  4: ['eisenstirn', 'kaeferkrone', 'raserkopf', 'dornenpanzer', 'glutkern', 'blutrausch', 'funkenmantel', 'aschenschleppe', 'jaegerumhang', 'stampfer', 'glutsohlen', 'schatzgraeber'], // Titan
+  5: ['sternenhelm', 'langewacht', 'dornenkrone', 'geduld', 'rippenpanzer', 'runenplatte', 'gleitumhang', 'waechterumhang', 'sternenschleier', 'sprungfeder', 'wolkenhose', 'kniebrecher', 'drachenklauen'], // Adamantium
+  6: ['mondkrone', 'verschlinger', 'spiegelplatte', 'sternenherz', 'schattenumhang', 'rueckspulmantel', 'mantelderleere', 'wandlaeufer', 'dornenlaeufe'], // Mithril
+  7: ['visier', 'waechterkopf', 'bollwerk', 'schaedelpanzer', 'herzderleere', 'glutschleppe', 'wolfslaeufe', 'gauklerbeine'], // Sternenmetall
+  8: ['knochenreisser', 'narrenkrone', 'gefallenerkoenig', 'lebensquell', 'rabenschwingen', 'himmelsstufen'], // Drachenknochen
+  9: ['drachenschuppe', 'phoenixmantel', 'siebenmeilen', 'spiegelhalbmaske', 'facettenkuerass', 'glasblaetter', 'rosengamaschen', 'taucherglocke', 'ballastweste', 'rahsegel', 'kettenstiefel'], // Leere-Kristall
+  10: ['leerenblick', 'ewigerkoenig', 'sturmschwingen', 'fuehlerreif', 'klangbrust', 'glockenschwingen', 'samtstulpen', 'radiermaske', 'schiefertafel', 'spinnenriss', 'graphitstelzen', 'eklipsenvisier', 'ofenherz', 'schlackenmantel', 'ambosssohlen'], // Chronostahl
+  11: ['blutpakt', 'knochenkoenig', 'porzellanlarve', 'lackmieder', 'sechsarmschleier', 'saumstiefel', 'messingkrone', 'russwams', 'wandschatten', 'lautlose'], // Urlicht
+};
+for (const [t, list] of Object.entries(TIER_OF)) for (const id of list) { const u = BY_ID.get(id); if (!u) throw new Error('Stufe für unbekanntes Stück ' + id); u.legacy = u.tier; u.tier = +t; }
+for (const u of U) if (u.legacy === undefined) throw new Error('Keine Stufe für ' + u.id);
 // Beschreibung der Effekte eines Stücks
 export const effectText = fx => Object.entries(fx).map(([k, v]) => EFFECTS[k].txt(v)).join(' · ');
 
@@ -248,11 +266,12 @@ export const BOSS_REWARD = { '1-B': 'drachenklauen', '2-B': 'rueckspulmantel', '
   'D-6': 'blutpakt', 'D-7': 'knochenkoenig' };
 
 /* ---------- Ausrüstung lesen ---------- */
+// rev 0: alte Basis-Stufen (Wiederholungen von früher)
 // Wert eines Platzes: Zahl (Stufe) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück, Werte mindestens auf seiner Basis-Stufe)
-export function pieceOf(slot, v) {
+export function pieceOf(slot, v, rev = 1) {
   if (typeof v === 'string') {
     const [id, t] = v.split('@'), it = uniqueById(id);
-    if (it && it.slot === slot) return { slot, tier: Math.max(it.tier, Math.min(11, Math.floor(+t || 0))), item: it };
+    if (it && it.slot === slot) return { slot, tier: Math.max(rev ? it.tier : it.legacy, Math.min(11, Math.floor(+t || 0))), item: it };
     return { slot, tier: 0, item: null };
   }
   const t = Number.isFinite(v) ? Math.max(0, Math.min(11, Math.floor(v))) : 0;
@@ -275,11 +294,11 @@ function stack(vals, cap, min) {
   return cap ? Math.min(cap, t) : t;
 }
 // Zusammenrechnen aller vier Teile (inklusive Obergrenzen). Ergebnis enthält die alten ARMOR-Felder (hp, kb, spike, inv, ward, air, magnet, rewind).
-export function armorStats(set) {
+export function armorStats(set, rev = 1) {
   let hp = 0, kbPts = 0, spikeRes = 0, inv = 0, ward = 0, air = 0, magnet = false, rewind = false;
   const tiers = {}, items = {}, raw = {};
   for (const s of SLOT_IDS) {
-    const pc = pieceOf(s, set[s]), st = tierStats(s, pc.tier);
+    const pc = pieceOf(s, set[s], rev), st = tierStats(s, pc.tier);
     tiers[s] = pc.tier; items[s] = pc.item ? pc.item.id : null;
     hp += st.hp; kbPts += st.kb; spikeRes += st.spike; inv += st.inv; ward += st.ward; air += st.air; magnet = magnet || st.magnet; rewind = rewind || st.rewind;
     if (pc.item) for (const k in pc.item.fx) if (k !== 'set') (raw[k] = raw[k] || []).push(pc.item.fx[k]);

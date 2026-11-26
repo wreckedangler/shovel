@@ -42,7 +42,12 @@ for (const L of LEVELS) {
 // Truhen: Verteilung, Garantie und Duplikate prüfen
 {
   const { openChest, PITY, ITEMS } = await import('../src/loot.js');
-  const D = { relics: {}, relicSlots: [null, null, null], cosmetics: {}, shards: 0, loot: { pity: 0, opened: 0 } };
+  // Rüstungsteile nur in Reichweite der Schmiede: mit reiner Holzrüstung keine, mit Urlicht alle
+  { const D0 = { relics: {}, relicSlots: [null, null, null], cosmetics: {}, shards: 0, loot: { pity: 0, opened: 0 }, helm: 0, brust: 0, umhang: 0, hose: 0 };
+    let s0 = 3; const r0 = () => ((s0 = (s0 * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < 2000; i++) openChest(D0, 'gold', r0);
+    if (Object.keys(D0.pieces || {}).length) throw new Error('Rüstungsteil mit Holzrüstung gefunden'); }
+  const D = { relics: {}, relicSlots: [null, null, null], cosmetics: {}, shards: 0, loot: { pity: 0, opened: 0 }, helm: 11, brust: 11, umhang: 11, hose: 11 };
   let s = 1; const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const cnt = [0, 0, 0, 0]; let maxDry = 0, dry = 0;
   for (let i = 0; i < 8000; i++) { const r = openChest(D, 'holz', rnd); cnt[r.rar]++; dry = r.rar === 3 ? 0 : dry + 1; maxDry = Math.max(maxDry, dry); }

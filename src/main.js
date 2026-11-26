@@ -1093,11 +1093,11 @@ function forge(msg = '') {
     const col = it ? RAR[it.rar].col : TIERS[v].light;
     const picker = forgeOpen === s ? `<div class="picker">
         <button class="pick ${!it ? 'on' : ''}" data-a="wear" data-k="${s}" data-id=""><canvas data-pi="${s}:${t}"></canvas><span><b>${esc(pieceName(s, t))}</b><small>Geschmiedet · ${esc(tierPerk(s, t))}</small></span></button>
-        ${own.map(u => `<button class="pick r${u.rar} ${v === u.id ? 'on' : ''}" data-a="wear" data-k="${s}" data-id="${u.id}" style="--rc:${RAR[u.rar].col}"><canvas data-pi="${s}:${u.id}"></canvas><span><b>${esc(u.name)}</b><small style="color:${RAR[u.rar].col}">${rarName(u.rar)} · Werte ab Stufe ${u.tier + 1}</small><small>${esc(effectText(u.fx))}</small></span></button>`).join('')}
+        ${own.map(u => `<button class="pick r${u.rar} ${v === u.id ? 'on' : ''}" data-a="wear" data-k="${s}" data-id="${u.id}" style="--rc:${RAR[u.rar].col}"><canvas data-pi="${s}:${u.id}"></canvas><span><b>${esc(u.name)}</b><small style="color:${RAR[u.rar].col}">${rarName(u.rar)} · ${TIERS[u.tier].name}</small><small>${esc(effectText(u.fx))}</small></span></button>`).join('')}
         <p class="note">${own.length} / ${all} einzigartige Stücke gefunden. Weitere liegen in Truhen, bei Endgegnern und auf den Qualpfaden.</p></div>` : '';
     return `<div class="srow ${it ? 'uniq r' + it.rar : ''}" style="--rc:${col}">
       <canvas class="sic" data-pi="${s}:${v}"></canvas>
-      <div class="sinfo"><small>${esc(sl.name)} · Stufe ${(it ? Math.max(t, it.tier) : v) + 1}${!it && v < t ? ` von ${t + 1}` : ''}</small><b style="color:${col}">${esc(pieceName(s, v))}</b>
+      <div class="sinfo"><small>${esc(sl.name)} · Stufe ${(it ? Math.max(t, it.tier) : v) + 1} ${TIERS[it ? Math.max(t, it.tier) : v].name}${!it && v < t ? ` von ${t + 1}` : ''}</small><b style="color:${col}">${esc(pieceName(s, v))}</b>
         <p>${esc(it ? effectText(it.fx) : tierPerk(s, v))}</p>${pips(t)}</div>
       <div class="sbtn">${buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3))}
         <button data-a="slotpick" data-k="${s}" class="${forgeOpen === s ? 'on' : ''}">${forgeOpen === s ? 'Schliessen' : `Wechseln${own.length ? ` · ${own.length}` : ''}`}</button></div>

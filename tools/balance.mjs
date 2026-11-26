@@ -3,6 +3,7 @@
 // damit alle Obergrenzen genau so gelten wie im Spiel.
 // Wertung: wirksame Herzen × Schaden × Beweglichkeit. Gemeldet wird, wenn ein Aufbau mehr als LIMIT-mal
 // so stark ist wie ein vernünftiger Vergleich derselben Stufe (geschmiedete Rüstung, gleiche Schaufel, beste Relikte, beste Tat-Waffe).
+// Auf Stufe N zählen nur Stücke bis eine Stufe darüber (so weit reichen Truhen, siehe loot.js).
 // node tools/balance.mjs [--quick]
 import { Game } from '../src/game.js';
 import { UNIQUES, SLOT_IDS } from '../src/armor.js';
@@ -34,7 +35,7 @@ const flags = [];
 const out = [];
 const tiers = QUICK ? [5] : [2, 5, 8, 11];
 for (const N of tiers) {
-  for (const s of SLOT_IDS) opts[s] = [N, ...UNIQUES.filter(u => u.slot === s).map(u => (N > u.tier ? `${u.id}@${N}` : u.id))];
+  for (const s of SLOT_IDS) opts[s] = [N, ...UNIQUES.filter(u => u.slot === s && u.tier <= N + 1).map(u => (N > u.tier ? `${u.id}@${N}` : u.id))];
   // Vergleich: geschmiedete Stufe N, beste Relikte, beste Tat-Waffe (Waffen, die es schon vor den Rüstungsteilen gab)
   let base = 0, baseRaw = score(make(N, { armor: N }, null, {})).s;
   for (const w of [null, ...WEAPONS.filter(w => !w.chest).map(w => w.id)]) for (const R of RELIC_SETS) base = Math.max(base, score(make(N, { armor: N }, w, R)).s);

@@ -18,11 +18,12 @@ export class Game {
   constructor(level, gear, opt = {}) {
     this.level = level;
     this.enemyRevision = opt.enemyRevision ?? 1;
+    this.armorRevision = opt.armorRevision ?? 1;
     this.sh = SHOVEL[gear.shovel];
     // Rüstung aus vier Teilen (altes Format { armor: n } = alle Teile Stufe n, ergibt exakt die alten Werte)
     this.look = loadout(gear);
-    // Duell (Schatten-Arena): Rüstungswerte mit PvP-Obergrenzen
-    const A = this.ar = opt.pvp ? pvpNormalize(armorStats(this.look)) : armorStats(this.look), F = this.af = A.fx;
+    // Duell (Schatten-Arena): Rüstungswerte mit PvP-Obergrenzen; Stücke zählen dort mit ihren alten Grundstufen (Arena bleibt so ausgewogen wie abgestimmt)
+    const A = this.ar = opt.pvp ? pvpNormalize(armorStats(this.look, 0)) : armorStats(this.look, this.armorRevision), F = this.af = A.fx;
     this.armorTier = A.tiers.brust;
     this.gear = gear;
     this.mod = weaponMods(gear.weapon);
