@@ -808,22 +808,30 @@ function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 function title() {
   stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
-  show(`<div class="title">
+  tsAbandoned();
+  const next = LEVELS.find(l => !l.secret && !l.qual && levelOpen(l.id) && !D.cleared[l.id]) || LEVELS.find(l => l.id === '3-B');
+  const tsDone = D.ts.date === dayKey() && D.ts.done, keys = keyCount();
+  const tile = (a, icon, label, extra = '', locked = false) => `<button class="tile ${locked ? 'locked' : ''}" data-a="${locked ? 'nope' : a}">${ic(locked ? 'lock' : icon)}<span>${label}</span>${extra}</button>`;
+  const alerts = [
+    updateReady ? '<button class="chip gold" data-a="reload">Neue Version laden</button>' : '',
+    dailyReady() ? `<button class="chip ember" data-a="daily">${ic('trophy')} Tagesschatz bereit</button>` : '',
+    D.playDays >= 3 && Date.now() - (D.lastBackup || 0) > 7 * 864e5 ? '<button class="chip warn" data-a="options">Spielstand sichern</button>' : '',
+  ].join('');
+  show(`<div class="title home">
+    <div class="status"><span>${ic('gem')} ${D.gems.toLocaleString('de-CH')}</span><span>${ic('lock')} ${keys}</span><span>${ic('scroll')} ${completion(D)} %</span><button class="iconbtn" data-a="options" aria-label="Optionen">${ic('gear')}</button></div>
     <div data-a="logo">${logoImg()}</div>
-    <div class="tag">Grabe · Springe · Schmiede dich nach oben</div>
-    <div class="menu">
-      <button class="big" data-a="map">Abenteuer</button>
-      ${updateReady ? '<button class="big" data-a="reload">Neue Version laden</button>' : ''}
-      ${D.playDays >= 3 && Date.now() - (D.lastBackup || 0) > 7 * 864e5 ? '<button class="warnbtn" data-a="options">Spielstand sichern! (Optionen)</button>' : ''}
-      ${(tsAbandoned(), '')}<button class="tsbtn" data-a="tagesschacht">Tagesschacht #${dayNumber()} ${D.ts.date === dayKey() && D.ts.done ? `<small>Stufe ${D.ts.end.k} ✓</small>` : '<span class="badge">!</span>'}</button>
-      ${endlessOpen() ? `<button data-a="endless">∞ Endlose Tiefen${D.endless.best ? ` <small style="color:var(--mute)">${D.endless.best}</small>` : ''}</button>` : ''}
-      <button class="treasurebtn" data-a="treasury">${ic('lock')} Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button>
-      <div class="row"><button data-a="forge">${ic('anvil')} Schmiede</button><button data-a="armory">${ic('sword')} Waffen</button><button data-a="options">${ic('gear')} Optionen</button></div>
-      <button data-a="cheats">${ic('scroll')} Schummelbuch</button>
-      ${dailyReady() ? `<button class="daily" data-a="daily">${ic('trophy')} Tagesschatz bereit! <small>Tag ${D.daily.last === yesterday() ? D.daily.streak + 1 : 1}</small></button>` : ''}
+    <button class="big play" data-a="continue" data-id="${next.id}">Abenteuer<small>Weiter: ${esc(next.id)} · ${esc(next.name)}</small></button>
+    <button class="tscard ${tsDone ? 'done' : ''}" data-a="tagesschacht"><b>Tagesschacht #${dayNumber()}</b><small>${tsDone ? `Heute geschafft: Stufe ${D.ts.end.k} ✓ · Serie ${tsStreak()}` : D.ts.date === dayKey() && D.ts.k > 1 ? `Läuft · Stufe ${D.ts.k}` : 'Heute noch offen · ein Leben'}</small>${tsDone ? '' : '<span class="badge">!</span>'}</button>
+    ${alerts ? `<div class="chips">${alerts}</div>` : ''}
+    <div class="tiles">
+      ${tile('endless', 'rune', 'Tiefen', D.endless.best ? `<em>${D.endless.best}</em>` : '', !endlessOpen())}
+      ${tile('treasury', 'dia', 'Truhen', keys ? `<i class="badge">${keys}</i>` : '')}
+      ${tile('forge', 'anvil', 'Schmiede')}
+      ${tile('collection', 'star', 'Sammlung')}
+      ${tile('armory', 'sword', 'Waffen', `<em>${Object.keys(D.weapons).length}/${WEAPONS.length}</em>`)}
+      ${tile('achs', 'trophy', 'Erfolge', `<em>${Object.keys(D.ach).length}/${ACH.length}</em>`)}
     </div>
-    <p class="gems">${ic('gem')} ${D.gems} &nbsp; ${ic('coin')} ${totalCoins(D)} &nbsp; ${ic('scroll')} ${completion(D)} %</p>
-    ${dailyReady() ? '' : `<p class="note">Tagesschatz geholt · Serie ${D.daily.streak} ${D.daily.streak === 1 ? 'Tag' : 'Tage'}</p>`}
+    <div class="foot"><button data-a="wardrobe">Garderobe</button><button data-a="cheats">Schummelbuch</button><button data-a="options">Optionen</button></div>
     ${installTip()}
   </div>`);
 }
@@ -1023,6 +1031,7 @@ ui.addEventListener('click', async e => {
   if (a !== 'nope' && a !== 'buy') sfx('click');
   switch (a) {
     case 'title': return title();
+    case 'continue': goFullscreen(); return map(id);
     case 'treasury': return treasury();
     case 'tagesschacht': return tagesschacht();
     case 'reload': location.reload(); return;
@@ -1053,6 +1062,7 @@ ui.addEventListener('click', async e => {
       const v = $('#cheatcode').value, c = cheatByCode(v);
       if (!v.trim()) return;
       if (/^(GAMEBOY|RETRO)$/i.test(v.trim())) { toggleRetro(); return cheatbook('Die Farben verblassen … oder kehren zurück.'); }
+      if (v.trim().toUpperCase().replace(/\s+/g, '') === 'MEISTERSCHAUFLER') { D.gems = 999999; D.shards = Math.max(D.shards, 99999); D.keys.urlicht += 20; D.keys.gold += 20; save.write(); sfx('legend'); haptic('unlock'); return cheatbook('Meisterschaufler: 999 999 Edelsteine, 99 999 Splitter und je 20 Gold- und Urlicht-Schlüssel.'); }
       if (!c) { sfx('nope'); return cheatbook('Nichts geschieht. Das Wort hat keine Macht.'); }
       D.cheatsKnown[c.id] = true; D.cheatsOn[c.id] = true; save.write(); sfx('legend');
       return cheatbook(`${esc(c.name)} erwacht.`);
