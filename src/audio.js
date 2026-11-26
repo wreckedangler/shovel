@@ -1,3 +1,4 @@
+import { startScore } from './score.js';
 // Chiptune-Soundeffekte und Musik, komplett synthetisiert (WebAudio, keine Dateien).
 let ac = null, master = null, musicGain = null, sfxGain = null, musicFilter = null, ambGain = null, revIn = null, revWet = null;
 const st = { sfx: true, music: true };
@@ -199,11 +200,13 @@ export function heartbeat(on) {
 const NOTE = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 const freq = n => { const m = n.match(/^([A-G]#?)(\d)$/); if (!m) return 0; return 440 * 2 ** ((NOTE[m[1]] + (+m[2] + 1) * 12 - 69) / 12); };
 const parse = s => s.trim().split(/\s+/);
-let song = null, timer = null, step = 0, nextT = 0;
+let song = null, timer = null, step = 0, nextT = 0, scoreStop = null;
 
 export function playMusic(m) {
   if (song === m) return;
   stopMusic(); song = m; if (!m || !ac) return;
+  // Orchester-Partitur (score.js) statt Chiptune-Zeilen
+  if (m.score) { scoreStop = startScore(ac, musicGain, m.score); return; }
   const lead = parse(m.lead), bass = parse(m.bass), dt = 60 / m.bpm / 2;
   step = 0; nextT = ac.currentTime + 0.1;
   const len = (arr, i) => { let n = 1; while (arr[(i + n) % arr.length] === '-' && n < 8) n++; return n; };
@@ -233,4 +236,4 @@ function noiseHat(when, vol) {
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
   s.connect(f).connect(g).connect(musicGain); s.start(t); s.stop(t + 0.06);
 }
-export function stopMusic() { if (timer) clearInterval(timer); timer = null; song = null; }
+export function stopMusic() { if (timer) clearInterval(timer); timer = null; song = null; if (scoreStop) { scoreStop(); scoreStop = null; } }

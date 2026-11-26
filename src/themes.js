@@ -1,3 +1,4 @@
+import { TITLE } from './score.js';
 // Welt-Themen: Farben, Kulisse und Musik.
 // Musik: 32 Achtelnoten pro Schleife, "." = Pause, "-" = Ton halten.
 
@@ -76,7 +77,6 @@ export const THEMES = {
     sky: ['#120a1e', '#2a1640', '#4a2058'], far: '#2e1846', near: '#1c0e2e', deco: 'baum',
     dirt: '#5a3426', dirtL: '#8c5638', dirtD: '#3a2018', grass: '#56d065', grassD: '#2a8a3c',
     stone: '#666a7c', stoneL: '#a0a3b4', plank: '#a8703e', stars: '#ffe7b8',
-    music: { bpm: 100,
-      lead: 'C5 - E5 - G5 - E5 - F5 - A5 - G5 - - - E5 - G5 - C6 - B5 - A5 - G5 - E5 - - -',
-      bass: 'C3 . G2 . C3 . G2 . F2 . C3 . G2 . D3 . A2 . E3 . A2 . E3 . F2 . C3 . G2 . G2 .' } },
+    // Titelmelodie „Der letzte Schaufelheld“ (Orchester, score.js)
+    music: { score: TITLE } },
 };
