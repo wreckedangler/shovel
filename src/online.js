@@ -41,7 +41,7 @@ export async function uploadDailyRun(run) {
 export async function fetchDailyMarks(date, limit = 400) {
   if (!online()) return [];
   try {
-    const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/daily_runs?date=eq.${encodeURIComponent(date)}&select=name,k,x,y,tail,ma,mb,mx,my,mk&order=created_at.desc&limit=${limit}`, { headers: headers() });
+    const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/daily_runs?date=eq.${encodeURIComponent(date)}&select=name,gv,k,x,y,tail,ma,mb,mx,my,mk&order=created_at.desc&limit=${limit}`, { headers: headers() });
     if (!r.ok) return [];
     return (await r.json()).map(m => ({ ...m, tail: (() => { try { return JSON.parse(m.tail || '[]'); } catch { return []; } })() }));
   } catch { return []; }

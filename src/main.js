@@ -571,7 +571,16 @@ function autoQuality(dt) {
   if (frameEma < 13) { if (++fastFrames > 600 && at.low) { at.low = false; fastFrames = 0; } } else fastFrames = 0;
 }
 /* ---------- Tagesschacht ---------- */
-let tsServer = { date: '', marks: [] };
+let tsServer = { date: '', marks: [], at: 0 }, tsLoading = null;
+// Blutflecken und Botschaften aller Spieler automatisch vom Server holen (höchstens jede Minute)
+function tsRefresh(force) {
+  if (!online()) return Promise.resolve();
+  const date = tsToday().date;
+  if (!force && tsServer.date === date && Date.now() - tsServer.at < 60000) return Promise.resolve();
+  if (tsLoading) return tsLoading;
+  tsLoading = fetchDailyMarks(date).then(ms => { tsServer = { date, marks: ms, at: Date.now() }; }).finally(() => { tsLoading = null; });
+  return tsLoading;
+}
 function tsToday() {
   const key = dayKey(), T = D.ts;
   if (T.date !== key) { Object.assign(T, { date: key, k: 1, done: false, path: [], end: null, msg: null, carried: 0, frames: 0, better: null, replays: [] }); for (const d in T.marks) if (d !== key) delete T.marks[d]; save.write(); }
@@ -622,7 +631,7 @@ function tagesschacht(msg = '') {
   const mo = $('#moment'); if (mo) mo.className = '';
   const abandoned = tsAbandoned(); if (abandoned && !msg) msg = 'Du hast den Schacht mitten in einer Stufe verlassen. Das zählt als Tod.';
   const T = tsToday(), num = dayNumber(), left = msUntilTomorrow(), hh = Math.floor(left / 36e5), mm = Math.floor(left / 6e4) % 60;
-  if (online() && tsServer.date !== T.date) fetchDailyMarks(T.date).then(ms => { tsServer = { date: T.date, marks: ms }; if (document.querySelector('.ts')) tagesschacht(msg); });
+  if (online() && (tsServer.date !== T.date || Date.now() - tsServer.at > 60000)) tsRefresh().then(() => { if (document.querySelector('.ts') && mode === 'menu') tagesschacht(msg); });
   const marks = tsAllMarks(), stains = marks.filter(m => m.x).length, hist = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const v = T.history[dayKey(d)]; return `<i class="${v ? 'on' : ''}" title="${dayKey(d)}">${v || ''}</i>`; }).join('');
   const preview = levelById(tsId(1));
   show(`<div class="panel ts ${T.done ? 'tsresult' : ''}">
@@ -640,9 +649,12 @@ function tagesschacht(msg = '') {
       <div class="tsprev"><canvas class="mini" data-tsmini="1"></canvas><small>Stufe 1 · ${esc(preview.name)} · ${esc(bioName(preview))}</small></div>
       <div class="row"><button class="big" data-a="eplay" data-id="${tsId(T.k)}">${T.k > 1 ? `Weiter · Stufe ${T.k}` : 'Abstieg beginnen'}</button></div>
       <p class="note">Unterwegs liegen Blutflecken anderer. Berühre sie, um ihre Seele zu bergen und ihren letzten Moment zu sehen. ${T.msg ? 'Deine Botschaft liegt bereit.' : 'In der Pause kannst du eine Botschaft hinterlassen.'}</p>`}
-    <div class="seedbox inset"><h3 class="sub">Blutflecken heute: ${stains}${online() ? '' : ' (nur über Codes)'}</h3>
+    <div class="seedbox inset"><h3 class="sub">Blutflecken heute: ${stains}</h3>
+      ${online() ? `<p class="note">${tsLoading ? 'Lade die Spuren der anderen …' : 'Die Blutflecken und Botschaften aller Spieler liegen automatisch in deinem Schacht.'}</p>
+      <details class="tsmanual"><summary>Ohne Internet: Code von Freunden einfügen</summary>` : ''}
       <label class="field">Code von Freunden einfügen<textarea id="tscode" rows="2" placeholder="SHT.…"></textarea></label>
       <div class="row"><button data-a="tsimport">Blutfleck übernehmen</button></div>
+      ${online() ? '</details>' : ''}
       ${msg ? `<p class="msg">${msg}</p>` : ''}
       <div class="tshist"><small>Letzte 7 Tage</small><div>${hist}</div></div>
     </div>
@@ -660,6 +672,7 @@ function tsMessage() {
 /* ---------- Abstieg: nahtloser Übergang zur nächsten Tiefe ---------- */
 let desc = null;
 function startDescent(info) {
+  if (online() && D.ts.date === dayKey() && !D.ts.done) tsRefresh(true);
   const next = levelById(info.nextId);
   desc = { ...info, t: 0, from: level, next, parts: [] };
   mode = 'descent'; touchEl.hidden = true; pauseBtn.hidden = true; stopMusic(); stopAmbience(); setIntensity(0);
@@ -1044,7 +1057,7 @@ ui.addEventListener('click', async e => {
       save.write(); return tagesschacht(n ? `${n} ${n === 1 ? 'Blutfleck liegt' : 'Blutflecken liegen'} jetzt im Schacht.` : wrong ? 'Dieser Code gehört zu einem anderen Tag.' : 'Kein gültiger Code gefunden.');
     }
     case 'endless': return endlessOpen() ? endless() : sfx('nope');
-    case 'eplay': goFullscreen(); return startLevel(id);
+    case 'eplay': { goFullscreen(); const L = levelById(id); if (tsRun(L) && online()) { b.textContent = 'Spuren werden geladen …'; await Promise.race([tsRefresh(), new Promise(r => setTimeout(r, 2500))]); } return startLevel(id); }
     case 'eseed': { const v = parseInt($('#eseed').value, 10); if (!(v > 0)) return endless('Bitte eine Zahl eingeben.'); if (v !== D.endless.seed) { D.endless.seed = v; D.endless.depth = 1; save.write(); } return endless(`Weltsamen ${v} gesetzt.`); }
     case 'curse': { if (!cursesOpen()) return; E0().curses = E0().curses || {}; E0().curses[id] = !E0().curses[id]; save.write(); sfx(E0().curses[id] ? 'troll' : 'click'); return endless(); }
     case 'hcstart': D.endless.hc = { on: true, seed: 1 + Math.floor(Math.random() * 999999), depth: 1, best: (D.endless.hc && D.endless.hc.best) || 0 }; save.write(); goFullscreen(); return startLevel(genId(D.endless.hc.seed, 1));
@@ -1149,6 +1162,7 @@ if (D.lastDay !== dayKey()) {
 // Handy-Tastatur: Eingabefeld sichtbar halten
 document.addEventListener('focusin', e => { if (e.target.matches('input, textarea, select')) setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300); });
 applyA11y();
+tsRefresh();
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
 if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id) };
