@@ -88,6 +88,8 @@ export const EFFECTS = {
   gems: { txt: v => `+${v} % Edelsteine`, cap: 100, pts: 0.02 },
   luck: { txt: v => `+${v} % goldene Gegner`, cap: 20, pts: 0.04 },
   rush: { txt: v => `Rausch füllt sich ${v} % schneller`, cap: 80, pts: 0.01 },
+  // Set: alle vier Teile eines Sets aktivieren die Set-Fähigkeit (siehe sets.js)
+  set: { txt: v => SETS[v] ? `${SETS[v].name}: ${SETS[v].txt}` : '', str: true, pts: 0 },
   // Nachteile
   fool: { txt: () => 'Nachteil: Herzen halbiert', bool: true, bad: true, pts: -3 },
   glass: { txt: () => 'Nachteil: jeder Treffer kostet 1 Herz mehr', bool: true, bad: true, pts: -2.5 },
@@ -191,6 +193,48 @@ P('hose', 'drachenklauen', 'Drachenklauen', 3, { wall: true, stomp: true, heavy:
 P('hose', 'siebenmeilen', 'Siebenmeilenstiefel', 3, { run: 20, ice: true, glass: true }, { s: 'stiefel', m: 'leere', f: [['feet', '#ff4fd8'], ['void', '#ff4fd8']] });
 P('hose', 'knochenkoenig', 'Läufe des Knochenkönigs', 3, { air: true, jump: 5, frail: 2 }, { s: 'schienen', m: 'knochen', f: [['feet', '#ff4020'], ['aura', '#fff2cf']] });
 
+// Meister-Sets: je vier Teile mit den Grundwerten ihrer Schmiedestufe; zusammen aktivieren sie die Set-Fähigkeit.
+// Freigeschaltet beim ersten Sieg im jeweiligen Meisterduell (auch rückwirkend).
+export const SETS = {
+  glasrose: { name: 'Ornat der Glasrose', duel: 'D-1', txt: 'Wende in der Luft, und eine Glassilhouette bleibt 0,45 s stehen. Ein Pfeil zerbricht daran (alle 8 s).' },
+  ebbe: { name: 'Lotse der Ebbe', duel: 'D-2', txt: 'Ducken am Boden wirft den Gürtelanker: kein Sog und kein seitlicher Rückstoss, solange du duckst.' },
+  vesper: { name: 'Vespergewand', duel: 'D-3', txt: 'Streift dich ein Schallring knapp, lädt sich ein Flügel. Mit zwei Ladungen: Sprung halten zum Schweben (0,5 s).' },
+  kreide: { name: 'Gewand der Durchschrift', duel: 'D-4', txt: 'Drei harte Landungen zeichnen ein Dreieck (Seiten bis 96 px). Gegner darin werden 2 s verlangsamt.' },
+  esse: { name: 'Die tragbare Esse', duel: 'D-5', txt: 'Hiebe zerschlagen Geschosse. Drei davon heizen die Esse, die nächste harte Landung löst Geschosse im Umkreis auf.' },
+  naht: { name: 'Ornat der losen Naht', duel: 'D-6', txt: 'Nach dem Verlassen einer beweglichen Plattform hält ein Faden 0,7 s. Sprung und Abwärts ziehen dich zurück (alle 6 s).' },
+  schatten: { name: 'Hofstaat eines Schattens', duel: 'D-7', txt: 'Ducken lässt deinen Schatten zurück. Verfehlst du danach einen Hieb, zieht er einen Gegner 0,6 s zu dir (alle 5 s).' },
+};
+const SETP = (set, slot, id, name, look) => P(slot, id, name, 3, { set }, look, { tier: 0, set });
+SETP('glasrose', 'helm', 'spiegelhalbmaske', 'Spiegelhalbmaske', { b: 'maske', m: 'glasrose', d: ['dornen'], f: [['sparkle', '#c5ffff'], ['eyes', '#f489ac']] });
+SETP('glasrose', 'brust', 'facettenkuerass', 'Facettenkürass', { b: 6, m: 'glasrose', d: ['spiegel'], f: [['rune', '#f489ac']] });
+SETP('glasrose', 'umhang', 'glasblaetter', 'Mantel aus Glasblättern', { b: 'zerfetzt', m: 'glasrose', f: [['sparkle', '#ffc8dc']] });
+SETP('glasrose', 'hose', 'rosengamaschen', 'Rosengamaschen', { s: 'stiefel', m: 'glasrose' });
+SETP('ebbe', 'helm', 'taucherglocke', 'Taucherglocke', { b: 'grosshelm', m: 'ebbe', d: ['nieten'], f: [['visor', '#f3bd72']] });
+SETP('ebbe', 'brust', 'ballastweste', 'Ballastweste', { b: 3, m: 'ebbe', d: ['ketten'] });
+SETP('ebbe', 'umhang', 'rahsegel', 'Rahsegel', { b: 'lang', m: 'ebbe' });
+SETP('ebbe', 'hose', 'kettenstiefel', 'Kettenstiefel', { s: 'schienen', m: 'ebbe' });
+SETP('vesper', 'helm', 'fuehlerreif', 'Fühlerreif', { b: 7, m: 'vesper', d: ['geweih'], f: [['eyes', '#ffde84']] });
+SETP('vesper', 'brust', 'klangbrust', 'Klangbrust', { b: 5, m: 'vesper', d: ['rune'], f: [['rune', '#ffde84']] });
+SETP('vesper', 'umhang', 'glockenschwingen', 'Glockenschwingen', { b: 'fluegel', m: 'vesper', f: [['sparkle', '#ffde84']] });
+SETP('vesper', 'hose', 'samtstulpen', 'Samtstulpen', { s: 'glatt', m: 'vesper' });
+SETP('kreide', 'helm', 'radiermaske', 'Radiermaske', { b: 'maske', m: 'kreide', d: ['kiefer'], f: [['eyes', '#ffa293']] });
+SETP('kreide', 'brust', 'schiefertafel', 'Schiefertafel', { b: 4, m: 'kreide', d: ['schuppen'] });
+SETP('kreide', 'umhang', 'spinnenriss', 'Spinnenriss', { b: 'zerfetzt', m: 'kreide' });
+SETP('kreide', 'hose', 'graphitstelzen', 'Graphitstelzen', { s: 'schienen', m: 'kreide' });
+SETP('esse', 'helm', 'eklipsenvisier', 'Eklipsenvisier', { b: 'grosshelm', m: 'esse', d: ['hoerner'], f: [['visor', '#a8efff']] });
+SETP('esse', 'brust', 'ofenherz', 'Ofenherz', { b: 8, m: 'esse', d: ['kern'], f: [['embers', '#dd8b55']] });
+SETP('esse', 'umhang', 'schlackenmantel', 'Schlackenmantel', { b: 'kragen', m: 'esse', f: [['embers', '#ff8a2a']] });
+SETP('esse', 'hose', 'ambosssohlen', 'Ambosssohlen', { s: 'stiefel', m: 'esse' });
+SETP('naht', 'helm', 'porzellanlarve', 'Porzellanlarve', { b: 'maske', m: 'naht', f: [['eyes', '#fa4055']] });
+SETP('naht', 'brust', 'lackmieder', 'Lackmieder', { b: 9, m: 'naht', d: ['nieten'] });
+SETP('naht', 'umhang', 'sechsarmschleier', 'Sechsarmiger Schleier', { b: 'zerfetzt', m: 'naht', f: [['rune', '#fa4055']] });
+SETP('naht', 'hose', 'saumstiefel', 'Saumstiefel', { s: 'stiefel', m: 'naht' });
+SETP('schatten', 'helm', 'messingkrone', 'Schiefe Messingkrone', { b: 'kronhelm', m: 'schatten', d: ['krone'], f: [['void', '#48354f']] });
+SETP('schatten', 'brust', 'russwams', 'Rußwams', { b: 10, m: 'schatten', d: ['schaedel'] });
+SETP('schatten', 'umhang', 'wandschatten', 'Überlanger Wandschatten', { b: 'lang', m: 'schatten', f: [['void', '#f4dfaf']] });
+SETP('schatten', 'hose', 'lautlose', 'Lautlose Sohlen', { s: 'krallen', m: 'schatten' });
+export const setPieces = set => U.filter(u => u.set === set).map(u => u.id);
+
 export const UNIQUES = U;
 const BY_ID = new Map(U.map(u => [u.id, u]));
 export const uniqueById = id => BY_ID.get(id) || null;
@@ -238,9 +282,11 @@ export function armorStats(set) {
     const pc = pieceOf(s, set[s]), st = tierStats(s, pc.tier);
     tiers[s] = pc.tier; items[s] = pc.item ? pc.item.id : null;
     hp += st.hp; kbPts += st.kb; spikeRes += st.spike; inv += st.inv; ward += st.ward; air += st.air; magnet = magnet || st.magnet; rewind = rewind || st.rewind;
-    if (pc.item) for (const k in pc.item.fx) (raw[k] = raw[k] || []).push(pc.item.fx[k]);
+    if (pc.item) for (const k in pc.item.fx) if (k !== 'set') (raw[k] = raw[k] || []).push(pc.item.fx[k]);
   }
   const fx = {};
+  // Set-Fähigkeit nur mit allen vier Teilen
+  const sets = SLOT_IDS.map(s => { const pc = pieceOf(s, set[s]); return pc.item && pc.item.set; }), fullSet = sets[0] && sets.every(x => x === sets[0]) ? sets[0] : null;
   for (const k in raw) { const E = EFFECTS[k]; fx[k] = E.bool ? true : stack(raw[k].map(Number), E.cap, E.min); }
   // Werte mit Effekten verrechnen (Obergrenzen zentral hier)
   hp += (fx.hp || 0) - (fx.frail || 0);
@@ -261,7 +307,7 @@ export function armorStats(set) {
     hp, kb: (20 - kbPts) / 20, spike: Math.max(0, 2 - spikeRes), inv: inv ? 50 + inv : undefined, ward, air, magnet, rewind,
     run, jump, grav, pogo: 1 + Math.min(20, fx.pogo || 0) / 100, gems: 1 + Math.min(100, fx.gems || 0) / 100,
     luck: Math.min(20, fx.luck || 0) / 100, rush: 1 + Math.min(80, fx.rush || 0) / 100, dmgMul: 1 + Math.min(2, fx.dmg || 0) * 0.25,
-    fx, tiers, items,
+    fx, tiers, items, set: fullSet,
   };
 }
 
@@ -277,6 +323,6 @@ export function pvpNormalize(st) {
     hp: Math.round(lerp(st.hp, 1, 24, 8, 12)),
     kb: Math.max(0.5, st.kb), spike: st.spike, inv: Math.min(80, st.inv || 50), ward: Math.min(1, st.ward), air: Math.min(1, st.air),
     run: Math.max(0.95, Math.min(1.1, st.run)), jump: Math.max(0.97, Math.min(1.05, st.jump)), grav: Math.max(0.92, st.grav),
-    pogo: Math.min(1.08, st.pogo), dmgAdd: Math.min(1, st.dmgAdd), gems: 1, luck: 0, rush: 1, rewind: false, magnet: false,
+    pogo: Math.min(1.08, st.pogo), dmgAdd: Math.min(1, st.dmgAdd), gems: 1, luck: 0, rush: 1, rewind: false, magnet: false, set: null,
   };
 }

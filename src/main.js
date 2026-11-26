@@ -5,7 +5,8 @@ import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById } from './levels.js';
 import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, PRICE, AVAILABLE } from './gear.js';
-import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS } from './armor.js';
+import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces } from './armor.js';
+import { duelDeeds } from './sets.js';
 import { Renderer } from './render.js';
 import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
@@ -324,8 +325,11 @@ async function finish() {
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
   // Waffen-Bedingungen am Levelende
   for (const weapon of finishWeapons(game, ghosts)) unlockWeapon(weapon);
+  if (!cheated) for (const weapon of duelDeeds(game)) unlockWeapon(weapon);
   // Endgegner und Qualpfade: beim ersten Sieg ein legendäres Rüstungsteil
   if (first && !cheated && BOSS_REWARD[id]) { if (grantItem(D, BOSS_REWARD[id])) reveals.push({ piece: BOSS_REWARD[id] }); }
+  // Meisterduell: das ganze Set des Meisters
+  if (!cheated) for (const sid of grantDuelSets()) { const ids = setPieces(sid); reveals.push({ piece: ids.find(i => uniqueById(i).slot === 'brust') || ids[0] }); setTimeout(() => toast('Set: ' + SETS[sid].name, 'Alle vier Teile sind in der Ausrüstung. ' + SETS[sid].txt, 'ach'), 400); }
   // Schlüssel für die Schatzkammer (jeder Anlass zählt nur einmal pro Level)
   let keyHtml = '';
   const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
@@ -826,7 +830,15 @@ const UNLOCKS = [
 ];
 const isOpen = id => { const u = UNLOCKS.find(x => x.id === id); return !u || u.test() || playCheats(D).length > 0 || D.gems >= 999999; };
 const endlessOpen = () => isOpen('endless');
+// Sets der Meister: beim ersten Sieg, auch rückwirkend für ältere Spielstände
+function grantDuelSets() {
+  const got = [];
+  for (const [sid, st] of Object.entries(SETS)) if (D.cleared[st.duel] && setPieces(sid).some(i => !(D.pieces || {})[i])) { for (const i of setPieces(sid)) grantItem(D, i); got.push(sid); }
+  if (got.length) save.write();
+  return got;
+}
 function announceUnlocks() {
+  for (const sid of grantDuelSets()) setTimeout(() => toast('Set: ' + SETS[sid].name, 'Für deinen Sieg im Meisterduell. Alle vier Teile liegen in der Ausrüstung.', 'ach'), 900);
   D.seenUnlocks = D.seenUnlocks || {};
   const fresh = UNLOCKS.filter(u => u.test() && !D.seenUnlocks[u.id]);
   fresh.forEach((u, i) => { D.seenUnlocks[u.id] = true; setTimeout(() => { toast('Neu: ' + u.name, u.desc, 'ach'); sfx('secret'); }, 600 + i * 1800); });
@@ -1077,7 +1089,7 @@ function forge(msg = '') {
       ${picker}</div>`;
   };
   const hp = A.hp + (RL.herz || 0);
-  const chips = Object.keys(A.fx).map(k => `<span class="fxchip ${EFFECTS[k].bad ? 'bad' : ''}">${esc(EFFECTS[k].txt(A.fx[k]))}</span>`).join('');
+  const chips = Object.keys(A.fx).map(k => `<span class="fxchip ${EFFECTS[k].bad ? 'bad' : ''}">${esc(EFFECTS[k].txt(A.fx[k]))}</span>`).join('') + (A.set ? `<span class="fxchip set">Set: ${esc(SETS[A.set].name)}</span>` : '');
   const wp = D.weapon && weaponById(D.weapon);
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Ausrüstung</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>

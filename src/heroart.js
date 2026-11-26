@@ -169,6 +169,13 @@ export const WEAPON_ART = {
   seelenschaufel: ['.........kkkkkk...', '........kSSSSSSk..', 'kkkkkkkkkkkkkkSSk.', 'kHhhhhhhkSk...kSk.', 'kkkkkkkkkSk....kk.', '.........kk.......', '..................'],
   pendelhammer: ['.........kkkkkk...', '.........kSSSSk...', 'kkkkkkkkkSSWSSSk..', 'kHhhhhhhkSSSSSSSk.', 'kkkkkkkkkSSSSSSk..', '.........kSSSSk...', '.........kkkkkk...'],
   spuerschaufel: ['.........kkk......', '........kSWSk.....', 'kkkkkkkkkSSSSk....', 'kHhhhhhhkSWSWSk...', 'kkkkkkkkkSSSSk....', '........kSWSk.....', '.........kkk......'],
+  rosenschliff: ['..........x.......', '.........xrx......', 'kkkkkkkkkkxkkkk...', 'kHhhhhhhkSSSSSSk.W', 'kkkkkkkkkkkkkkk...', '..................', '..................'],
+  kielbrecher: ['.........k.....k..', '........kSk...kSk.', 'kkkkkkkkkSk...kSk.', 'kHhhhhhhkSSSSSSSk.', 'kkkkkkkkkkkSSSkkk.', '...........kxk....', '............k.....'],
+  zwillingsstimme: ['.........kkkkkkkk.', '........kSSSSSSSSk', 'kkkkkkkkkSkkkkkkk.', 'kHhhhhhhkSk.......', 'kkkkkkkkkSkkkkk...', '........kSSSSSSk..', '.........kkkkkk...'],
+  blindzirkel: ['............k.....', '...........kSk....', 'kkkkkkkkkk.kSk....', 'kHhhhhhhkxkSSk....', 'kkkkkkkkkk.kSkk...', '...........k.kSk..', '..............kk..'],
+  sternamboss: ['.........kkkkkk...', '.........kSSSSk...', 'kkkkkkkkkSSxSSSk..', 'kHhhhhhhkSxWxSSSk.', 'kkkkkkkkkSSxSSSk..', '.........kSSSSk...', '.........kkkkkk...'],
+  letztesoehr: ['..................', '..............kk..', 'kkkkkkkkkkkkkkkSk.', 'kHhhhhhhhhhhhkSkSk', 'kkkkkkkkkkkkkkkSk.', '.r....r....r..kk..', 'r.rr.r.rr.r.r.....'],
+  elfenbein: ['..........kkk.....', '.........kWWWk....', 'kkkkkkkkkWWwWWk...', 'kHhhhhhhkWWWwWWk..', 'kkkkkkkkkWWWWWk...', '.........kWWWk....', '..........kkk.....'],
   urfunke: ['...........k.k....', '..........kxkxk...', 'kkkkkkkkk.kSxSxk..', 'kHhhhhhhkkSSWSSSk.', 'kkkkkkkkkSSSSSk...', '.........kkkkk....', '..................'],
 };
 
@@ -205,6 +212,14 @@ export const MATERIALS = {
   asche: { a: '#2a2828', A: '#6a6460', h: '#b0a8a0', x: '#ff6a30', X: '#8a2a10', e: '#ffa060', v: '#0a0808', c: '#3a3434', C: '#1a1616', w: '#8a8480', y: '#c0a060', g: '#ff6a30', G: '#8a2a10' },
   mond: { a: '#3a3a6a', A: '#9a9ad8', h: '#f0f0ff', x: '#ffd84a', X: '#a07a10', e: '#ffffff', v: '#0a0a20', c: '#2a2a5a', C: '#14143a', w: '#e0e0ff', y: '#ffd84a', g: '#bff6ff', G: '#6a6ad0' },
   sumpf: { a: '#2a3a18', A: '#5a7a30', h: '#b0d070', x: '#d0a040', X: '#6a5010', e: '#d0ff60', v: '#0a1004', c: '#3a4a20', C: '#1a2410', w: '#a0b080', y: '#d0a040', g: '#d0ff60', G: '#5a8a20' },
+  // Meister-Sets
+  glasrose: { a: '#2a2630', A: '#4a4458', h: '#ffc8dc', x: '#f489ac', X: '#a04a70', e: '#c5ffff', v: '#141018', c: '#3a3444', C: '#1e1a26', w: '#ffe4ee', y: '#f489ac', g: '#c5ffff', G: '#f489ac' },
+  ebbe: { a: '#1e3a3c', A: '#3c7a74', h: '#8ad8c8', x: '#f3bd72', X: '#9a6a2a', e: '#f3bd72', v: '#081414', c: '#2a4a58', C: '#14262e', w: '#c8ece4', y: '#d4a050', g: '#f3bd72', G: '#5caeaf' },
+  vesper: { a: '#2a1e40', A: '#524171', h: '#ae8ded', x: '#ffde84', X: '#a07a2a', e: '#ffde84', v: '#0e0818', c: '#3e2c5a', C: '#1e142e', w: '#e0d0ff', y: '#ffde84', g: '#ae8ded', G: '#ffde84' },
+  kreide: { a: '#3a3e44', A: '#6a7078', h: '#d0cdc3', x: '#ffa293', X: '#a05a50', e: '#fff6e8', v: '#16181c', c: '#4a4e56', C: '#24272c', w: '#f4f0e4', y: '#d0cdc3', g: '#ffa293', G: '#d0cdc3' },
+  esse: { a: '#2a1410', A: '#8a4a28', h: '#dd8b55', x: '#a8efff', X: '#3a6a8a', e: '#a8efff', v: '#0a0606', c: '#1a1210', C: '#0a0606', w: '#ffcf9a', y: '#dd8b55', g: '#a8efff', G: '#dd8b55' },
+  naht: { a: '#141018', A: '#d4bbc3', h: '#fff3f0', x: '#fa4055', X: '#8a1a2a', e: '#ffd84a', v: '#08060a', c: '#1a141e', C: '#0a080c', w: '#ffefe0', y: '#ffd84a', g: '#fa4055', G: '#ffd84a' },
+  schatten: { a: '#0e0a12', A: '#2a2232', h: '#48354f', x: '#f4dfaf', X: '#8a7a50', e: '#f4dfaf', v: '#000000', c: '#181320', C: '#08060c', w: '#f4dfaf', y: '#c8a850', g: '#f4dfaf', G: '#48354f' },
 };
 // Zusätzliche Helm-Grundformen
 export const HELM_BASES = {

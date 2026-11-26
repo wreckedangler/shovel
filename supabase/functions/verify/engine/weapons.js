@@ -57,6 +57,23 @@ export const WEAPONS = [
     cond: 'Die Glut vom Himmelsaltar in 1-3 ohne Schaden oder Sturz zurück zur Feuerschale am Pilzplateau tragen.' },
 ];
 
+// Signaturwaffen der Meisterduelle: eigene Mechanik (sets.js), Fundbedingung im jeweiligen Duell
+const SIG = (id, name, dark, light, handle, perk, hint, cond) => WEAPONS.push({ id, name, rar: 'mythisch', dark, light, handle, sig: true, perk, hint, cond });
+SIG('rosenschliff', 'Rosenschliff', '#a04a70', '#ffc8dc', '#2a2630', 'Der erste Stich setzt die lose Spitze hinter dem Ziel ab. Der nächste Stich binnen 1,2 s zieht sie zurück und trifft auf dem Rückweg für 2 Schaden.',
+  'Sereia heilt sich an deinem Leid. Lass sie hungern.', 'Sereia besiegen, ohne dass ein Rückstoss ihr Leben zurückgibt.');
+SIG('kielbrecher', 'Kielbrecher', '#3c7a74', '#f3bd72', '#14262e', 'Ein Bodenhieb legt den Anker aus. Der nächste Luftangriff zieht dich bis zu 48 px zu ihm zurück.',
+  'Wer die Springflut von oben betrachtet, bekommt den Kiel.', 'Brunns Springflut unversehrt auf einem erhöhten Steg überstehen und den Kampf gewinnen.');
+SIG('zwillingsstimme', 'Zwillingsstimme', '#524171', '#ffde84', '#1e142e', 'Ein Treffer aus voller Reichweite summt tief. Trifft binnen 1 s ein Hieb aus der Nähe, schwingt eine Resonanz für 3 Schaden zwischen beiden Punkten.',
+  'Im Nachhall liegt ein zweiter Ton. Lass beide Ringe an dir vorüberziehen.', 'In Vespers zweiter Phase einen Nachhall unversehrt überstehen und das Duell beenden.');
+SIG('blindzirkel', 'Blindzirkel', '#6a7078', '#f4f0e4', '#24272c', 'Ein Bodenhieb setzt das Standbein des Zirkels. Der nächste Hieb zeichnet einen Halbkreis (Radius 24 px) und trifft jedes Ziel darauf einmal.',
+  'Die Witwe schreibt ab. Lass ihre Durchschrift ins Leere laufen.', 'Eine Durchschrift der Kreidewitwe unversehrt überstehen und sie besiegen.');
+SIG('sternamboss', 'Sternamboss', '#8a4a28', '#a8efff', '#1a1210', 'Der erste Hieb schlägt einen Sternsplitter in den Boden. Ein Schaufel-Sprung darauf schmiedet ihn zu einem Schuss für 3 Schaden.',
+  'Wer die Supernova übersteht, darf den Stern behalten.', 'Nadirs Supernova unversehrt überstehen und ihn besiegen.');
+SIG('letztesoehr', 'Das letzte Öhr', '#fa4055', '#fff3f0', '#141018', 'Zwei Hiebe nähen zwei Gegner zusammen. Entfernen sie sich mehr als 48 px voneinander, reisst die Naht: beide nehmen 2 Schaden.',
+  'Sechs Hände, sechs Fäden. Kein einziger darf dich berühren.', 'In der zweiten Phase der Nahtmutter alle sechs Hände lösen, ohne getroffen zu werden, und gewinnen.');
+SIG('elfenbein', 'Elfenbein der Stille', '#48354f', '#f4dfaf', '#08060c', 'Ein Schaufel-Sprung markiert seinen Punkt. Nach zwei Takten fällt dort eine Schattenklinge für 3 Schaden, wenn du den Streifen verlassen hast.',
+  'In der stummen Phase spricht nur der Schatten. Lass ihn an drei Orten antworten.', 'In der stummen Phase des Nullfürsten an drei Stellen (mindestens 32 px auseinander) abprallen und ihn besiegen.');
+
 // Truhen-Waffen: aus Effekt-Bausteinen zusammengesetzt, Form (shape) und Material bestimmen das Aussehen.
 // rar-Index für die Truhen: 0 gewöhnlich · 1 selten · 2 episch · 3 legendär
 export const RAR_KEY = ['gewoehnlich', 'selten', 'episch', 'legendaer'];

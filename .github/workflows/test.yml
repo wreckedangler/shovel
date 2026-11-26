@@ -10,6 +10,7 @@ jobs:
       - run: node tools/test.mjs
       - run: node tools/hunttest.mjs
       - run: node tools/geartest.mjs
+      - run: node tools/settest.mjs
       - run: node tools/balance.mjs
       - run: node tools/arenatest.mjs 24
       - run: node tools/livetest.mjs

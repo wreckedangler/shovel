@@ -562,3 +562,4 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .legend-portrait{width:min(100%,360px);aspect-ratio:3/2;background-size:cover;background-position:center;margin-bottom:12px;border:1px solid #66556b}
 .portrait-D-6{background-image:url('art/nahtmutter.webp')}
 .portrait-D-7{background-image:url('art/nullfuerst.webp')}
+.fxchip.set{border-color:rgba(255,216,74,.6);color:#ffe6a0;background:rgba(90,60,10,.4)}

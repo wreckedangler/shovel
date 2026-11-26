@@ -332,3 +332,13 @@ Echtzeit-PvP mit **Lockstep und Eingabeverzögerung**: Beide Geräte rechnen exa
 - **Verzögerung:** aus der gemessenen Laufzeit (direkt: +3 Bilder Puffer, über Server: +5). Fehlt eine Eingabe, wartet das Spiel kurz; nach 8 s ohne Antwort gilt der Gegner als weg (Sieg durch Aufgabe).
 - **Modi:** „Live-Gegner suchen“ (zählt für den Rang), „Freund herausfordern“ mit 4-Buchstaben-Code (ohne Wertung), Revanche im selben Raum.
 - `node tools/livetest.mjs` simuliert zwei Geräte mit 50–370 ms Laufzeit und prüft, dass beide bitgenau gleich rechnen und gleich enden. Lokal im Browser: `?livelocal` verbindet zwei Tabs ohne Supabase.
+
+## Meister-Sets und Signaturwaffen (v0.23, `src/sets.js`)
+
+Umsetzung der Rüstkammer-Übergabe von Codex (`docs/designs/ruestkammer/`), erste Etappe: die sieben Meisterduelle.
+
+- **7 Sets à 4 Teile** (eigene Paletten in `heroart.js`). Die Teile haben die Grundwerte ihrer Schmiedestufe; erst alle vier zusammen aktivieren die Set-Fähigkeit (`armorStats().set`). Freigeschaltet beim ersten Sieg im jeweiligen Duell, rückwirkend für ältere Spielstände. In Truhen gibt es sie nicht, im PvP sind Set-Fähigkeiten aus.
+- **7 Signaturwaffen** (Waffen der Taten, mythisch) mit eigener Mechanik und Fundbedingung im Duell (`duelTrack`/`duelDeeds` werten die Angriffe des Meisters aus).
+- Anknüpfung in `game.js` nur über `setPre`/`setPost`/`setHit` und `e.slowT`; bestehende Läufe bleiben bitgenau gleich.
+- `node tools/settest.mjs` löst jede Fähigkeit und jede Waffe einmal aus und prüft die Wirkung.
+- Noch offen aus der Übergabe: 50 neue Truhenfunde, 5 Geheimsets mit neuen Level-Objekten.

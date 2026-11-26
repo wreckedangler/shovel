@@ -53,7 +53,7 @@ export const COSMETICS = [
 // Einzigartige Rüstungsteile und Truhen-Waffen liegen ebenfalls in den Truhen
 export const ITEMS = [...RELICS.map(r => ({ ...r, kind: 'relikt' })), ...COSMETICS,
   // Bossbeute (BOSS_REWARD) gibt es nur beim Boss, nie in Truhen
-  ...UNIQUES.map(u => ({ id: u.id, kind: 'ruestung', name: u.name, rar: u.rar, slot: u.slot, boss: BOSS_ONLY.has(u.id) })),
+  ...UNIQUES.map(u => ({ id: u.id, kind: 'ruestung', name: u.name, rar: u.rar, slot: u.slot, boss: BOSS_ONLY.has(u.id) || !!u.set })),
   ...CHEST_WEAPONS.map(w => ({ id: w.id, kind: 'waffe', name: w.name, rar: w.lr }))];
 export const itemById = id => ITEMS.find(i => i.id === id);
 

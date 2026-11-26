@@ -3,6 +3,7 @@
 import { populateRoamers } from './roamers.js';
 import { clearLegend, cutThread, prepareLoom, recordShadow } from './legend-duels.js';
 import { duelBoss } from './duel-combat.js';
+import { setsActive, setPre, setPost, setHit } from './sets.js';
 import { populateHunt } from './hunters.js';
 import { SHOVEL } from './gear.js';
 import { armorStats, loadout, pvpNormalize } from './armor.js';
@@ -192,6 +193,8 @@ export class Game {
     if (level.duel == null && Number.isInteger(opt.roamerSeed)) populateRoamers(this, opt.roamerSeed);
     p.onGround = false;
     if (opt.curses && opt.curses.einherz) p.hp = p.maxhp = 1;
+    // Meister-Sets, Signaturwaffen und Duell-Bedingungen (sets.js)
+    this.fxOn = setsActive(this);
   }
 
   add(e) { this.ents.push(e); return e; }
@@ -363,6 +366,7 @@ export class Game {
     if (this.banner && --this.banner.t <= 0) this.banner = null;
     // Hit-Stop: kurze Standbilder machen Treffer spürbar
     if (this.freeze > 0) { this.freeze--; if (inp.jumpP) this.p.jbuf = 7; if (inp.attackP) this.pendAtk = true; return; }
+    if (this.fxOn) inp = setPre(this, inp);
     if (this.streakT > 0 && --this.streakT === 0) this.streak = 0;
     if (!this.done) this.frame++;
     for (const pl of this.plats) pl.update(this, pl);
@@ -374,9 +378,11 @@ export class Game {
     if (this.idle === 900) this.ev('sleep');
     this.stepPlayer(inp);
     this.stepGearFx();
+    if (this.fxOn) setPost(this, inp);
     for (const e of this.ents) if (!e.dead && e.update) {
       if (e.frozen > 0) { if (--e.frozen === 0) this.burst(cx(e), e.y + e.h / 2, 10, 'ice', 1.6, 0.1, 18); if (e.iframe) e.iframe--; if (e.flash) e.flash--; continue; }
       if (this.slowmo && (e.foe || e.type === 'eproj') && this.frame % 2) continue;
+      if (e.slowT > 0 && e.slowT-- % 2) continue;
       e.update(this, e);
       if (!e.dead && (e.elite === 'schnell' || (e === this.boss && this.bossTier && this.frame % Math.max(3, 7 - this.bossTier) === 0))) e.update(this, e);
     }
@@ -594,7 +600,7 @@ export class Game {
     }
     for (const e of this.ents) {
       if (e.dead || H.has(e) || !overlap(box, e)) continue;
-      if (e.foe && !e.hidden) { H.add(e); this.hitFoe(e, this.dmg, p.face); }
+      if (e.foe && !e.hidden) { H.add(e); this.hitFoe(e, this.dmg, p.face); if (this.fxOn) setHit(this, e); }
       else if (e.type === 'chest' && !e.open) { H.add(e); this.openChest(e); }
       else if (e.type === 'rock') { e.dead = true; this.burst(cx(e), e.y + 5, 8, 'stone'); this.ev('crack'); }
       else if (e.type === 'eproj' && e.kind !== 'shock') { e.dead = true; this.burst(cx(e), e.y + 4, 8, 'spark', 2); this.ev('clink'); }
