@@ -47,7 +47,7 @@ for (const L of LEVELS) {
   const cnt = [0, 0, 0, 0]; let maxDry = 0, dry = 0;
   for (let i = 0; i < 8000; i++) { const r = openChest(D, 'holz', rnd); cnt[r.rar]++; dry = r.rar === 3 ? 0 : dry + 1; maxDry = Math.max(maxDry, dry); }
   if (maxDry >= PITY) throw new Error('Garantie greift nicht: ' + maxDry);
-  const all = ITEMS.every(i => i.kind === 'relikt' ? D.relics[i.id] === 3 : i.kind === 'ruestung' ? D.pieces[i.id] : i.kind === 'waffe' ? D.weapons[i.id] : D.cosmetics[i.id]);
+  const all = ITEMS.filter(i => !('boss' in i && i.boss)).every(i => i.kind === 'relikt' ? D.relics[i.id] === 3 : i.kind === 'ruestung' ? D.pieces[i.id] : i.kind === 'waffe' ? D.weapons[i.id] : D.cosmetics[i.id]);
   console.log(`Truhen: 8000 Holz → ${cnt.join('/')} · längste Durststrecke ${maxDry} · alles gesammelt ${all} · Splitter ${D.shards} · Slots ${D.relicSlots.join(',')}`);
 }
 console.log(fail ? `${fail} Fehler` : 'Alles ok');

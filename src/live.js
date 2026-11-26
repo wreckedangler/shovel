@@ -3,6 +3,9 @@
 // (deterministische Engine) und tauschen nur die Tasteneingaben aus. Eine Eingabe gilt erst
 // D Bilder später, damit sie rechtzeitig beim Gegner ankommt. Fehlt sie trotzdem, wartet das Spiel kurz.
 import { Match } from './arena.js';
+import { cleanName } from './names.js';
+// Angaben des Gegners kommen ungeprüft übers Netz: Name filtern, Wertung begrenzen
+const safePeer = p => ({ ...p, name: (cleanName(p && p.name).name || 'Namenlos'), rating: Math.max(0, Math.min(3000, Math.round(+(p && p.rating) || 1000))) });
 
 export const LIVE_PROTOCOL = 1;
 const pack = i => (i.left ? 1 : 0) | (i.right ? 2 : 0) | (i.down ? 4 : 0) | (i.jump ? 8 : 0) | (i.attack ? 16 : 0) | (i.jumpP ? 32 : 0) | (i.attackP ? 64 : 0);
@@ -142,7 +145,7 @@ export class Room {
       hello: m => {
         if (!this.host || this.peer) return;
         if (m.v !== this.me.v) { ch.send('bye', { reason: 'Andere Spielversion – bitte beide die App neu laden' }); return; }
-        this.peer = m; this.cb.status && this.cb.status(`${m.name} ist da. Verbinde direkt …`);
+        this.peer = m; this.cb.status && this.cb.status(`${safePeer(m).name} ist da. Verbinde direkt …`);
         ch.send('welcome', { id: this.me.id });
         this.rtc(m.rtc && typeof RTCPeerConnection !== 'undefined').then(() => this.pingStart());
       },
@@ -193,7 +196,7 @@ export class Room {
   // Laufzeit messen, daraus die Eingabeverzögerung bestimmen
   pingStart() {
     if (this.closed) return;
-    this.rtts = []; this.cb.status && this.cb.status(`${this.peer.name} ist da. ${this.pipe.direct() ? 'Direktverbindung steht.' : 'Verbunden über den Server.'}`);
+    this.rtts = []; this.cb.status && this.cb.status(`${safePeer(this.peer).name} ist da. ${this.pipe.direct() ? 'Direktverbindung steht.' : 'Verbunden über den Server.'}`);
     const go = () => this.pipe.send('ping', { t: performance.now() }); go(); this.pingIv = setInterval(go, 200);
   }
   pong(m) {
@@ -213,7 +216,7 @@ export class Room {
   }
   begin(s) {
     clearTimeout(this.waitT); this.again = { me: false, peer: false };
-    const host = s.host, guest = s.guest, mine = this.host ? host : guest, foe = this.host ? guest : host;
+    const host = s.host, guest = s.guest, mine = this.host ? host : guest, foe = safePeer(this.host ? guest : host);
     const match = new Match({ arena: s.arena, seed: s.seed, live: true, view: this.host ? 'A' : 'B', meGear: mine.gear, autoPogo: mine.autoPogo,
       foe: { name: foe.name, gear: foe.gear, rating: foe.rating, autoPogo: foe.autoPogo, style: {} } });
     this.duel = new LiveDuel(match, this.host, s.delay, this.pipe, this);

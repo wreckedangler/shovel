@@ -1342,7 +1342,7 @@ initArena({ D, save, sfx, show, ic, esc, R, stage, toast, moment, grantKey, toda
   menuT: () => menuT, setMenu: m => { lastMenu = m; }, inMenu: m => lastMenu === m && mode === 'menu' });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-ar]'); if (b) { unlockAudio(); arenaClick(b); } });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
-if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id), get match() { return match; } };
+if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id), title: () => title(), get match() { return match; } };
 splash();
 refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); else if (document.querySelector('.splash')) splash(); });
 requestAnimationFrame(loop);

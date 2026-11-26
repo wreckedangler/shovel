@@ -1,5 +1,6 @@
 // Truhen, Relikte, Aussehen und Splitter. Reine Daten und Würfel-Logik, ohne DOM (Node-testbar).
-import { UNIQUES } from './armor.js';
+import { UNIQUES, BOSS_REWARD } from './armor.js';
+const BOSS_ONLY = new Set(Object.values(BOSS_REWARD));
 import { CHEST_WEAPONS } from './weapons.js';
 
 export const RAR = [
@@ -51,7 +52,8 @@ export const COSMETICS = [
 ];
 // Einzigartige Rüstungsteile und Truhen-Waffen liegen ebenfalls in den Truhen
 export const ITEMS = [...RELICS.map(r => ({ ...r, kind: 'relikt' })), ...COSMETICS,
-  ...UNIQUES.map(u => ({ id: u.id, kind: 'ruestung', name: u.name, rar: u.rar, slot: u.slot })),
+  // Bossbeute (BOSS_REWARD) gibt es nur beim Boss, nie in Truhen
+  ...UNIQUES.map(u => ({ id: u.id, kind: 'ruestung', name: u.name, rar: u.rar, slot: u.slot, boss: BOSS_ONLY.has(u.id) })),
   ...CHEST_WEAPONS.map(w => ({ id: w.id, kind: 'waffe', name: w.name, rar: w.lr }))];
 export const itemById = id => ITEMS.find(i => i.id === id);
 
@@ -78,7 +80,7 @@ export function openChest(D, chestId, rand = Math.random) {
   if (pity) rar = 3;
   if (rar === 3) D.loot.pity = 0;
   D.loot.opened++;
-  const pool = ITEMS.filter(i => i.rar === rar);
+  const pool = ITEMS.filter(i => i.rar === rar && !('boss' in i && i.boss));
   // Fehlende Gegenstände sind doppelt so wahrscheinlich wie Duplikate
   const weights = pool.map(i => (owned(D, i) ? 1 : 2));
   let w = rand() * weights.reduce((a, b) => a + b, 0), item = pool[0];
