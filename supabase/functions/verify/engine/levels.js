@@ -150,7 +150,7 @@ function addSky(map, n, place) {
   return rows.map(r => r.join(''));
 }
 const SKY = [
-  [62, 5, '====='], [63, 6, 'G'], [63, 10, 'B'],
+  [64, 4, 'j'], [62, 5, '====='], [63, 6, 'G'], [63, 10, 'B'],
   [105, 5, '====='], [107, 4, 'Q'],
 ];
 for (let k = 0; k < 12; k++) SKY.push([69 + k * 3, 6, 'D']);
@@ -389,10 +389,13 @@ function secrets(map, list) {
 const room = (x0, x1, y, extra = []) => [...Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, '.', '#']), ...extra];
 
 export const SECRET_WORLD = { id: '?', name: 'Geheimnisse', levels: ['1-G', '2-G', '3-G', 'X-0'] };
+import { HUNT_LEVELS } from './hunts.js';
+
 export const WORLDS = [
   { id: 1, name: 'Wurzelgrund', levels: ['1-1', '1-2', '1-3', '1-B'] },
   { id: 2, name: 'Uhrturm von Zahnfels', levels: ['2-1', '2-2', '2-3', '2-B'] },
   { id: 3, name: 'Pilzwald von Moderbrück', levels: ['3-1', '3-2', '3-3', '3-B'] },
+  { id: 4, name: 'Die zehn Jagdreviere', levels: HUNT_LEVELS.map(level => level.id) },
 ];
 
 
@@ -521,6 +524,7 @@ export const LEVELS = [
     signs: ['ERINNERUNG: SPRINGEN, ▼ HALTEN, AUF DEM PILZ LANDEN = SUPERSPRUNG.'] },
   { id: '3-B', name: 'Die Morchelmutter', theme: 'moder', map: secrets(PB, [[15, 6, 'O'], [25, 6, 'O'], [11, 5, 'O']]), gate: 10, boss: true, par: 95, signs: [] },
   // Qualpfade: öffnen sich mit einem S-Rang in der jeweiligen Welt
+  ...HUNT_LEVELS,
   { id: 'Q-1', name: 'Die Nadelkammer', theme: 'hoehle', map: Q1M, par: 70, qual: 1, signs: [] },
   { id: 'Q-2', name: 'Wurmgrund', theme: 'dornen', map: Q2M, par: 55, qual: 2, signs: [], chase: { kind: 'wurm', speed: 1.3, delay: 150 } },
   { id: 'Q-3', name: 'Der Glutschlund', theme: 'bau', map: Q3M, par: 80, qual: 3, signs: [], chase: { kind: 'lava', speed: 0.36, delay: 240 } },

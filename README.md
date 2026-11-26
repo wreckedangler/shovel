@@ -127,17 +127,17 @@ Danach `node tools/test.mjs` laufen lassen.
 
 | Waffe | Seltenheit | Bedingung | Wirkung |
 |---|---|---|---|
-| Federklinge | Legendär | 1-1 ohne einen Gegner zu besiegen | schneller, höher, längere Klinge |
-| Blitzspaten | Legendär | 1-1 unter 25 s | rasend schnelle Hiebe |
-| Erdfresser | Legendär | in 1-2 alle Erdblöcke ausgraben | gräbt 3×3, doppelte Erd-Beute |
-| Goldschaufel des Königs | Legendär | die 3 Truhen hinter Stein öffnen | Edelsteine zählen doppelt |
-| Geisterklinge | Legendär | fremden Geist um 2 s schlagen | Luft-Sprint mit A |
-| Sternenspaten | Mythisch | Kette aus 12 Abprallern | Abpraller schleudern Sterne |
-| Maulwurfkralle | Mythisch | Boss ohne Schaden besiegen | Erdwelle beim Hieb |
-| Seelenschaufel | Mythisch | 20 Tode insgesamt | einmal pro Level auferstehen |
-| Pendelhammer | Mythisch | Pendelwerk nur mit Schaufel-Sprüngen besiegen | Druckwelle bei jedem Abpraller |
-| Spürschaufel | Legendär | Ende der Schaufelgruft erreichen | zeigt falsche Wände, unsichtbare Blöcke und Münzen |
-| Urfunke | Mythisch | Altar hoch über dem Dornenkamm (Pilz-Superprung auf dem Plateau, dann Wolkenpfad) | doppelter Schaden, brennende Hiebe |
+| Federklinge | Legendär | 1-1 mit der höchsten Münze, ohne besiegte Gegner, Schaden oder Tod abschließen. | Ein weiterer Luftsprung, schnellerer Lauf und eine längere Klinge. |
+| Blitzspaten | Legendär | Den Moosweg in weniger als 20 Sekunden abschließen. | Kürzere Hiebe lassen sich lückenlos verketten. Du läufst schneller. |
+| Erdfresser | Legendär | In 1-2 sämtliche Erde ausheben und durch die Geheimtür entkommen. | Frisst Erde im 3×3-Feld und fördert dreifache Erdbeute. |
+| Goldschaufel des Königs | Legendär | Die Truhen aus 1-1, 1-2 und 1-3 sowie eine Truhe in 2-G öffnen. | Verdoppelt Edelsteine und zieht sie aus 96 Pixeln Entfernung an. |
+| Geisterklinge | Legendär | Einen fremden Geist um mindestens 6 Sekunden schlagen und die Zielzeit einhalten. | Ein langer, unverwundbarer Luft-Sprint mit A. |
+| Sternenspaten | Mythisch | 18 Schaufel-Abpraller hintereinander ohne Bodenkontakt. | Zwei Sterne pro Abpraller. Ab dem dritten folgt ein zweites, höheres Sternenpaar. |
+| Maulwurfkralle | Mythisch | Den Rostmaulwurf mit Holzschaufel, ohne Spezialwaffe und ohne Schaden im Kampf besiegen. | Bodenhiebe senden zwei Erdwellen in entgegengesetzte Richtungen. |
+| Seelenschaufel | Mythisch | Q-2 ohne Tod mit genau einem verbleibenden Herz abschließen. | Einmal pro Level mit allen Herzen auferstehen und sofort den Rausch entfachen. |
+| Pendelhammer | Mythisch | Das Pendelwerk nur mit Abprallern besiegen, ohne im Kampf einen Seitenhieb auszuführen. | Abpraller erschüttern einen weiten Bereich auf beiden Seiten. |
+| Spürschaufel | Legendär | Alle drei Münzen in X-0 in einem Lauf ohne Tod sammeln und den Gruftaltar berühren. | Enthüllt verborgene Blöcke und Münzen. Ein Hieb öffnet falsche Wände aus der Ferne. |
+| Urfunke | Mythisch | Die Glut vom Himmelsaltar in 1-3 ohne Schaden oder Sturz zurück zur Feuerschale am Pilzplateau tragen. | Doppelter Schaden. Jeder dritte Hieb schleudert eine durchdringende Feuerlanze. |
 
 </details>
 
@@ -197,7 +197,8 @@ Hinweis: Ohne Server-Prüfung kann jemand gefälschte Zeiten hochladen. Für meh
 - **Etappe 1.5:** 9 legendäre/mythische Waffen, geheimer Himmelspfad, Sterne, Pogo-Ketten, Hit-Stop, Edelstein-Serien.
 - **Etappe 2 (diese Version):** Welt 2 *Uhrturm von Zahnfels* mit Schwebeplattformen, Dampfrohren, Zahnrädern, Zahnrittern, Kuckucken, Erz und Boss *Pendelwerk*; Titan- und Adamantium-Stufe; 10. Waffe; Einzeldatei zum lokalen Testen.
 - **Etappe 3 (diese Version):** Welt 3 *Pilzwald von Moderbrück* mit Boss *Morchelmutter*, 4 Geheimlevels, Schaufelmünzen, falsche Wände, unsichtbare Blöcke, Rausch, Erfolge, Ränge, Tagesschatz, Garderobe, Easter Eggs.
-- **Danach:** Welt 4 *Kristallmagen*, erste Relikte (Funkenrute, Flügelstiefel), Level-Editor.
+- **Welt 4 – Die zehn Jagdreviere** öffnet nach dem Sieg über die Morchelmutter. Jedes Revier stellt drei eigene Monster vor und endet mit einem Boss. Die zehn Stufen reichen von der Mooslichtung (Einfach) bis zum Nullpunkt (Ultra). In den letzten vier Kämpfen zeigen leuchtende Seitenstreifen eine geschlossene Panzerung an. Schlage zu, sobald die Streifen erlöschen.
+- `node tools/hunttest.mjs` spielt alle zehn Reviere mit regulären Eingaben und ausgebauter Ausrüstung bis zur Zielfahne durch.
 - **Etappe 3:** Endloser Schacht-Modus mit erzeugten Levels und Tages-Seed für faire Geister-Rennen.
 - **Etappe 4:** Level-Editor mit Teilen per Code.
 - Danach: weitere Welten (Pilzwald, Lavaschmiede, Wolkenwerft, Kristallmagen) bis zur Urlicht-Stufe.

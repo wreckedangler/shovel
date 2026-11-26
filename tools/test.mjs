@@ -5,6 +5,8 @@ import { Game } from '../src/game.js';
 import { encodeGhost, decodeGhost } from '../src/ghost.js';
 import { replayOf, simulate } from '../src/replay.js';
 
+await import('./weapontest.mjs');
+
 let fail = 0;
 const bad = m => { console.log('FEHLER', m); fail++; };
 

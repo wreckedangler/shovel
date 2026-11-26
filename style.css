@@ -113,6 +113,8 @@ h3{margin:0;font-weight:400}
 .gh{display:flex;flex-direction:column}.gh b{font-weight:400;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}.gh small{color:var(--ink);font-size:13px}
 .tn{display:inline-block;padding:0 4px;color:var(--c);text-shadow:0 0 8px currentColor;text-transform:none;letter-spacing:.04em}
 .chips{display:flex;gap:4px;margin:6px 0;flex-wrap:wrap;align-items:flex-end}
+.chips .tier-pick{display:inline-flex;background:transparent;border:0;box-shadow:none;padding:0;min-width:0;min-height:0}
+.chips .tier-pick:enabled:hover,.chips .tier-pick:focus-visible{outline:2px solid var(--gold)}
 .chips canvas.gi{image-rendering:pixelated;height:30px;width:auto;padding:2px;opacity:.5;border:1px solid #2a2218}
 .chips canvas.gi.own{opacity:1}
 .chips canvas.gi.cur{border-color:var(--gold);box-shadow:0 0 10px rgba(212,180,106,.5);background:rgba(212,180,106,.12)}
@@ -480,3 +482,6 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .wcard button{display:block;width:100%;min-width:0;box-sizing:border-box;padding:0 6px!important;margin:4px 0 0!important}
 .wcard button::before,.wcard button::after{display:none}
 @media (max-width:560px){.wgrid{grid-template-columns:1fr}}
+.srow > .chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chips .tier-pick::before,.chips .tier-pick::after{display:none}
+.srow > .chips .tier-pick{flex:0 0 auto;width:auto;border-image:none!important;background:none!important}
