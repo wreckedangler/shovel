@@ -1,7 +1,7 @@
 // Orchester-Musik für Schaufelheld – komplett mit WebAudio erzeugt (keine Audiodateien).
 // Besetzung wie ein Symphonieorchester, jede Gruppe an ihrem Platz im Stereobild:
 // Violinen, Bratschen, Celli, Kontrabässe · Flöte, Oboe · Hörner, Trompeten, Posaunen ·
-// Chor · Harfe, Celesta · Konzert-Basstrommel, Marschtrommel, Becken, Tamtam, Glocke.
+// Chor · Harfe, Celesta. Ohne Schlagwerk: die Kraft kommt aus Oktavverdopplungen und Schichtung.
 // Dieselben Instrumente spielen live und beim Vorab-Rendern der Hörprobe (OfflineAudioContext).
 
 /* ---------- Noten ---------- */
@@ -23,7 +23,6 @@ const CH = {
 
 /* ---------- „Der letzte Schaufelheld“ – Symphonischer Satz in d-Moll ---------- */
 // Je Takt 8 Achtel. Stimmen: Note, '-' halten, '.' Pause. Taktstriche '|' nur zur Übersicht.
-// Schlagwerk je Achtel: B Basstrommel, b leise · S Marschtrommel, s leise, R Wirbel · C Becken, W Beckenschwelle · G Tamtam
 const THEME = 'D4 - - - A4 - - - | Bb4 - A4 - G4 - F4 - | A4 - - - C5 - - - | G4 - - - - - E4 - | D4 - - - A4 - D5 - | D5 - C5 - Bb4 - A4 - | G4 - Bb4 - D5 - C5 - | A4 - - - - - - -';
 const COUNTER = 'F3 - - - - - - - | D3 - - - F3 - - - | C3 - - - F3 - - - | E3 - - - G3 - - - | F3 - - - A3 - - - | F3 - - - D3 - - - | D3 - - - G3 - - - | E3 - - - C#3 - - -';
 const oct = (s, k) => s.replace(/([A-G][#b]?)(-?\d)/g, (_, n, o) => n + (+o + k));
@@ -33,43 +32,34 @@ export const TITLE = {
     { name: 'Nebel', vel: 0.5, chords: 'Dm Dm Bb Bb Gm A', pads: ['low'], bass: 'long',
       lines: { flute: '. . . . . . . . | . . . . . . . . | A5 - - - - - - - | F5 - - - G5 - A5 - | D5 - - - - - - - | . . . . . . . .',
         horn: 'D3 - - - - - - - | D3 - - - - - - - | Bb2 - - - - - - - | Bb2 - - - - - - - | G2 - - - - - - - | A2 - - - - - - -' },
-      choirFrom: 2, bells: [0, 32],
-      perc: 'G . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | W . . . . . . . | R R R R R R R R' },
+      choirFrom: 2 },
     { name: 'Thema', vel: 0.66, chords: 'Dm Bb F C Dm Bb Gm A', pads: ['str'], bass: 'long', arp: 'harp',
-      lines: { horn: THEME },
-      perc: 'b . . . . . . . | b . . . . . . . | b . . . . . . . | b . . . . . s . | b . . . . . . . | b . . . . . . . | b . . . . . s . | b . . . R R R R' },
+      lines: { horn: THEME, cello: oct(THEME, -1) } },
     { name: 'Thema, Violinen', vel: 0.76, chords: 'Dm Bb F C Dm Bb Gm A', pads: ['str', 'choir'], bass: 'long', arp: 'harp',
-      lines: { vln: oct(THEME, 1), horn: oct(COUNTER, 1), cello: COUNTER,
-        flute: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | A5 - - - - - - - | F6 - E6 - D6 - C6 - | Bb5 - - - D6 - - - | C#6 - - - - - - -' },
-      perc: 'B . . . b . . . | B . s . b . s . | B . . . b . . . | B . s . b . s s | B . . . b . . . | B . s . b . s . | B . . . b . s s | B . . . R R R R' },
+      lines: { vln: oct(THEME, 1), 'horn#2': THEME, horn: oct(COUNTER, 1), cello: COUNTER,
+        flute: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | A5 - - - - - - - | F6 - E6 - D6 - C6 - | Bb5 - - - D6 - - - | C#6 - - - - - - -' } },
     { name: 'Aufstieg', vel: 0.86, chords: 'Dm Bb Gm A Dm Bb C A', pads: ['str', 'choir'], bass: 'drive', ost: true,
       lines: { vln: 'F5 - E5 - D5 - A4 - | Bb4 - - - D5 - F5 - | G5 - F5 - E5 - D5 - | E5 - - - C#5 - A4 - | F5 - E5 - D5 - A5 - | Bb5 - A5 - G5 - F5 - | E5 - G5 - C6 - Bb5 - | A5 - - - - - - -',
-        horn: oct(COUNTER, 1),
-        tpt: '. . . . . . . . | . . . . . . . . | . . . . . . . . | A4 . A4 A4 C#5 - E5 - | . . . . . . . . | . . . . . . . . | . . . . . . . . | A4 . A4 A4 C#5 - E5 -' },
-      perc: 'B . s . B . s . | B . s . B . s s | B . s . B . s . | B . s s B s s s | B . s . B . s . | B . s . B . s s | B . s s B s s s | W R R R R R R R' },
+        horn: oct(COUNTER, 1), 'vln#2': oct('F5 - E5 - D5 - A4 - | Bb4 - - - D5 - F5 - | G5 - F5 - E5 - D5 - | E5 - - - C#5 - A4 - | F5 - E5 - D5 - A5 - | Bb5 - A5 - G5 - F5 - | E5 - G5 - C6 - Bb5 - | A5 - - - - - - -', -1),
+        tpt: '. . . . . . . . | . . . . . . . . | . . . . . . . . | A4 . A4 A4 C#5 - E5 - | . . . . . . . . | . . . . . . . . | . . . . . . . . | A4 . A4 A4 C#5 - E5 -' } },
     { name: 'Höhepunkt', vel: 1, chords: 'Bb C Dm Dm/C Bb Gm Asus A', pads: ['str', 'choir', 'brass'], bass: 'drive', ost: true, choirLoud: true,
-      lines: { tpt: 'D5 - - - F5 - - - | E5 - D5 - C5 - - - | D5 - - - A4 - - - | F5 - E5 - D5 - C5 - | D5 - - - Bb4 - D5 - | G5 - F5 - E5 - D5 - | D5 - - - E5 - - - | C#5 - - - - - - -',
+      lines: { tpt: 'D5 - - - F5 - - - | E5 - D5 - C5 - - - | D5 - - - A4 - - - | F5 - E5 - D5 - C5 - | D5 - - - Bb4 - D5 - | G5 - F5 - E5 - D5 - | D5 - - - E5 - - - | C#5 - - - - - - -', 'horn#2': oct('D5 - - - F5 - - - | E5 - D5 - C5 - - - | D5 - - - A4 - - - | F5 - E5 - D5 - C5 - | D5 - - - Bb4 - D5 - | G5 - F5 - E5 - D5 - | D5 - - - E5 - - - | C#5 - - - - - - -', -1), choirmel: 'D5 - - - F5 - - - | E5 - D5 - C5 - - - | D5 - - - A4 - - - | F5 - E5 - D5 - C5 - | D5 - - - Bb4 - D5 - | G5 - F5 - E5 - D5 - | D5 - - - E5 - - - | C#5 - - - - - - -',
         vln: 'D6 - - - F6 - - - | E6 - D6 - C6 - - - | D6 - - - A5 - - - | F6 - E6 - D6 - C6 - | D6 - - - Bb5 - D6 - | G6 - F6 - E6 - D6 - | D6 - - - E6 - - - | C#6 - - - - - - -',
         tbn: 'Bb2 - - - D3 - - - | C3 - - - E3 - - - | D3 - - - F3 - - - | C3 - - - A2 - - - | Bb2 - - - F3 - - - | G2 - - - Bb2 - - - | A2 - - - D3 - - - | A2 - - - E3 - - -',
-        cello: 'D3 - - - F3 - - - | G3 - F3 - E3 - - - | F3 - - - D3 - - - | A3 - G3 - F3 - E3 - | F3 - - - D3 - F3 - | Bb3 - A3 - G3 - F3 - | F3 - - - G3 - - - | E3 - - - - - - -' },
-      perc: 'C . s . B . s . | B . s . B . s s | C . s . B . s . | B . s s B s s s | C . s . B . s . | B . s . B . s s | B . s s B s s s | C . . . R R R R' },
+        cello: 'D3 - - - F3 - - - | G3 - F3 - E3 - - - | F3 - - - D3 - - - | A3 - G3 - F3 - E3 - | F3 - - - D3 - F3 - | Bb3 - A3 - G3 - F3 - | F3 - - - G3 - - - | E3 - - - - - - -' } },
     { name: 'Stille', vel: 0.52, chords: 'F C Dm Bb F C Bb A', pads: ['str'], bass: 'long', arp: 'harp', cel: true,
-      lines: { oboe: 'A4 - - - C5 - - - | G4 - - - - - E4 - | F4 - - - A4 - D5 - | D5 - - - C5 - Bb4 - | A4 - - - C5 - F5 - | E5 - - - G5 - - - | F5 - D5 - Bb4 - - - | A4 - - - - - - -',
-        flute: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | F5 - - - - - - - | G5 - - - E5 - - - | D5 - - - - - - - | C#5 - - - - - - -' },
-      perc: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | W . . . . . . .' },
+      lines: { 'cello#2': oct('A4 - - - C5 - - - | G4 - - - - - E4 - | F4 - - - A4 - D5 - | D5 - - - C5 - Bb4 - | A4 - - - C5 - F5 - | E5 - - - G5 - - - | F5 - D5 - Bb4 - - - | A4 - - - - - - -', -1), oboe: 'A4 - - - C5 - - - | G4 - - - - - E4 - | F4 - - - A4 - D5 - | D5 - - - C5 - Bb4 - | A4 - - - C5 - F5 - | E5 - - - G5 - - - | F5 - D5 - Bb4 - - - | A4 - - - - - - -',
+        flute: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | F5 - - - - - - - | G5 - - - E5 - - - | D5 - - - - - - - | C#5 - - - - - - -' } },
     { name: 'Wiederkehr', vel: 0.8, chords: 'Gm Dm Bb F Gm Dm Eb B', pads: ['str', 'choir'], bass: 'drive', ost: true,
       lines: { horn: 'D4 - - - G4 - - - | A4 - - - F4 - - - | F4 - - - Bb4 - - - | C5 - - - A4 - - - | Bb4 - - - D5 - - - | A4 - - - F4 - D4 - | G4 - - - Bb4 - Eb5 - | D#5 - - - F#5 - - -',
         cello: 'G2 - - - Bb2 - - - | D3 - - - A2 - - - | Bb2 - - - D3 - - - | F2 - - - C3 - - - | G2 - - - Bb2 - - - | D3 - - - F3 - - - | Eb3 - - - G3 - - - | B2 - - - D#3 - - -',
-        tpt: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | Eb5 . Eb5 Eb5 G5 - Bb5 - | B4 . B4 B4 D#5 - F#5 -' },
-      perc: 'b . . . b . . . | b . . . b . s . | B . s . b . s . | B . s . B . s s | B . s . B . s . | B . s s B s s s | B . s s B s s s | W R R R R R R R' },
+        tpt: '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | Eb5 . Eb5 Eb5 G5 - Bb5 - | B4 . B4 B4 D#5 - F#5 -' } },
     { name: 'Finale', vel: 1, tr: 2, chords: 'Dm Bb F C Dm Bb Gm A', pads: ['str', 'choir', 'brass'], bass: 'drive', ost: true, arp: 'harp', choirLoud: true,
-      lines: { tpt: oct(THEME, 1), vln: oct(THEME, 2), horn: oct(COUNTER, 1), tbn: COUNTER, cello: COUNTER },
-      perc: 'C . s . B . s . | B . s . B . s s | B . s . B . s . | B . s s B s s s | C . s . B . s . | B . s . B . s s | B . s s B s s s | C . . . R R R R' },
+      lines: { tpt: oct(THEME, 1), vln: oct(THEME, 2), 'vln#2': oct(THEME, 1), 'horn#2': THEME, choirmel: oct(THEME, 1), horn: oct(COUNTER, 1), tbn: COUNTER, cello: COUNTER } },
     { name: 'Abgesang', vel: 0.58, chords: 'Bb A Dm Bb A Dm', pads: ['str', 'choir'], bass: 'long', cel: true,
       lines: { horn: 'D4 - - - A4 - - - | G4 - - - E4 - - - | F4 - - - D4 - - - | D4 - - - F4 - - - | E4 - - - C#4 - - - | D4 - - - - - - -',
         flute: 'F5 - - - - - - - | E5 - - - - - - - | D5 - - - - - - - | . . . . . . . . | . . . . . . . . | A5 - - - - - - -' },
-      bells: [0, 40],
-      perc: 'G . . . . . . . | . . . . . . . . | b . . . . . . . | . . . . . . . . | W . . . . . . . | b . . . . . . .' },
+      },
   ],
 };
 
@@ -82,7 +72,8 @@ export function compile(score) {
     starts.push(t0);
     const chords = sec.chords.split(/\s+/), v = sec.vel, tr = sec.tr || 0;
     const push = e => ev.push({ tr, ...e });
-    for (const [inst, str] of Object.entries(sec.lines || {})) {
+    for (const [key, str] of Object.entries(sec.lines || {})) {
+      const inst = key.split('#')[0];
       const tok = str.replace(/\|/g, ' ').trim().split(/\s+/);
       tok.forEach((n, i) => { if (n === '-' || n === '.') return; let d = 1; while (tok[i + d] === '-') d++; push({ t: t0 + i + hum(), k: inst, n, d, v }); });
     }
@@ -233,6 +224,7 @@ export function playEvent(ac, room, e, t, e8) {
     case 'strpad': for (const n of e.notes) voice(ac, out, hz(n, tr), t, d, { osc: e.low ? [['sawtooth', 0, 0.8]] : [['sawtooth', -9, 0.5], ['sawtooth', 8, 0.5]], cut: e.low ? 1100 : 2600, a: 0.6, r: 1.0, vol: 0.02 * e.v }); break;
     case 'hornpad': for (const n of e.notes) voice(ac, out, hz(n, tr), t, d, { ...INST.horn, a: 0.3, vol: 0.035 * e.v, vib: null }); break;
     case 'choir': choir(ac, out, e.notes, t, d, e.v, tr); break;
+    case 'choirmel': choir(ac, out, [e.n], t, d, e.v * 1.6, tr); break;
     case 'harp': pluck(ac, out, hz(e.n, tr), t, e.v, 'triangle', 1.2, 0.04); pluck(ac, out, hz(e.n, tr) * 2, t, e.v, 'sine', 0.5, 0.012); break;
     case 'celesta': pluck(ac, out, hz(e.n, tr), t, e.v, 'sine', 1.6, 0.03); pluck(ac, out, hz(e.n, tr) * 4, t, e.v, 'sine', 0.4, 0.008); break;
     case 'bd': bassDrum(ac, out, t, e.v); break;
