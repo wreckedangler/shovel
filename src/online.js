@@ -72,3 +72,34 @@ export async function uploadDeaths(map) {
   if (!rows.length) return true;
   try { const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/deaths_anon`, { method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(rows) }); return r.ok; } catch { return false; }
 }
+
+/* ---------- Schatten-Arena ---------- */
+const rpc = (fn, body) => fetch(`${CONFIG.supabaseUrl}/rest/v1/rpc/${fn}`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+// Eigenen Schatten hochladen; liefert die öffentliche Nummer des Schattens
+export async function arenaUpsert(token, s) {
+  if (!online()) return null;
+  try {
+    const r = await rpc('arena_upsert', { p_token: token, p_name: s.name, p_gear: s.gear, p_style: s.style, p_rating: s.rating, p_wins: s.wins, p_losses: s.losses, p_version: CONFIG.version });
+    return r.ok ? +(await r.json()) || null : null;
+  } catch { return null; }
+}
+export async function arenaReport(token, shade, shadeWon) {
+  if (!online()) return false;
+  try { return (await rpc('arena_report', { p_token: token, p_shade: shade, p_shade_won: !!shadeWon })).ok; } catch { return false; }
+}
+// Schatten in der Nähe der eigenen Wertung (zuletzt aktive zuerst)
+export async function arenaShades(rating, limit = 40) {
+  if (!online()) return [];
+  try {
+    const lo = Math.max(0, Math.round(rating) - 300), hi = Math.round(rating) + 300;
+    const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/arena_shades?rating=gte.${lo}&rating=lte.${hi}&select=id,name,gear,style,rating,wins,losses&order=updated_at.desc&limit=${limit}`, { headers: headers() });
+    return r.ok ? await r.json() : [];
+  } catch { return []; }
+}
+export async function arenaShade(id) {
+  if (!online() || !id) return null;
+  try {
+    const r = await fetch(`${CONFIG.supabaseUrl}/rest/v1/arena_shades?id=eq.${+id}&select=id,rating,wins,losses,shade_wins,shade_losses`, { headers: headers() });
+    return r.ok ? (await r.json())[0] || null : null;
+  } catch { return null; }
+}

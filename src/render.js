@@ -22,7 +22,7 @@ export class Renderer {
 
   snapCamera(g) { this.cam = this.target(g); }
   target(g) {
-    const p = g.p;
+    const p = g.camFocus || g.p;
     // Vorausblick: in Blickrichtung und mit dem Tempo, weich nachgeführt
     const want = p.face * (this.W < 260 ? 40 : 52) + p.vx * 10;
     this.lead = (this.lead ?? want) + (want - (this.lead ?? want)) * 0.05;
@@ -69,6 +69,7 @@ export class Renderer {
     for (const e of g.ents) this.ent(g, e, th);
     for (const gh of ghosts) this.ghost(gh, g.frame);
     this.player(g);
+    if (g.drawExtra) g.drawExtra(this, th);
     if (g.chase) this.chaseFx(g, cx, cy);
     for (const q of g.parts) {
       if (q.z) { x.globalAlpha = Math.min(1, q.life / 20); S.drawText(x, 'Z', Math.round(q.x), Math.round(q.y), '#ffffff'); x.globalAlpha = 1; continue; }
@@ -469,6 +470,8 @@ export class Renderer {
       this.x.fillRect(Math.round(bx), Math.round(p.atk > 0 ? p.y + 5 : p.y - 8), 1, 1);
     }
   }
+  heroOf(g) { return S.hero(g.look || g.gear.armor, g.gear.shovel, g.gear.weapon); }
+  label(txt, x0, y0, col) { S.drawText(this.x, txt, x0 + 1, y0 + 1, K, 1, 'center'); S.drawText(this.x, txt, x0, y0, col, 1, 'center'); }
   figure(hs, px, py, face, pose, anim, atk = 8, white = null, land = 0, atkLen = 16, vx = 0, vy = 0) {
     const x = this.x, i = face > 0 ? 0 : 1, X = Math.round(px), Y0 = Math.round(py);
     const wind = atk > atkLen * 0.78;
@@ -670,7 +673,7 @@ export class Renderer {
       if (b.t > 70 && b.t % 6 < 3) { x.fillStyle = 'rgba(255,255,255,0.08)'; x.fillRect(0, 0, W, this.H); }
     }
     const tx = W < 220 ? Math.max(W / 2, 6 + per * 8 + 26) : W / 2;
-    S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
+    if (!g.level.arena) S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
     if (g.level.gen) { S.drawText(x, g.hudLabel || 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
     if (g.timeLimit && !g.done) { const left = Math.max(0, g.timeLimit - g.frame); S.drawText(x, 'NOCH ' + fmtTime(left), tx, gy, left < 600 && (this.t >> 3) & 1 ? '#ff5050' : '#ffb0a0', 1, 'center'); gy += 8; }

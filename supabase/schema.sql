@@ -90,3 +90,66 @@ grant insert on deaths_anon to anon, authenticated;
 -- Danach dürfen nur noch nachgeprüfte Läufe eingetragen werden:
 -- drop policy if exists "eintragen" on daily_runs;
 -- drop policy if exists "eintragen" on ghosts;
+
+-- ===== Schatten-Arena =====
+create table if not exists arena_shades (
+  id bigint generated always as identity primary key,
+  token text not null unique check (char_length(token) between 24 and 64),
+  name text not null check (public.sh_name_ok(name)),
+  gear jsonb not null check (pg_column_size(gear) < 2000),
+  style jsonb not null check (pg_column_size(style) < 400),
+  rating int not null default 1000 check (rating between 0 and 4000),
+  wins int not null default 0 check (wins between 0 and 1000000),
+  losses int not null default 0 check (losses between 0 and 1000000),
+  shade_wins int not null default 0,
+  shade_losses int not null default 0,
+  version text check (char_length(version) < 20),
+  updated_at timestamptz not null default now()
+);
+create index if not exists arena_shades_rating on arena_shades (rating, updated_at desc);
+alter table arena_shades enable row level security;
+drop policy if exists "lesen" on arena_shades;
+create policy "lesen" on arena_shades for select using (true);
+revoke all on arena_shades from anon, authenticated;
+grant select (id, name, gear, style, rating, wins, losses, shade_wins, shade_losses, version, updated_at) on arena_shades to anon, authenticated;
+
+create table if not exists arena_results (
+  id bigint generated always as identity primary key,
+  reporter text not null,
+  shade bigint not null references arena_shades (id) on delete cascade,
+  shade_won boolean not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists arena_results_rep on arena_results (reporter, shade, created_at desc);
+alter table arena_results enable row level security;
+revoke all on arena_results from anon, authenticated;
+
+create or replace function arena_upsert(p_token text, p_name text, p_gear jsonb, p_style jsonb, p_rating int, p_wins int, p_losses int, p_version text)
+returns bigint language plpgsql security definer set search_path = '' as $$
+declare v_id bigint;
+begin
+  insert into public.arena_shades as s (token, name, gear, style, rating, wins, losses, version, updated_at)
+  values (p_token, p_name, p_gear, p_style, p_rating, p_wins, p_losses, p_version, now())
+  on conflict (token) do update set name = excluded.name, gear = excluded.gear, style = excluded.style,
+    rating = excluded.rating, wins = excluded.wins, losses = excluded.losses, version = excluded.version, updated_at = now()
+  returning s.id into v_id;
+  return v_id;
+end $$;
+
+create or replace function arena_report(p_token text, p_shade bigint, p_shade_won boolean)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_rep text;
+begin
+  if p_token is null or char_length(p_token) not between 24 and 64 then return; end if;
+  v_rep := md5(p_token);
+  if exists (select 1 from public.arena_results r where r.reporter = v_rep and r.shade = p_shade and r.created_at > now() - interval '10 minutes') then return; end if;
+  if not exists (select 1 from public.arena_shades s where s.id = p_shade and s.token <> p_token) then return; end if;
+  insert into public.arena_results (reporter, shade, shade_won) values (v_rep, p_shade, p_shade_won);
+  update public.arena_shades set shade_wins = shade_wins + (case when p_shade_won then 1 else 0 end),
+    shade_losses = shade_losses + (case when p_shade_won then 0 else 1 end) where id = p_shade;
+end $$;
+
+revoke all on function arena_upsert(text, text, jsonb, jsonb, int, int, int, text) from public;
+revoke all on function arena_report(text, bigint, boolean) from public;
+grant execute on function arena_upsert(text, text, jsonb, jsonb, int, int, int, text) to anon, authenticated;
+grant execute on function arena_report(text, bigint, boolean) to anon, authenticated;

@@ -2,7 +2,7 @@
 // Fester Zeitschritt: ein step() = 1/60 Sekunde.
 import { populateHunt } from './hunters.js';
 import { SHOVEL } from './gear.js';
-import { armorStats, loadout } from './armor.js';
+import { armorStats, loadout, pvpNormalize } from './armor.js';
 import { weaponMods } from './weapons.js';
 
 import { T, SOLID, GRAV, MAXFALL, BOUNCE, overlap, cx, sign, fsin, fcos, fdist, compact, rng } from './core.js';
@@ -16,7 +16,8 @@ export class Game {
     this.sh = SHOVEL[gear.shovel];
     // Rüstung aus vier Teilen (altes Format { armor: n } = alle Teile Stufe n, ergibt exakt die alten Werte)
     this.look = loadout(gear);
-    const A = this.ar = armorStats(this.look), F = this.af = A.fx;
+    // Duell (Schatten-Arena): Rüstungswerte mit PvP-Obergrenzen
+    const A = this.ar = opt.pvp ? pvpNormalize(armorStats(this.look)) : armorStats(this.look), F = this.af = A.fx;
     this.armorTier = A.tiers.brust;
     this.gear = gear;
     this.mod = weaponMods(gear.weapon);
@@ -51,6 +52,12 @@ export class Game {
       this.dmg = Math.max(1, Math.min(d, Math.max(this.dmg, Math.ceil(this.sh.dmg * 2.5))));
     }
     this.reach = this.sh.reach + this.mod.reach;
+    if (opt.pvp) {
+      // Duell: keine Wiederbelebung, Reichweite, Tempo und Luftsprünge gedeckelt
+      this.pvp = true; m.soul = false; m.vamp = false; this.healLeft = 2; this.rushMul = 1;
+      this.reach = Math.max(15, Math.min(this.reach, 22)); this.airJumps = Math.min(this.airJumps, 2);
+      m.run = Math.min(m.run, 2.25); m.jump = Math.min(m.jump, 5.9);
+    }
     // Zähler der Effekte: Heilung (Regeneration und Lebensraub teilen sich 4 Herzen pro Level), Schildladungen, Echo, Spiegel
     this.regenT = 0; this.healLeft = 4; this.vampAt = 5; this.gemAcc = 0; this.gemCharges = 0; this.mirrorCd = 0; this.echoT = 0; this.revived = false; this.slowmo = false;
     // Statistiken für Sterne und Waffen-Bedingungen

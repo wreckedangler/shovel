@@ -30,6 +30,8 @@ import { CONFIG } from './config.js';
 import { GEN_VERSION } from './gen.js';
 import { dayKey, dayNumber, daySeed, stageDepth, depthStage, msUntilTomorrow, MSG_A, MSG_B, msgText, encodeMark, decodeMark, shareText } from './daily.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
+import { initArena, arenaHub, arenaClick, arenaHud, arenaResult } from './arena-ui.js';
+import { Match, rankOf } from './arena.js';
 import { WEAPONS, RARITY, weaponById, finishWeapons, hasRoyalChests } from './weapons.js';
 import { SECRET_WORLD, QUAL_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
@@ -51,6 +53,7 @@ setAudio(D.sfx, D.music);
 initSkin();
 
 const embers = [];
+let match = null;
 let curCodes = [], mode = 'menu', game = null, ghosts = [], level = null, doneT = 0, menuT = 0;
 
 // Auflösung je nach Gerät:
@@ -105,6 +108,7 @@ const surfaceOf = c => c === '=' || c === 'm' || c === undefined ? 'holz' : c ==
 let tension = 0;
 function tick() {
   if (mode === 'descent') { menuT++; return descentTick(); }
+  if (match && mode === 'play') return arenaTick();
   if (mode !== 'play' && mode !== 'won') { menuT++; return; }
   let inp = mode === 'play' ? pollInput() : { };
   if (D.cheatsOn.spiegel && mode === 'play') inp = { ...inp, left: inp.right, right: inp.left };
@@ -158,7 +162,7 @@ function draw() {
   const playing = game && mode !== 'menu';
   canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
   canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && D.cheatsOn.spiegel ? ' scaleX(-1)' : '');
-  if (mode === 'descent') drawDescent(); else if (game && mode !== 'menu') R.draw(game, ghosts); else drawMenuBg();
+  if (mode === 'descent') drawDescent(); else if (game && mode !== 'menu') { R.draw(game, ghosts); if (match) arenaHud(ctx, match, R, VW, VH); } else drawMenuBg();
   if (D.retro) retroFilter();
 }
 function drawMenuBg() {
@@ -195,8 +199,49 @@ function drawMenuBg() {
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
 }
 
+/* ---------- Schatten-Arena ---------- */
+function startMatch(o) {
+  match = new Match(o); game = match.A; level = game.level; ghosts = []; doneT = 0;
+  R.snapCamera(game); clearInput(); hideUI(); mode = 'play';
+  touchEl.hidden = !isTouch; pauseBtn.hidden = false;
+  playMusic(THEMES[level.theme].music); setAmbience(level.theme); setMuffle(false); setIntensity(0.5);
+  setSpace(['glocke', 'pendel'].includes(level.theme) ? 'hall' : 'open');
+  goFullscreen();
+}
+const FOE_SFX = new Set(['swing', 'bounce', 'shield', 'dash']);
+function arenaTick() {
+  const m = match;
+  m.step(m.over ? {} : pollInput());
+  game = m.A; level = game.level;
+  for (const e of m.events) {
+    if (e.name === 'step') { stepSound(surfaceOf(e.v)); continue; }
+    if (e.foe && !FOE_SFX.has(e.name)) continue;
+    switch (e.name) {
+      case 'pvpHit': if (e.v === 'foe') { sfx('hit'); haptic('hit'); } break;
+      case 'arenaRound': sfx('bossStart'); break;
+      case 'arenaFight': sfx('charge'); setIntensity(0.85); break;
+      case 'arenaSudden': sfx('rumble'); break;
+      case 'roundWin': sfx('legend'); haptic('unlock'); break;
+      case 'roundLose': sfx('poof'); break;
+      case 'roundDraw': sfx('thud'); break;
+      case 'matchWin': sfx('win'); break;
+      case 'matchLose': case 'matchDraw': sfx('poof'); break;
+      case 'unlock': case 'chest': case 'coin': case 'gem': break;
+      default: sfx(e.name, e.v); haptic(e.name);
+    }
+  }
+  heartbeat(game.p.hp > 0 && game.p.hp <= 2 && m.state === 'fight');
+  if (m.over && ++doneT === 90) arenaLeave(m.result);
+}
+function arenaLeave(res) {
+  match = null; game = null; mode = 'menu'; touchEl.hidden = true; pauseBtn.hidden = true; heartbeat(false);
+  stopAmbience(); setIntensity(0); setMuffle(false); playMusic(THEMES.karte.music);
+  arenaResult(res);
+}
+
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
+  match = null;
   level = levelById(id); curCodes = ghostCodes;
   game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
   ghosts = [];
@@ -213,7 +258,10 @@ async function startLevel(id, ghostCodes = []) {
   const sub = tsRun(level) ? `Tagesschacht #${dayNumber()} · Stufe ${D.ts.k} · ${bioName(level)}` : level.gen ? `Tiefe ${level.depth} · ${bioName(level)} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
   setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
 }
-function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true); show(`
+function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true);
+  if (match) return show(`<div class="panel small"><h2>Rast</h2><p class="warn">Aufgeben zählt als Niederlage.</p>
+  <button class="big" data-a="resume">Weiter</button><button data-a="arenaquit">Aufgeben</button>${toggles()}</div>`);
+  show(`
   <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
   ${tsRun(level) && !D.ts.msg ? '<button data-a="tsmsg">Botschaft hinterlassen</button>' : ''}
   ${tsRun(level) ? '<p class="warn">Verlassen beendet deinen Tagesschacht.</p>' : ''}
@@ -756,6 +804,7 @@ function drawDescent() {
 // Systeme öffnen sich der Reihe nach, damit neue Spieler nicht erschlagen werden
 const UNLOCKS = [
   { id: 'daily', name: 'Tagesschacht', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Jeden Tag ein Schacht für alle. Ein Leben.' },
+  { id: 'arena', name: 'Schatten-Arena', test: () => !!D.cleared['1-B'], hint: 'Besiege den Rostmaulwurf (1-B)', desc: 'Duelle gegen die Schatten anderer Spieler. Dein eigener Schatten kämpft für dich weiter.' },
   { id: 'forge', name: 'Ausrüstung', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Schaufel und vier Rüstungsteile schmieden und kombinieren.' },
   { id: 'chests', name: 'Truhen', test: () => !!D.cleared['1-2'], hint: 'Schaffe 1-2', desc: 'Schlüssel und Edelsteine öffnen Truhen mit Relikten und Aussehen.' },
   { id: 'weapons', name: 'Waffenkammer', test: () => Object.keys(D.weapons).length > 0 || !!D.cleared['1-3'], hint: 'Finde eine geheime Waffe', desc: 'Geheime Waffen mit eigenen Kräften.' },
@@ -872,7 +921,7 @@ function splash() {
 function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 
 function title() {
-  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; match = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
   tsAbandoned(); announceUnlocks();
   const next = LEVELS.find(l => !l.secret && !l.qual && levelOpen(l.id) && !D.cleared[l.id]) || LEVELS.find(l => l.id === '3-B');
@@ -889,6 +938,7 @@ function title() {
     <div data-a="logo">${logoImg()}</div>
     <button class="big play" data-a="continue" data-id="${next.id}">Abenteuer<small>Weiter: ${esc(next.id)} · ${esc(next.name)}</small></button>
     ${isOpen('daily') ? '' : '<!--'}<button class="tscard ${tsDone ? 'done' : ''}" data-a="tagesschacht"><b>Tagesschacht #${dayNumber()}</b><small>${tsDone ? `Heute geschafft: Stufe ${D.ts.end.k} ✓ · Serie ${tsStreak()}` : D.ts.date === dayKey() && D.ts.k > 1 ? `Läuft · Stufe ${D.ts.k}` : 'Heute noch offen · ein Leben'}</small>${tsDone ? '' : '<span class="badge">!</span>'}</button>${isOpen('daily') ? '' : '-->'}
+    ${(() => { if (!isOpen('arena')) return `<button class="arenacard locked" data-a="lockedhint" data-id="Besiege den Rostmaulwurf (1-B)"><b>${ic('lock')} Schatten-Arena</b><small>Besiege den Rostmaulwurf (1-B)</small></button>`; const ar = D.arena || {}, r = ar.rating || 1000, k = rankOf(r); return `<button class="arenacard" data-a="arena" style="--c:${k.col}"><b>Schatten-Arena</b><small>${esc(k.name)} · ${r}${ar.wins ? ` · ${ar.wins} Siege` : ' · Fordere die Schatten heraus'}</small></button>`; })()}
     ${alerts ? `<div class="chips">${alerts}</div>` : ''}
     <div class="tiles">
       ${tile('endless', 'rune', 'Tiefen', D.endless.best ? `<em>${D.endless.best}</em>` : '', 'endless')}
@@ -915,7 +965,7 @@ function installTip() {
   return `<p class="tip">${ios ? 'Tipp: Teilen → „Zum Home-Bildschirm“ für Vollbild ohne Browserleisten.' : 'Tipp: Menü ⋮ → „App installieren“ für Vollbild und Offline-Spielen.'}</p>`;
 }
 function map(sel, wi) {
-  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'map';
+  stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; match = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'map';
   playMusic(THEMES.karte.music);
   if (wi != null) curWorld = wi;
   else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
@@ -1133,6 +1183,8 @@ ui.addEventListener('click', async e => {
     case 'lockedhint': sfx('nope'); return toast('Noch verschlossen', id || '');
     case 'continue': goFullscreen(); return map(id);
     case 'treasury': return treasury();
+    case 'arena': return arenaHub();
+    case 'arenaquit': { const m = match; if (!m) return title(); setMuffle(false); m.score[1] = 2; m.finish(); return arenaLeave(m.result); }
     case 'tagesschacht': return tagesschacht();
     case 'reload': location.reload(); return;
     case 'checkupdate': { try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {} sfx('click'); location.reload(); return; }
@@ -1271,8 +1323,11 @@ document.addEventListener('focusin', e => { if (e.target.matches('input, textare
 applyA11y();
 tsRefresh();
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
+initArena({ D, save, sfx, show, ic, esc, R, stage, toast, moment, grantKey, today, startMatch, gear: () => ({ shovel: D.shovel, weapon: D.weapon, ...equipGear() }),
+  menuT: () => menuT, setMenu: m => { lastMenu = m; }, inMenu: m => lastMenu === m && mode === 'menu' });
+ui.addEventListener('click', e => { const b = e.target.closest('[data-ar]'); if (b) { unlockAudio(); arenaClick(b); } });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { unlockAudio(); treasuryClick(b) || collectionClick(b); } });
-if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id) };
+if (/[?&]debug/.test(location.search)) window.__sh = { get game() { return game; }, startLevel: id => startLevel(id), get match() { return match; } };
 splash();
 refreshLogo(() => { if (mode === 'menu' && document.querySelector('.title')) title(); else if (document.querySelector('.splash')) splash(); });
 requestAnimationFrame(loop);

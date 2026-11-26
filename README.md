@@ -313,3 +313,13 @@ Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k
 ## Ausrüstung (v0.18, `src/armor.js`)
 
 Rüstung besteht aus Helm, Brustpanzer, Umhang und Hose. Jedes Teil hat 12 Schmiedestufen; dazu 80 Fundstücke (20 pro Teil) mit eigenen Effekten und eigenem Aussehen, plus 24 neue Truhen-Waffen. Effekte stapeln mit abnehmendem Ertrag und harten Obergrenzen; `node tools/balance.mjs` prüft alle Kombinationen auf Ausreisser, `node tools/geartest.mjs` spielt jedes Teil an. Bosse und Qualpfade geben beim ersten Sieg ein festes Fundstück.
+
+## Schatten-Arena (v0.19, `src/arena.js`, `src/arena-ui.js`)
+
+Asynchrones PvP: Du kämpfst gegen den **Schatten** eines anderen Spielers – seine Ausrüstung, gesteuert von einer KI, die seinen Kampfstil nachahmt (Angriffslust, Schaufel-Sprünge, Luftsprünge werden aus deinen eigenen Duellen gelernt). Beide Kämpfer laufen als vollwertige Spiele mit der normalen Physik; Treffer auf den „Rivalen“ landen beim echten Kämpfer im anderen Spiel. Alle Werte laufen durch `pvpNormalize` (Herzen 8–12, Tempo/Sprung/Reichweite gedeckelt, keine Wiederbelebung).
+
+- Drei Kampfplätze: **Aschenhof** (offen), **Glockenstuhl** (Aufwind, Hebebühnen, Stachelgruben), **Sägeschlund** (Grube, Fähre, Sägen). Alle spiegelgleich.
+- Zwei Siegrunden; ab 45 s rückt die **Schattenwand** vor, nach 90 s entscheiden die Herzen.
+- Elo-Wertung mit sieben Rängen; der erste Sieg des Tages gibt einen Eisenschlüssel.
+- Supabase: Tabelle `arena_shades` (eigener Schatten pro Gerät, geheimer Schlüssel nur über RPC `arena_upsert`), Kampfberichte über `arena_report` (höchstens alle 10 Minuten pro Schatten). Ohne Netz kämpfst du gegen 12 eingebaute **Wächter**.
+- `node tools/arenatest.mjs` prüft: Kämpfe enden, Seiten sind fair, Ausrüstung hilft ohne alles zu entscheiden, die KI findet jeden Gegner, Abläufe sind bitgenau wiederholbar.
