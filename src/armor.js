@@ -200,7 +200,8 @@ export const effectText = fx => Object.entries(fx).map(([k, v]) => EFFECTS[k].tx
 // Endgegner und Qualpfade schenken beim ersten Sieg je ein legendäres Stück
 export const BOSS_REWARD = { '1-B': 'drachenklauen', '2-B': 'rueckspulmantel', '3-B': 'herzderleere', 'Q-1': 'narrenkrone', 'Q-2': 'gefallenerkoenig', 'Q-3': 'phoenixmantel',
   // Verborgene Meisterduelle
-  'D-1': 'siebenmeilen', 'D-2': 'drachenschuppe', 'D-3': 'sturmschwingen', 'D-4': 'leerenblick', 'D-5': 'ewigerkoenig' };
+  'D-1': 'siebenmeilen', 'D-2': 'drachenschuppe', 'D-3': 'sturmschwingen', 'D-4': 'leerenblick', 'D-5': 'ewigerkoenig',
+  'D-6': 'blutpakt', 'D-7': 'knochenkoenig' };
 
 /* ---------- Ausrüstung lesen ---------- */
 // Wert eines Platzes: Zahl (Stufe) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück, Werte mindestens auf seiner Basis-Stufe)

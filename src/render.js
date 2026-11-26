@@ -11,6 +11,7 @@ import { THEMES } from './themes.js';
 import { TIERS } from './gear.js';
 import { weaponById, RARITY } from './weapons.js';
 import { ghostAt, fmtTime } from './ghost.js';
+import { drawLegend } from './legend-art.js';
 import { drawHunter } from './hunt-art.js';
 import * as S from './sprites.js';
 
@@ -70,6 +71,7 @@ export class Renderer {
     this.steam(g);
     const ps = S.platSprite();
     for (const pl of g.plats) x.drawImage(ps, Math.round(pl.x), Math.round(pl.y));
+    if (g.boss?.legend && !g.boss.dead) drawLegend(x,g.boss,this.t);
     for (const e of g.ents) this.ent(g, e, th);
     for (const gh of ghosts) this.ghost(gh, g.frame);
     this.player(g);

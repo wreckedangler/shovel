@@ -1,5 +1,6 @@
 import { T, cx, fsin, fcos } from './core.js';
 import { eproj, foeBase, hurtFoe } from './foes.js';
+import { clearLegend, legendStep } from './legend-duels.js';
 import { DUELS } from './duels.js';
 
 function volley(g,b,kind,speeds) {
@@ -71,10 +72,12 @@ function update(g,b) {
   }
   if (g.p.dead) return;
   if (b.phase===1 && b.hp*2<=b.maxhp) {
+    if (b.legend) clearLegend(b);
     b.phase=2; b.state='roar'; b.t=55; b.cyc=0; b.marks=[];
     g.banner={text:b.design.second.toUpperCase(),sub:b.design.name,col:b.colors[2],t:82};
     g.burst(cx(b),b.y+10,26,'star',2.4); g.ev('bossStart');
   }
+  if (b.legend) { legendStep(g,b); return; }
   if (b.state==='roar' || b.state==='rest') {
     if (b.state==='rest') b.y=Math.min(11*T-b.h,b.y+2);
     if (--b.t>0) return;
@@ -102,7 +105,7 @@ function update(g,b) {
 export function duelBoss(index) {
   const design=DUELS[index], x=31*T, y=11*T-design.h;
   return foeBase({type:'duelist',design,colors:design.colors,x,y,w:design.w,h:design.h,home:{x,y},hp:design.hp,maxhp:design.hp,
-    dmg:3,face:-1,phase:1,cyc:0,marks:[],isChief:true,state:'idle',title:design.name.toUpperCase(),update,
+    legend:['D-6','D-7'].includes(design.id),clock:0,dmg:3,face:-1,phase:1,cyc:0,marks:[],isChief:true,state:'idle',title:design.name.toUpperCase(),update,
     onWound(g,b) {
       if (design.id==='D-1' && b.phase===2 && b.state==='strike' && b.action==='return') {
         const gain=Math.min(5,b.maxhp-b.hp); b.hp+=gain;
@@ -111,6 +114,7 @@ export function duelBoss(index) {
     },
     hurtBy(g,b,damage,dir,source) {
       if (b.state==='idle' || b.state==='dying' || b.state==='roar') return;
+      if (b.legend) { g.ev('clink'); return; }
       hurtFoe(g,b,b.state==='rest'?damage:Math.max(1,Math.floor(damage/3)),dir,source);
     }});
 }

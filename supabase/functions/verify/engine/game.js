@@ -1,6 +1,7 @@
 // Spiellogik ohne DOM: läuft im Browser und in Node-Tests gleich.
 // Fester Zeitschritt: ein step() = 1/60 Sekunde.
 import { populateRoamers } from './roamers.js';
+import { clearLegend, cutThread, prepareLoom, recordShadow } from './legend-duels.js';
 import { duelBoss } from './duel-combat.js';
 import { populateHunt } from './hunters.js';
 import { SHOVEL } from './gear.js';
@@ -124,6 +125,7 @@ export class Game {
       }
     }
     if (level.duel != null) this.boss = this.add(duelBoss(level.duel));
+    if (level.id === 'D-6') prepareLoom(this);
     if (level.hunt != null) populateHunt(this, level.hunt);
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
     this.secretTotal += countFakeGroups(this.tiles);
@@ -469,8 +471,10 @@ export class Game {
       if (p.atk <= L * 0.75 && p.atk >= L * 0.3) this.swing();
     }
     if (p.onGround || p.hurt > 0) p.pogoLatch = false;
+    const wasPogo = p.pogo;
     p.pogo = !p.onGround && (i.down || p.pogoLatch) && p.atk === 0 && p.hurt <= 0;
 
+    if (p.pogo && !wasPogo) recordShadow(this, true);
     if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + this.pgrav);
     if (this.af.glide && i.jump && !p.pogo && p.dash <= 0 && p.hurt <= 0) { const gv = this.af.wall ? 1.6 : this.airJumps >= 2 ? 1.5 : 1.1; if (p.vy > gv) { p.vy = gv; if (this.frame % 4 === 0) this.parts.push({ x: cx(p) - p.face * 4, y: p.y + 4, vx: -p.face * 0.4, vy: 0.3, life: 14, col: 'ghost', grav: 0 }); } }
     if (this.af.wall && p.wallT > 0 && p.vy > 1.5 && (p.wallDir > 0 ? i.right : i.left)) p.vy = 1.5;
@@ -570,7 +574,9 @@ export class Game {
     const p = this.p, sh = this.sh, H = hits || p.hits;
     const R = this.reach;
     const box = { x: p.face > 0 ? p.x + p.w : p.x - R, y: p.y + 2, w: R, h: 10 };
+    cutThread(this, box);
     if (!H.has('fx')) {
+      recordShadow(this, false);
       H.add('fx');
       if (this.boss?.type === 'golem' && this.boss.state !== 'idle') this.boss.sideSwing = true;
       if (this.gear.weapon === 'urfunke' && ++this.emberSwings % 3 === 0)
@@ -820,7 +826,7 @@ export class Game {
     const b = this.boss;
     Object.assign(b, { x: b.home.x, y: b.home.y, hp: b.maxhp, state: 'idle', t: 0, hidden: false, vx: 0, vy: 0 });
     this.ents = this.ents.filter(e => e.type !== 'rock' && e.type !== 'eproj');
-    if (b.type === 'duelist') { b.phase = 1; b.marks = []; b.action = null; }
+    if (b.type === 'duelist') { b.phase = 1; b.marks = []; b.action = null; clearLegend(b); }
     b.sideSwing = false; b.nonPogo = false; b.cyc = 0;
     if (b.isChief) { b.foe = true; b.flash = 0; b.iframe = 0; }
     this.setGate('.');
