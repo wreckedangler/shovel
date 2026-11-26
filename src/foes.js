@@ -7,7 +7,8 @@ function gem(x, y, val, fixed) {
     update(g, e) {
       e.age++;
       const p = g.p;
-      if (e.age > 12 && !p.dead && Math.abs(cx(p) - e.x) < 22 && Math.abs(p.y + 7 - e.y) < 22) {
+      const R = g.gemPull || 22;
+      if (e.age > 12 && !p.dead && Math.abs(cx(p) - e.x) < R && Math.abs(p.y + 7 - e.y) < R) {
         e.fixed = false; e.x += (cx(p) - 3 - e.x) * 0.25; e.y += (p.y + 4 - e.y) * 0.25; return;
       }
       if (e.fixed) return;
@@ -83,7 +84,7 @@ function toad(x, y) {
       const p = g.p, dx = cx(p) - cx(e);
       if (e.onGround) {
         e.vx *= 0.7; e.face = dx < 0 ? -1 : 1;
-        if (--e.t <= 0 && Math.abs(dx) < 120) {
+        if (--e.t <= 0 && Math.abs(dx) < 120 * (g.stealth || 1)) {
           // nicht in Abgründe springen
           const land = Math.floor((cx(e) + e.face * 34) / T);
           let safe = false; for (let k = 0; k < 4; k++) if (g.solid(land, Math.floor((e.y + e.h) / T) + k)) safe = true;
@@ -125,7 +126,7 @@ function blorb(x, y) {
       if (e.onGround) {
         e.vx *= 0.75;
         const dx = cx(g.p) - cx(e);
-        if (--e.t <= 0 && Math.abs(dx) < 150) { e.vy = -4.2; e.vx = sign(dx) * 1.3; e.t = 70; g.ev('blob', e.x, e.y); }
+        if (--e.t <= 0 && Math.abs(dx) < 150 * (g.stealth || 1)) { e.vy = -4.2; e.vx = sign(dx) * 1.3; e.t = 70; g.ev('blob', e.x, e.y); }
       }
       g.moveX(e); g.moveY(e);
       if (e.y > g.h * T + 20) e.dead = true;
@@ -136,7 +137,7 @@ function bat(x, y) {
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const dx = cx(g.p) - cx(e), dy = g.p.y - e.y;
-      if (e.state === 'hang') { if (Math.abs(dx) < 96 && Math.abs(dy) < 110) { e.state = 'fly'; g.ev('screech', e.x, e.y); } return; }
+      if (e.state === 'hang') { const st = g.stealth || 1; if (Math.abs(dx) < 96 * st && Math.abs(dy) < 110 * st) { e.state = 'fly'; g.ev('screech', e.x, e.y); } return; }
       e.t++;
       e.vx = Math.max(-1.25, Math.min(1.25, e.vx + sign(dx) * 0.05));
       e.vy = Math.max(-0.9, Math.min(0.9, dy * 0.02)) + fsin(e.t / 9) * 0.9;
@@ -209,10 +210,33 @@ function rock(x, y, delay) {
     } };
 }
 
-// Projektile der Waffen (Sterne, Erdwelle)
+// Projektile der Waffen (Sterne, Erdwelle) und der Ausrüstung (Bumerang, Splitter, Spiegel, Donner, Funken)
+const PSIZE = { wave: 10, thunder: 10, boomerang: 8, spark: 4, shard: 4, mirror: 6, star: 6 };
+const PLIFE = { wave: 40, thunder: 30, boomerang: 80, spark: 50, shard: 40, mirror: 90, star: 50 };
+function projHits(g, e, once) {
+  for (const f of g.ents) if (f.foe && !f.hidden && !f.dead && !e.hit.has(f) && overlap(e, f)) { e.hit.add(f); f.hurtBy(g, f, e.dmg, sign(e.vx) || 0); if (once) { e.dead = true; return; } }
+  for (const f of g.ents) if (f.type === 'chest' && !f.open && overlap(e, f)) g.openChest(f);
+}
 function proj(x, y, vx, vy, dmg, kind) {
-  return { type: 'proj', kind, x, y, w: kind === 'wave' ? 10 : 6, h: kind === 'wave' ? 10 : 6, vx, vy, dmg, life: kind === 'wave' ? 40 : 50, hit: new Set(),
+  const sz = PSIZE[kind] || 6;
+  return { type: 'proj', kind, x, y, w: sz, h: kind === 'thunder' ? 8 : sz, vx, vy, dmg, life: PLIFE[kind] || 50, hit: new Set(), t: 0,
     update(g, e) {
+      if (kind === 'boomerang') {
+        // fliegt hinaus, bremst ab und kehrt zum Helden zurück (durch Wände hindurch)
+        e.t++;
+        if (e.t < 20) { e.x += e.vx; e.vx *= 0.93; }
+        else { if (e.t === 20) e.hit.clear(); const p = g.p, dx = cx(p) - 4 - e.x, dy = p.y + 3 - e.y, d = Math.max(1, fdist(dx, dy)); e.x += dx / d * 4.2; e.y += dy / d * 4.2; if (d < 8 || p.dead) { e.dead = true; return; } }
+        if (--e.life <= 0) { e.dead = true; return; }
+        if (g.frame % 3 === 0) g.parts.push({ x: e.x + 4, y: e.y + 4, vx: 0, vy: 0, life: 10, col: 'spark', grav: 0 });
+        return projHits(g, e, false);
+      }
+      if (kind === 'spark') { if (--e.life <= 0) { e.dead = true; return; } if (g.frame % 6 === 0) g.parts.push({ x: e.x + 2, y: e.y, vx: 0, vy: -0.5, life: 12, col: 'fire', grav: 0 }); return projHits(g, e, false); }
+      if (kind === 'shard' || kind === 'mirror' || kind === 'thunder') {
+        e.x += e.vx; e.y += e.vy; if (kind === 'shard') e.vy += 0.15;
+        if (--e.life <= 0 || g.solid(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h / 2) / T))) { e.dead = true; g.burst(e.x + 3, e.y + 3, 5, kind === 'thunder' ? 'gold' : 'ice', 1.3); return; }
+        if (g.frame % 3 === 0) g.parts.push({ x: e.x + 3, y: e.y + 3, vx: 0, vy: 0, life: 10, col: kind === 'thunder' ? 'gold' : 'ice', grav: 0 });
+        return projHits(g, e, kind !== 'thunder');
+      }
       e.x += e.vx; e.y += e.vy; e.vy += kind === 'star' ? 0.08 : 0;
       if (--e.life <= 0 || g.solid(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h / 2) / T))) {
         e.dead = true; g.burst(e.x + 3, e.y + 3, 6, kind === 'wave' ? 'dirt' : 'spark', 1.5); return;
@@ -249,7 +273,7 @@ function knight(x, y) {
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const dx = cx(g.p) - cx(e);
-      if (++e.t % 80 === 0 && Math.abs(dx) < 130) e.dir = sign(dx);
+      if (++e.t % 80 === 0 && Math.abs(dx) < 130 * (g.stealth || 1)) e.dir = sign(dx);
       if (Math.abs(e.vx) > 0.5) e.vx *= 0.85; else e.vx = 0.35 * e.dir;
       e.vy = Math.min(MAXFALL, e.vy + GRAV);
       g.moveX(e); if (e.hitWall) e.dir *= -1;
@@ -265,7 +289,7 @@ function kuckuck(x, y) {
       e.t++; e.x += e.dir * 0.8;
       if (e.x > e.ox + 56) e.dir = -1; if (e.x < e.ox - 56) e.dir = 1;
       e.y = e.oy + fsin(e.t / 20) * 3;
-      if (e.t % 110 === 0 && Math.abs(cx(g.p) - cx(e)) < 120 && g.p.y > e.y) { g.add(eproj(cx(e) - 2, e.y + e.h, 0, 2.4, 'bolt')); g.ev('screech'); }
+      if (e.t % 110 === 0 && Math.abs(cx(g.p) - cx(e)) < 120 * (g.stealth || 1) && g.p.y > e.y) { g.add(eproj(cx(e) - 2, e.y + e.h, 0, 2.4, 'bolt')); g.ev('screech'); }
     } });
 }
 function eproj(x, y, vx, vy, kind) {
@@ -332,7 +356,7 @@ function spitter(x, y) {
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       const dx = cx(g.p) - cx(e); e.face = sign(dx);
-      if (++e.t % 110 === 0 && Math.abs(dx) < 150) {
+      if (++e.t % 110 === 0 && Math.abs(dx) < 150 * (g.stealth || 1)) {
         const v = Math.max(-2.4, Math.min(2.4, dx / 45));
         g.add(eproj(cx(e) - 3, e.y - 2, v, -3.6, 'spore')); g.ev('blob', e.x, e.y); e.puff = 10;
       }

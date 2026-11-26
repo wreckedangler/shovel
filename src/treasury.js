@@ -1,5 +1,7 @@
 // Schatzkammer: Truhen kaufen und öffnen, Sammlung (Relikte und Aussehen).
-import { rarName, CHESTS, RAR, PITY, RELICS, COSMETICS, ITEMS, itemById, openChest, RELIC_ART, RELIC_PAL } from './loot.js';
+import { rarName, CHESTS, RAR, PITY, RELICS, COSMETICS, ITEMS, itemById, openChest, owned, RELIC_ART, RELIC_PAL } from './loot.js';
+import { uniqueById, effectText, slotName, SLOTS, UNIQUES } from './armor.js';
+import { weaponById, CHEST_WEAPONS } from './weapons.js';
 
 let C; // Kontext aus main.js: { D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back, checkAch }
 export function initTreasury(ctx) { C = ctx; }
@@ -45,7 +47,11 @@ export function itemIcon(id, scale = 3, sil = false) {
   const key = id + scale + sil; if (iconCache.has(key)) return iconCache.get(key);
   const it = itemById(id), t = document.createElement('canvas'); t.width = 20; t.height = 20;
   const x = t.getContext('2d');
-  if (it.kind === 'relikt') {
+  if (it.kind === 'ruestung') {
+    const ic = C.S.pieceIcon(it.slot, id), oy = { helm: 0, brust: -3, umhang: -2, hose: -4 }[it.slot]; x.drawImage(ic, 0, oy);
+  } else if (it.kind === 'waffe') {
+    const ic = C.S.weaponIcon(id); x.drawImage(ic, Math.round(10 - ic.width / 2), Math.round(10 - ic.height / 2));
+  } else if (it.kind === 'relikt') {
     const art = RELIC_ART[id];
     art.forEach((row, y) => [...row].forEach((ch, i) => { if (ch !== '.') { x.fillStyle = RELIC_PAL[ch]; x.fillRect(1 + i * 2, 2 + y * 2, 2, 2); } }));
   } else {
@@ -58,7 +64,7 @@ export function itemIcon(id, scale = 3, sil = false) {
       x.globalAlpha = 1;
     } else {
     if (it.filter) x.filter = it.filter;
-    C.R.figure(C.S.hero(Math.max(C.D.armor, 2), Math.max(C.D.shovel, 2), null), 6, 3, 1, 0, 0, 8);
+    C.R.figure(C.S.hero(Math.max(C.D.brust || 0, 2), Math.max(C.D.shovel, 2), null), 6, 3, 1, 0, 0, 8);
     x.filter = 'none'; }
     C.R.x = old; C.R.t = oldT;
   }
@@ -123,6 +129,8 @@ function statusLine(r) {
 }
 function itemDesc(it, r) {
   if (it.kind === 'relikt') return C.esc(it.desc(C.D.relics[it.id] || 1));
+  if (it.kind === 'ruestung') return C.esc(`${slotName(it.slot)} · ${effectText(uniqueById(it.id).fx)}`);
+  if (it.kind === 'waffe') return C.esc(`Waffe · ${weaponById(it.id).perk}`);
   return { spur: 'Spur hinter dem Helden', farbe: 'Färbung des Helden', aura: 'Leuchtende Aura' }[it.kind];
 }
 
@@ -146,7 +154,7 @@ function revealOne(r, fromId) {
     if (shown) return; shown = true; f = Math.max(f, burstAt + 1);
     card.hidden = false;
     card.style.setProperty('--rc', rar.col); card.style.setProperty('--rg', rar.glow);
-    card.innerHTML = `<p class="rar">${r.pity ? 'Garantie eingelöst · ' : ''}${rarName(r.rar, C.D.a11y.symbols)}${it.kind === 'relikt' ? 'es Relikt' : ''}</p>
+    card.innerHTML = `<p class="rar">${r.pity ? 'Garantie eingelöst · ' : ''}${rarName(r.rar, C.D.a11y.symbols)}${it.kind === 'relikt' ? 'es Relikt' : it.kind === 'ruestung' ? 'es Rüstungsteil' : it.kind === 'waffe' ? 'e Waffe' : ''}</p>
       <div class="lic">${canvasImg(itemIcon(it.id, 4))}</div>
       ${C.serifImg(it.name, it.name.length > 14 ? 12 : 14, ['pale', 'pale', 'pale', 'gold'][r.rar], 2, 'rname')}
       <p class="ldesc">${itemDesc(it, r)}</p><p class="lstat">${statusLine(r)}</p>
@@ -263,7 +271,12 @@ export function collection(msg = '') {
   const cos = kind => COSMETICS.filter(c => c.kind === kind).map(c => D.cosmetics[c.id]
     ? `<button class="icard r${c.rar} ${D.look[kind] === c.id ? 'on' : ''}" data-t="look" data-k="${kind}" data-id="${c.id}">${canvasImg(itemIcon(c.id, 2))}<div><b>${esc(c.name)}</b><small style="color:${RAR[c.rar].col}">${rarName(c.rar, C.D.a11y.symbols)}</small></div></button>`
     : `<div class="icard r${c.rar} unk">${canvasImg(itemIcon(c.id, 2, true))}<div><b>???</b><small style="color:${RAR[c.rar].col}">${rarName(c.rar, C.D.a11y.symbols)}</small></div></div>`).join('');
-  const have = ITEMS.filter(i => i.kind === 'relikt' ? D.relics[i.id] : D.cosmetics[i.id]).length;
+  const have = ITEMS.filter(i => i.kind === 'relikt' ? D.relics[i.id] : owned(D, i)).length;
+  const gearCard = (it, have2, desc) => have2
+    ? `<div class="icard r${it.rar}">${canvasImg(itemIcon(it.id, 2))}<div><b>${esc(it.name)}</b><small style="color:${RAR[it.rar].col}">${rarName(it.rar, C.D.a11y.symbols)}</small><small>${esc(desc)}</small></div></div>`
+    : `<div class="icard r${it.rar} unk">${canvasImg(itemIcon(it.id, 2, true))}<div><b>???</b><small style="color:${RAR[it.rar].col}">${rarName(it.rar, C.D.a11y.symbols)}</small></div></div>`;
+  const pieces = SLOTS.map(sl => { const list = UNIQUES.filter(u => u.slot === sl.id).sort((a, b) => a.rar - b.rar); return `<h3 class="sub">${esc(sl.name)} · ${list.filter(u => D.pieces && D.pieces[u.id]).length}/${list.length}</h3><div class="igrid">${list.map(u => gearCard(u, D.pieces && D.pieces[u.id], effectText(u.fx))).join('')}</div>`; }).join('');
+  const cws = CHEST_WEAPONS.slice().sort((a, b) => a.lr - b.lr).map(w => gearCard({ id: w.id, name: w.name, rar: w.lr }, D.weapons[w.id], w.perk)).join('');
   C.show(`<div class="panel">
     <div class="top"><button class="back" data-a="treasury">‹</button><h2>Sammlung</h2><span class="gems">${have} / ${ITEMS.length} · ${ic('dia')} ${D.shards}</span></div>
     <h3 class="sub">Relikt-Plätze</h3><div class="slots">${slots}</div>
@@ -272,6 +285,8 @@ export function collection(msg = '') {
     <h3 class="sub">Spur</h3><div class="igrid">${cos('spur')}</div>
     <h3 class="sub">Färbung</h3><div class="igrid">${cos('farbe')}</div>
     <h3 class="sub">Aura</h3><div class="igrid">${cos('aura')}</div>
+    <p class="note">Rüstungsteile legst du in der Ausrüstung an.</p>${pieces}
+    <h3 class="sub">Truhen-Waffen</h3><div class="igrid">${cws}</div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
 }

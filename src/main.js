@@ -2,7 +2,8 @@
 import { Game } from './game.js';
 import { LEVELS, WORLDS, levelById } from './levels.js';
 import { THEMES } from './themes.js';
-import { TIERS, SHOVEL, ARMOR, PRICE, AVAILABLE } from './gear.js';
+import { TIERS, SHOVEL, PRICE, AVAILABLE } from './gear.js';
+import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS } from './armor.js';
 import { Renderer } from './render.js';
 import { initInput, pollInput, clearInput, setStickMode } from './input.js';
 import { unlockAudio, sfx, playMusic, stopMusic, setAudio , setSpace, setAmbience, stopAmbience, stepSound, setIntensity, setMuffle, heartbeat } from './audio.js';
@@ -18,7 +19,7 @@ import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, daily
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
-import { relicMods, SHARD_PRICE, CHESTS } from './loot.js';
+import { relicMods, SHARD_PRICE, CHESTS, RAR, grantItem, rarName } from './loot.js';
 import { generateLevel, BIOMES, STYLE_NAME as STYLE_NAME0 } from './gen.js';
 const STYLE_NAME = { ...STYLE_NAME0, arena: 'Wächter' };
 const bioName = L => L.biome || (BIOMES.find(b => b.id === L.theme) || {}).name || '';
@@ -42,6 +43,9 @@ let VH = 180, VW = 320;
 const D = save.d;
 let lastMenu = 'title';
 const T_ = 16;
+// Angelegte Rüstung als gear-Werte: Stufe oder 'id@stufe' (einzigartige Stücke wachsen mit der geschmiedeten Stufe des Platzes)
+const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? (D[s] > it.tier ? `${e}@${D[s]}` : e) : (Number.isFinite(e) ? e : D[s])]; }));
+const lookOf = () => equipGear();
 setAudio(D.sfx, D.music);
 initSkin();
 
@@ -159,7 +163,7 @@ function drawMenuBg() {
   for (const [img, f] of [[bg.far, 0.15], [bg.near, 0.4]]) { const ox = -Math.round(t * f) % img.width; for (let k = ox - img.width; k < VW; k += img.width) ctx.drawImage(img, k, 0); }
   const ts = S.tileset(th);
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
-  const hs = S.hero(D.armor, D.shovel, D.weapon);
+  const hs = S.hero(lookOf(), D.shovel, D.weapon);
   R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8, null, 0, 16, 2, 0);
   // Abdunkeln, goldenes Licht von oben, Nebel und fallende Asche
   ctx.fillStyle = 'rgba(7,6,5,0.55)'; ctx.fillRect(0, 0, VW, VH);
@@ -189,7 +193,7 @@ function drawMenuBg() {
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
+  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -256,6 +260,8 @@ async function finish() {
   if (id === '1-1' && frames < 25 * 60) unlockWeapon('blitzspaten');
   if (id === '1-2' && game.dirtTotal > 0 && game.dirtLeft() === 0) unlockWeapon('erdfresser');
   if (ghosts.some(g => !g.own && g.frames - frames >= 120)) unlockWeapon('geisterklinge');
+  // Endgegner und Qualpfade: beim ersten Sieg ein legendäres Rüstungsteil
+  if (first && !cheated && BOSS_REWARD[id]) { if (grantItem(D, BOSS_REWARD[id])) reveals.push({ piece: BOSS_REWARD[id] }); }
   // Schlüssel für die Schatzkammer (jeder Anlass zählt nur einmal pro Level)
   let keyHtml = '';
   const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
@@ -354,7 +360,7 @@ function wardrobe(msg = '') {
     let any = false;
     for (const cv of document.querySelectorAll('[data-sc]')) {
       any = true; const keep = R.scarfStyle; R.scarfStyle = cv.dataset.sc;
-      stage(cv, 42, 24, () => R.figure(S.hero(D.armor, D.shovel, D.weapon), 22, 9, 1, 1, menuT, 8, null, 0, 16, 2, 0));
+      stage(cv, 42, 24, () => R.figure(S.hero(lookOf(), D.shovel, D.weapon), 22, 9, 1, 1, menuT, 8, null, 0, 16, 2, 0));
       R.scarfStyle = keep;
     }
     if (any) requestAnimationFrame(tick);
@@ -434,8 +440,31 @@ function unlockWeapon(id, inGame) {
     sfx('legend');
   }
 }
+function pieceReveal(id) {
+  const it = uniqueById(id), r = RAR[it.rar];
+  sfx('legend');
+  const el = document.createElement('div');
+  el.className = 'reveal legendaer';
+  el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:${r.col};--g:${r.glow}">
+    <p class="rar">${r.name}es Rüstungsteil · ${esc(slotName(it.slot))}</p><canvas width="1" height="1"></canvas>
+    <h2>${esc(it.name)}</h2><p class="perk">${esc(effectText(it.fx))}</p><p class="cond">Trophäe für den ersten Sieg.</p>
+    <div class="row"><button class="big" data-r="equip">Anlegen</button><button data-r="close">Später</button></div></div>`;
+  document.body.appendChild(el);
+  drawPiece(el.querySelector('canvas'), it.slot, id, 7);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    if (b.dataset.r === 'equip') { D.equip[it.slot] = id; save.write(); sfx('buy'); }
+    el.remove(); setTimeout(showReveals, 150);
+  });
+}
+function drawPiece(cv, slot, v, scale) {
+  const ic = S.pieceIcon(slot, v), cut = { helm: [0, 16], brust: [8, 14], umhang: [8, 16], hose: [16, 8] }[slot];
+  cv.width = 20 * scale; cv.height = cut[1] * scale;
+  const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic, 0, cut[0], 20, cut[1], 0, 0, cv.width, cv.height);
+}
 function showReveals() {
   const id = reveals.shift(); if (!id) return;
+  if (typeof id === 'object') return pieceReveal(id.piece);
   const w = weaponById(id), r = RARITY[w.rar];
   sfx('legend');
   const el = document.createElement('div');
@@ -461,19 +490,25 @@ function drawIcon(cv, id, scale) {
 function armory(msg = '') {
   mode = 'menu';
   const n = WEAPONS.filter(w => D.weapons[w.id]).length;
-  const cards = WEAPONS.map(w => {
+  const card = w => {
     const have = D.weapons[w.id], r = RARITY[w.rar], on = D.weapon === w.id;
     if (!have) return `<div class="wcard locked ${w.rar}"><div class="wi"><canvas data-icon="${w.id}" class="sil"></canvas></div>
       <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.secret ? 'Ein Gerücht erzählt von einem Glimmen in grosser Höhe …' : w.hint)}</p></div></div>`;
     return `<div class="wcard ${w.rar} ${on ? 'on' : ''}" style="--c:${r.col}"><div class="wi"><canvas data-icon="${w.id}"></canvas></div>
       <div><small style="color:${r.col}">${r.name}</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
       <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ' + ic('check') : 'Ausrüsten'}</button></div></div>`;
-  }).join('');
+  };
+  const deeds = WEAPONS.filter(w => !w.chest), chest = WEAPONS.filter(w => w.chest).sort((a, b) => b.lr - a.lr);
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="map">‹</button><h2>Waffenkammer</h2><span class="gems">${n} / ${WEAPONS.length}</span></div>
-    <p class="note">Diese Waffen kann man nicht kaufen. Jede verlangt eine besondere Tat. Sie nutzen Schaden und Reichweite deiner Schaufel-Stufe und legen ihre Kraft obendrauf.</p>
-    <div class="wgrid">${cards}</div>
+    <div class="top"><button class="back" data-a="forge">‹</button><h2>Waffenkammer</h2><span class="gems">${n} / ${WEAPONS.length}</span></div>
+    <p class="note">Waffen nutzen Schaden und Reichweite deiner Schaufel-Stufe und legen ihre Kraft obendrauf.</p>
     <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Normale Schaufel nehmen' : 'Normale Schaufel ausgerüstet'}</button></div>
+    <h3 class="sub">Waffen der Taten · ${deeds.filter(w => D.weapons[w.id]).length}/${deeds.length}</h3>
+    <p class="note">Diese kann man nicht kaufen. Jede verlangt eine besondere Tat.</p>
+    <div class="wgrid">${deeds.map(card).join('')}</div>
+    <h3 class="sub">Truhen-Waffen · ${chest.filter(w => D.weapons[w.id]).length}/${chest.length}</h3>
+    <p class="note">Sie liegen in den Truhen der Schatzkammer. Starke Waffen haben einen Haken.</p>
+    <div class="wgrid">${chest.map(card).join('')}</div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
   for (const cv of document.querySelectorAll('[data-icon]')) drawIcon(cv, cv.dataset.icon, 3);
@@ -702,7 +737,7 @@ function drawDescent() {
   // Fahrtwind
   if (d.parts.length < 40) d.parts.push({ x: wall * 16 + Math.random() * (VW - wall * 32), y: VH + 4, v: 4 + Math.random() * 6 });
   for (const q of d.parts) { q.y -= q.v * Math.min(1, t / 30); ctx.fillStyle = 'rgba(232,220,192,0.35)'; ctx.fillRect(Math.round(q.x), Math.round(q.y), 1, 6); if (q.y < -10) q.y = VH + 4; }
-  const hs = S.hero(D.armor, D.shovel, D.weapon); R.x = ctx; R.t = menuT;
+  const hs = S.hero(lookOf(), D.shovel, D.weapon); R.x = ctx; R.t = menuT;
   const hy = VH * 0.42 + Math.sin(t / 8) * 3 + (t > 150 ? (t - 150) * 3 : 0);
   R.figure(hs, VW / 2 - 5, Math.round(hy), 1, 2, t, 8, null, 0, 16, 0, 6);
   // Tiefenzähler
@@ -719,7 +754,7 @@ function drawDescent() {
 // Systeme öffnen sich der Reihe nach, damit neue Spieler nicht erschlagen werden
 const UNLOCKS = [
   { id: 'daily', name: 'Tagesschacht', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Jeden Tag ein Schacht für alle. Ein Leben.' },
-  { id: 'forge', name: 'Schmiede', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Bessere Schaufel und Rüstung für Edelsteine.' },
+  { id: 'forge', name: 'Ausrüstung', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Schaufel und vier Rüstungsteile schmieden und kombinieren.' },
   { id: 'chests', name: 'Truhen', test: () => !!D.cleared['1-2'], hint: 'Schaffe 1-2', desc: 'Schlüssel und Edelsteine öffnen Truhen mit Relikten und Aussehen.' },
   { id: 'weapons', name: 'Waffenkammer', test: () => Object.keys(D.weapons).length > 0 || !!D.cleared['1-3'], hint: 'Finde eine geheime Waffe', desc: 'Geheime Waffen mit eigenen Kräften.' },
   { id: 'endless', name: 'Endlose Tiefen', test: () => !!D.cleared['1-B'], hint: 'Besiege den Boss von Welt 1', desc: 'Unendlich viele erzeugte Levels, immer tiefer.' },
@@ -856,7 +891,7 @@ function title() {
     <div class="tiles">
       ${tile('endless', 'rune', 'Tiefen', D.endless.best ? `<em>${D.endless.best}</em>` : '', 'endless')}
       ${tile('treasury', 'dia', 'Truhen', keys ? `<i class="badge">${keys}</i>` : '', 'chests')}
-      ${tile('forge', 'anvil', 'Schmiede', '', 'forge')}
+      ${tile('forge', 'anvil', 'Ausrüstung', '', 'forge')}
       ${tile('collection', 'star', 'Sammlung', '', 'chests')}
       ${tile('armory', 'sword', 'Waffen', `<em>${Object.keys(D.weapons).length}/${WEAPONS.length}</em>`, 'weapons')}
       ${tile('achs', 'trophy', 'Erfolge', `<em>${Object.keys(D.ach).length}/${ACH.length}</em>`)}
@@ -905,7 +940,7 @@ function map(sel, wi) {
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
-    <div class="row">${isOpen('chests') ? `<button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button>` : ''}${isOpen('forge') ? '<button data-a="forge">Schmiede</button>' : ''}${isOpen('weapons') ? `<button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button>` : ''}<button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="options">Optionen</button></div>
+    <div class="row">${isOpen('chests') ? `<button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button>` : ''}${isOpen('forge') ? '<button data-a="forge">Ausrüstung</button>' : ''}${isOpen('weapons') ? `<button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button>` : ''}<button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="options">Optionen</button></div>
     <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · ${endlessOpen() ? 'Endlose Tiefen offen: Tab ∞' : 'Schaffe 1-1, um die endlosen Tiefen zu öffnen'}</p>
   </div>`);
   if (sel) detail(sel);
@@ -940,42 +975,70 @@ function stage(cv, w, h, draw) {
   const x = t.getContext('2d'), old = R.x, oldT = R.t; R.x = x; R.t = menuT; draw(x); R.x = old; R.t = oldT;
   const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height); c.drawImage(t, 0, 0, cv.width, cv.height);
 }
-let forgeAnim = 0;
+let forgeAnim = 0, forgeOpen = null;
+const pct = v => `${v >= 1 ? '+' : '−'}${Math.round(Math.abs(v - 1) * 100)} %`;
+const pieceName = (slot, v) => { const it = typeof v === 'string' && uniqueById(v); return it ? it.name : `${TIERS[v].name}-${slotName(slot)}`; };
+// Ausrüstung: Schaufel und vier Rüstungsteile schmieden und kombinieren
 function forge(msg = '') {
   mode = 'menu';
-  const row = (key, name, table) => {
-    const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx], sp = SHARD_PRICE[nx] || 0, afford = D.gems >= price && D.shards >= sp;
-    const chips = TIERS.map((t, i) => `<canvas class="gi ${i === cur ? 'cur' : ''} ${i <= cur ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" title="${esc(t.name)}"></canvas>`).join('');
-    return `<div class="gear">
-      <div class="gh"><b>${name}: <span class="tn" style="--c:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
-      <div class="chips">${chips}</div>
-      ${nx < TIERS.length ? `<div class="next"><span>Nächste Stufe: <b class="tn" style="--c:${TIERS[nx].light}">${esc(TIERS[nx].name)}</b> — ${esc(table[nx].perk)}</span>
-        ${can ? `<button class="${afford ? 'big' : 'off'}" data-a="buy" data-k="${key}">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</button>` : ''}</div>` : '<div class="next">Maximum erreicht.</div>'}
-    </div>`;
+  const eq = equipGear(), A = armorStats(eq), RL = relicMods(D);
+  const buyBtn = (key, nx, price, sp) => {
+    if (nx >= TIERS.length) return '<span class="max">Höchste Stufe</span>';
+    if (nx >= AVAILABLE) return '';
+    const afford = D.gems >= price && D.shards >= sp;
+    return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}"><span class="bl">Schmieden: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
   };
-  const nA = Math.min(D.armor + 1, TIERS.length - 1), nS = Math.min(D.shovel + 1, TIERS.length - 1);
+  const pips = cur => `<span class="pips12">${TIERS.map((t, k) => `<i class="${k <= cur ? 'on' : ''}" style="--c:${t.light}"></i>`).join('')}</span>`;
+  const shovelRow = `<div class="srow">
+      <canvas class="sic" data-si="${D.shovel}"></canvas>
+      <div class="sinfo"><small>Schaufel</small><b class="tn" style="--c:${TIERS[D.shovel].light}">${esc(TIERS[D.shovel].name)}</b><p>${esc(SHOVEL[D.shovel].perk)}</p>${pips(D.shovel)}</div>
+      <div class="sbtn">${buyBtn('shovel', D.shovel + 1, PRICE[D.shovel + 1], SHARD_PRICE[D.shovel + 1] || 0)}</div></div>`;
+  const slotRow = sl => {
+    const s = sl.id, v = D.equip[s], it = typeof v === 'string' && uniqueById(v), t = D[s], nx = t + 1;
+    const own = UNIQUES.filter(u => u.slot === s && D.pieces[u.id]), all = UNIQUES.filter(u => u.slot === s).length;
+    const col = it ? RAR[it.rar].col : TIERS[v].light;
+    const picker = forgeOpen === s ? `<div class="picker">
+        <button class="pick ${!it ? 'on' : ''}" data-a="wear" data-k="${s}" data-id=""><canvas data-pi="${s}:${t}"></canvas><span><b>${esc(pieceName(s, t))}</b><small>Geschmiedet · ${esc(tierPerk(s, t))}</small></span></button>
+        ${own.map(u => `<button class="pick r${u.rar} ${v === u.id ? 'on' : ''}" data-a="wear" data-k="${s}" data-id="${u.id}" style="--rc:${RAR[u.rar].col}"><canvas data-pi="${s}:${u.id}"></canvas><span><b>${esc(u.name)}</b><small style="color:${RAR[u.rar].col}">${rarName(u.rar)} · Werte ab Stufe ${u.tier + 1}</small><small>${esc(effectText(u.fx))}</small></span></button>`).join('')}
+        <p class="note">${own.length} / ${all} einzigartige Stücke gefunden. Weitere liegen in Truhen, bei Endgegnern und auf den Qualpfaden.</p></div>` : '';
+    return `<div class="srow ${it ? 'uniq r' + it.rar : ''}" style="--rc:${col}">
+      <canvas class="sic" data-pi="${s}:${it ? v : t}"></canvas>
+      <div class="sinfo"><small>${esc(sl.name)} · Stufe ${Math.max(t, it ? it.tier : 0) + 1}</small><b style="color:${col}">${esc(pieceName(s, it ? v : t))}</b>
+        <p>${esc(it ? effectText(it.fx) : tierPerk(s, t))}</p>${pips(t)}</div>
+      <div class="sbtn">${buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3))}
+        <button data-a="slotpick" data-k="${s}" class="${forgeOpen === s ? 'on' : ''}">${forgeOpen === s ? 'Schliessen' : `Wechseln${own.length ? ` · ${own.length}` : ''}`}</button></div>
+      ${picker}</div>`;
+  };
+  const hp = A.hp + (RL.herz || 0);
+  const chips = Object.keys(A.fx).map(k => `<span class="fxchip ${EFFECTS[k].bad ? 'bad' : ''}">${esc(EFFECTS[k].txt(A.fx[k]))}</span>`).join('');
+  const wp = D.weapon && weaponById(D.weapon);
   show(`<div class="panel">
-    <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>
-    <div class="forge"><div class="pv"><canvas id="preview" width="216" height="120"></canvas><small>Jetzt <span>→</span> nächste Stufe</small></div>
-      <div class="rows">${row('shovel', 'Schaufel', SHOVEL)}${row('armor', 'Rüstung', ARMOR)}
-      <div class="gear"><div class="gh"><b>Waffe: ${D.weapon ? esc(weaponById(D.weapon).name) : 'keine (normale Schaufel)'}</b><small>Legendäre und mythische Waffen findest du nicht im Laden.</small></div><div class="next"><span></span><button data-a="armory">Waffenkammer</button></div></div>
-      <div class="gear"><div class="gh"><b>Relikte: ${D.relicSlots.filter(Boolean).length} / 3 angelegt</b><small>Relikte, Spuren und Auren findest du in Truhen. Splitter ${ic('dia')} für die Stufen 7–12 auch.</small></div><div class="next"><span></span><button data-a="treasury">Schatzkammer</button><button data-a="collection">Sammlung</button></div></div></div></div>
+    <div class="top"><button class="back" data-a="map">‹</button><h2>Ausrüstung</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>
+    <div class="equip">
+      <div class="eqpv"><canvas id="preview" width="168" height="168"></canvas>
+        <div class="stats6">
+          <span><b>${hp}</b><small>Herzen</small></span><span><b>${Math.round((1 - A.kb) * 100)} %</b><small>Standfest</small></span>
+          <span><b>${A.spike}</b><small>Stachel&shy;schaden</small></span><span><b>${A.ward}</b><small>Schild</small></span>
+          <span><b>${A.air}</b><small>Luft&shy;sprünge</small></span><span><b>${pct(A.run)}</b><small>Tempo</small></span>
+        </div>
+        ${chips ? `<div class="fxchips">${chips}</div>` : ''}
+      </div>
+      <div class="slots5">${shovelRow}${SLOTS.map(slotRow).join('')}
+        <div class="srow"><canvas class="sic" data-wi="${D.weapon || ''}"></canvas><div class="sinfo"><small>Waffe</small><b>${wp ? esc(wp.name) : 'Normale Schaufel'}</b><p>${wp ? esc(wp.perk) : 'Keine Spezialwaffe angelegt.'}</p></div><div class="sbtn"><button data-a="armory">Waffenkammer</button></div></div>
+        <div class="srow"><div class="sinfo"><small>Relikte</small><b>${D.relicSlots.filter(Boolean).length} / 3 angelegt</b><p>Relikte, Rüstungsteile und Splitter ${ic('dia')} findest du in Truhen.</p></div><div class="sbtn"><button data-a="treasury">Schatzkammer</button><button data-a="collection">Sammlung</button></div></div>
+      </div></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
   </div>`);
-  for (const cv of document.querySelectorAll('[data-gi]')) {
-    const [k, i] = cv.dataset.gi.split(':'), ic = k === 'shovel' ? S.shovelIcon(+i) : S.armorIcon(+i);
-    cv.width = ic.width * 2; cv.height = ic.height * 2;
-    const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic, 0, 0, cv.width, cv.height);
-  }
-  // Vorschau läuft animiert (Effekte der hohen Stufen sichtbar)
+  for (const cv of document.querySelectorAll('[data-pi]')) { const [sl, v] = cv.dataset.pi.split(':'); drawPiece(cv, sl, /^\d+$/.test(v) ? +v : v, 3); }
+  for (const cv of document.querySelectorAll('[data-si]')) { const ic2 = S.shovelIcon(+cv.dataset.si); cv.width = ic2.width * 3; cv.height = ic2.height * 3; const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic2, 0, 0, cv.width, cv.height); }
+  for (const cv of document.querySelectorAll('[data-wi]')) { if (cv.dataset.wi) drawIcon(cv, cv.dataset.wi, 3); else { const ic2 = S.shovelIcon(D.shovel); cv.width = ic2.width * 3; cv.height = ic2.height * 3; const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(ic2, 0, 0, cv.width, cv.height); } }
+  // Vorschau läuft animiert: Stand, Lauf und Hieb im Wechsel
   const pv = $('#preview'), id = ++forgeAnim;
   const tick = () => {
     if (id !== forgeAnim || !pv.isConnected) return;
-    stage(pv, 72, 40, () => {
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 16, 18, 1, 0, 0, 8);
-      const nh = S.hero(nA, nS, null), locked = nA >= AVAILABLE && nS >= AVAILABLE;
-      R.x.globalAlpha = locked ? 0.45 : 1; R.figure(nh, 52, 18, 1, 3, 0, 6); R.x.globalAlpha = 1;
-      R.x.fillStyle = '#ffd84a'; R.x.fillRect(33, 22, 5, 1); R.x.fillRect(36, 21, 1, 3); R.x.fillRect(37, 22, 1, 1);
+    stage(pv, 42, 42, () => {
+      const ph = Math.floor(menuT / 90) % 3, hs = S.hero(lookOf(), D.shovel, D.weapon);
+      R.figure(hs, 16, 20, 1, [0, 1, 3][ph], menuT, ph === 2 ? 8 - (menuT % 12) * 0.6 : 8, null, 0, 16, ph === 1 ? 2 : 0, 0);
     });
     requestAnimationFrame(tick);
   };
@@ -987,17 +1050,17 @@ function gearReveal(kind, t) {
   const tier = TIERS[t], el = document.createElement('div');
   el.className = 'reveal gear';
   el.innerHTML = `<div class="rays"></div><div class="rcard" style="--c:${tier.light};--g:${tier.dark}">
-    <p class="rar">${kind === 'shovel' ? 'Neue Schaufel geschmiedet' : 'Neue Rüstung geschmiedet'}</p>
+    <p class="rar">${kind === 'shovel' ? 'Neue Schaufel geschmiedet' : kind === 'hose' ? 'Neue Hose geschmiedet' : `Neuer ${slotName(kind)} geschmiedet`}</p>
     <canvas width="300" height="168"></canvas>
-    <h2>${esc(tier.name)}</h2><p class="perk">${esc((kind === 'shovel' ? SHOVEL : ARMOR)[t].perk)}</p>
+    <h2>${esc(tier.name)}</h2><p class="perk">${esc(kind === 'shovel' ? SHOVEL[t].perk : tierPerk(kind, t))}</p>
     <div class="row"><button class="big" data-r="close">Stark!</button></div></div>`;
   document.body.appendChild(el);
   const cv = el.querySelector('canvas'), id = ++forgeAnim;
   const tick = () => {
     if (!cv.isConnected) return;
     stage(cv, 50, 28, () => {
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 14, 12, 1, 1, menuT, 8, null, 0, 16, 2, 0);
-      R.figure(S.hero(D.armor, D.shovel, D.weapon), 34, 12, 1, 3, 0, 6);
+      R.figure(S.hero(lookOf(), D.shovel, D.weapon), 14, 12, 1, 1, menuT, 8, null, 0, 16, 2, 0);
+      R.figure(S.hero(lookOf(), D.shovel, D.weapon), 34, 12, 1, 3, 0, 6);
     });
     requestAnimationFrame(tick);
   };
@@ -1118,12 +1181,22 @@ ui.addEventListener('click', async e => {
     case 'resume': return resume();
     case 'restart': return startLevel(level.id, curCodes);
     case 'buy': {
-      const k = b.dataset.k, nx = D[k] + 1, price = PRICE[nx];
-      const sp = SHARD_PRICE[nx] || 0;
+      const k = b.dataset.k, isSh = k === 'shovel', nx = D[k] + 1, price = isSh ? PRICE[nx] : piecePrice(nx);
+      const sp = isSh ? SHARD_PRICE[nx] || 0 : Math.ceil((SHARD_PRICE[nx] || 0) / 3);
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
       if (D.shards < sp) { sfx('nope'); return forge(`Dir fehlen noch ${sp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
-      D.gems -= price; D.shards -= sp; D[k] = nx; save.write(); sfx('legend');
+      D.gems -= price; D.shards -= sp; D[k] = nx;
+      // geschmiedete Stufe gleich anlegen, ausser ein einzigartiges Stück ist angelegt (das wächst mit)
+      if (!isSh && typeof D.equip[k] !== 'string') D.equip[k] = nx;
+      save.write(); sfx('legend');
       forge(); return gearReveal(k, nx);
+    }
+    case 'slotpick': forgeOpen = forgeOpen === b.dataset.k ? null : b.dataset.k; return forge();
+    case 'wear': {
+      const k = b.dataset.k; if (!SLOT_IDS.includes(k)) return;
+      if (id && !D.pieces[id]) return sfx('nope');
+      D.equip[k] = id || D[k]; save.write(); sfx('buy');
+      return forge(`${esc(pieceName(k, id || D[k]))} angelegt.`);
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
     case 'vibrate': D.vibrate = !D.vibrate; save.write(); haptic('hit'); b.outerHTML = toggles().match(/<button data-a="vibrate".*?<\/button>/s)[0]; return;

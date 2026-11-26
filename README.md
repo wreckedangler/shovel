@@ -308,3 +308,7 @@ Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k
 - **Schrittweise Freischaltung:** Tagesschacht und Schmiede nach 1-1, Truhen und Sammlung nach 1-2, Waffenkammer mit der ersten geheimen Waffe oder nach 1-3, Endlose Tiefen nach dem Boss von Welt 1. Gesperrte Kacheln zeigen, was zu tun ist; Neues wird angekündigt.
 - **Belohnungen:** Relikte stärker (Hasenpfote bis +25 % und auf Stufe 3 ein Luftsprung, Greifenfeder +10 % pro Stufe, Grabmeisters Daumen +2 pro Stufe), Edelsteine in den Tiefen um ein Viertel gekürzt, Wächter höchstens 2,2-mal so stark.
 - Wiederholungen haben jetzt Version 2; ältere Geister-Codes werden nicht mehr nachgespielt.
+
+## Ausrüstung (v0.18, `src/armor.js`)
+
+Rüstung besteht aus Helm, Brustpanzer, Umhang und Hose. Jedes Teil hat 12 Schmiedestufen; dazu 80 Fundstücke (20 pro Teil) mit eigenen Effekten und eigenem Aussehen, plus 24 neue Truhen-Waffen. Effekte stapeln mit abnehmendem Ertrag und harten Obergrenzen; `node tools/balance.mjs` prüft alle Kombinationen auf Ausreisser, `node tools/geartest.mjs` spielt jedes Teil an. Bosse und Qualpfade geben beim ersten Sieg ein festes Fundstück.

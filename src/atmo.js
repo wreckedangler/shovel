@@ -112,7 +112,9 @@ export class Atmo {
       if (col && !this.low) glows.push([sx, sy, r, col]);
     };
     const p = g.p, fl = 1 + Math.sin(t / 5) * 0.03 + Math.sin(t / 13) * 0.04;
-    if (!p.dead) hole(p.x + 5, p.y + 6, (fin ? 44 : 74) * fl, 1, '255,190,110');
+    const lm = g.ar && g.ar.fx ? (g.ar.fx.light ? 1.6 : g.ar.fx.dim ? 0.7 : 1) : 1;
+    if (!p.dead) hole(p.x + 5, p.y + 6, (fin ? 44 : 74) * fl * lm, 1, '255,190,110');
+    if (lm > 1) for (const tr of g.traps) hole(tr.tx * 16 + 8, tr.ty * 16 + 8, 26, 0.8, '255,80,50');
     for (const e of g.ents) {
       if (e.dead) continue;
       switch (e.type) {

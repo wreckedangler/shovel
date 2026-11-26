@@ -1,7 +1,8 @@
 // Pixel-Grafik: Sprites aus Textzeilen, Tiles und Kulissen prozedural pro Welt-Thema.
 import { TIERS } from './gear.js';
 import { weaponById } from './weapons.js';
-import { ARMOR_ART, LEGS, SHOVEL_ART, WEAPON_ART } from './heroart.js';
+import { ARMOR_ART, LEGS, SHOVEL_ART, WEAPON_ART, WEAPON_SHAPES, MATERIALS, HELM_BASES, HELM_DECO, TORSO_DECO, CAPES, LEG_STYLES } from './heroart.js';
+import { SLOT_IDS, pieceOf, loadoutKey } from './armor.js';
 
 const cache = new Map();
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
@@ -38,20 +39,78 @@ function heroFrame(art, legs) {
   paint(x, art.helm, pal);
   return c;
 }
+// Ein Rüstungsteil als Zeichen-Beschreibung: Stufe (Zahl) oder einzigartiges Stück
+function partOf(slot, v) {
+  const pc = pieceOf(slot, v), it = pc.item;
+  if (!it) {
+    const a = ARMOR_ART[pc.tier];
+    return { pal: { k: K, ...a.pal }, helm: a.helm, torso: a.torso, cape: a.cape, leg: LEG_STYLES.glatt, fx: a.fx ? [[a.fx, null]] : [], scarf: a.scarf || [a.pal.c, a.pal.C], tier: pc.tier, rar: -1 };
+  }
+  const L = it.look, m = MATERIALS[L.m] || MATERIALS.obsidian, pal = { k: K, ...m };
+  const deco = (L.d || []).flatMap(d => (slot === 'helm' ? HELM_DECO : TORSO_DECO)[d] || []);
+  const fx = (L.f || []).slice();
+  if (it.rar === 3 && !fx.some(f => f[0] === 'aura')) fx.push(['aura', m.e]);
+  return {
+    pal, rar: it.rar, tier: pc.tier, fx,
+    helm: slot === 'helm' ? [...(typeof L.b === 'number' ? ARMOR_ART[L.b].helm : HELM_BASES[L.b] || HELM_BASES.kapuze), ...deco] : [],
+    torso: slot === 'brust' ? [...ARMOR_ART[typeof L.b === 'number' ? L.b : 0].torso, ...deco] : [],
+    cape: slot === 'umhang' ? CAPES[L.b] || CAPES.kurz : [],
+    leg: LEG_STYLES[L.s] || LEG_STYLES.glatt,
+    scarf: L.sc || [m.A, m.x],
+  };
+}
+const HIP = [[18, 5, 'kkxxxxxxkk'], [19, 5, 'kAAhAAhAAk']], CLASP = [[13, 5, 'kcck'], [14, 6, 'kxk']];
+function composeFrame(P, legs, only) {
+  const c = mk(20, 24), x = c.getContext('2d');
+  const on = s => !only || only === s;
+  if (on('hose')) paint(x, legs.map((r, i) => [20 + i, 4, P.hose.leg(r, i)]), P.hose.pal);
+  if (on('brust')) paint(x, P.brust.torso, P.brust.pal);
+  // Einzigartige Hosen bringen Gürtel und Hüftschutz mit, Umhänge liegen über der Schulter
+  if (on('hose') && P.hose.rar >= 0) paint(x, HIP, P.hose.pal);
+  if (on('umhang')) { paint(x, P.umhang.cape, P.umhang.pal); if (P.umhang.rar >= 0) paint(x, CLASP, P.umhang.pal); }
+  if (on('helm')) paint(x, P.helm.helm, P.helm.pal);
+  return c;
+}
+function parts(armor) {
+  const P = {};
+  for (const s of SLOT_IDS) P[s] = partOf(s, typeof armor === 'number' ? armor : armor[s]);
+  return P;
+}
 function bladeSet(rows, pal) {
   const p = { k: K, W: '#ffffff', r: '#e0304f', ...pal };
   const h = fromRows(rows, p), d = fromRows(rotCW(rows), p), u = fromRows(rotCCW(rows), p);
   return { shH: [h, flipX(h)], shD: [d, flipX(d)], shU: [u, flipX(u)] };
 }
 function weaponPal(w) { return { h: w.handle, H: w.light, s: w.dark, S: w.light, w: '#ffffff', x: w.light, W: '#ffffff' }; }
+const weaponRows = w => WEAPON_ART[w.id] || WEAPON_SHAPES[w.shape] || WEAPON_SHAPES.spaten;
+// armor: Zahl (alle vier Teile dieselbe Stufe) oder { helm, brust, umhang, hose } mit Stufen bzw. Stück-IDs
 export function hero(armor, shovel, weapon = null) {
-  return memo(`hero${armor}.${shovel}.${weapon}`, () => {
-    const art = ARMOR_ART[armor], out = { fx: art.fx || null, tier: armor, scarf: art.scarf || [art.pal.c, art.pal.C], scarfLen: 7 + Math.floor(armor / 2) };
-    for (const k in LEGS) { const r = heroFrame(art, LEGS[k]); out[k] = [r, flipX(r)]; }
+  const key = typeof armor === 'number' ? armor : loadoutKey(armor);
+  return memo(`hero${key}.${shovel}.${weapon}`, () => {
+    const P = parts(armor), um = P.umhang, br = P.brust;
+    // Leuchteffekte: einzigartige Stücke bringen eigene mit, sonst wie früher die Stufe des Brustpanzers (Visier vom Helm)
+    const fxs = [];
+    for (const s of ['brust', 'helm', 'umhang', 'hose']) for (const f of P[s].fx) {
+      if (P[s].rar < 0 && s !== 'brust' && !(s === 'helm' && f[0] === 'visor')) continue;
+      if (!fxs.some(o => o[0] === f[0])) fxs.push(f);
+    }
+    const out = { fx: fxs.length ? fxs[0][0] : null, fxs, tier: br.tier, scarf: um.scarf, scarfLen: 7 + Math.floor(um.tier / 2) };
+    for (const k in LEGS) { const r = composeFrame(P, LEGS[k]); out[k] = [r, flipX(r)]; }
     const wp = weapon && weaponById(weapon);
-    Object.assign(out, wp ? bladeSet(WEAPON_ART[wp.id], weaponPal(wp)) : bladeSet(SHOVEL_ART[shovel].rows, SHOVEL_ART[shovel].pal));
+    Object.assign(out, wp ? bladeSet(weaponRows(wp), weaponPal(wp)) : bladeSet(SHOVEL_ART[shovel].rows, SHOVEL_ART[shovel].pal));
     out.white = {}; for (const k in LEGS) out.white[k] = [tint(out[k][0], '#ffffff'), tint(out[k][1], '#ffffff')];
     return out;
+  });
+}
+// Symbol eines einzelnen Teils: der Körper bleibt als Schatten, das Teil leuchtet
+export function pieceIcon(slot, v) {
+  return memo(`picon${slot}.${v}`, () => {
+    const P = parts({ helm: 0, brust: 0, umhang: 0, hose: 0, [slot]: v });
+    if (slot === 'umhang' && !P.umhang.cape.length) P.umhang = { ...P.umhang, cape: CAPES.kurz };
+    const c = mk(20, 24), x = c.getContext('2d');
+    x.globalAlpha = 0.22; x.drawImage(tint(composeFrame(P, LEGS.stand), '#8a7a60'), 0, 0); x.globalAlpha = 1;
+    x.drawImage(composeFrame(P, LEGS.stand, slot), 0, 0);
+    return c;
   });
 }
 export function ghostHero() {
@@ -62,7 +121,7 @@ export function ghostHero() {
   });
 }
 // Icons (Klinge nach oben) für Menüs
-export function weaponIcon(id) { return memo('wicon' + id, () => fromRows(rotCCW(WEAPON_ART[id]), { k: K, W: '#ffffff', r: '#e0304f', ...weaponPal(weaponById(id)) })); }
+export function weaponIcon(id) { return memo('wicon' + id, () => fromRows(rotCCW(weaponRows(weaponById(id))), { k: K, W: '#ffffff', r: '#e0304f', ...weaponPal(weaponById(id)) })); }
 export function shovelIcon(t) { return memo('sicon' + t, () => fromRows(rotCCW(SHOVEL_ART[t].rows), { k: K, ...SHOVEL_ART[t].pal })); }
 export function armorIcon(t) { return memo('aicon' + t, () => heroFrame(ARMOR_ART[t], LEGS.stand)); }
 

@@ -5,7 +5,7 @@ import { Game } from './game.js';
 import { levelById } from './levels.js';
 
 /**
- * @typedef {{ shovel: number, armor: number, weapon?: string | null }} Gear
+ * @typedef {{ shovel: number, armor?: number, weapon?: string | null, helm?: number | string, brust?: number | string, umhang?: number | string, hose?: number | string }} Gear
  * @typedef {{ v: number, level: string, gear: Gear, opt: Record<string, any>, frames: number, done: boolean, deaths: number, in: number[], name?: string }} Replay
  */
 // 2: schnellerer Hieb, Mindestsprung, Schaufel-Sprung per B, kein Edelsteinverlust (Läufe von Version 1 passen nicht mehr)

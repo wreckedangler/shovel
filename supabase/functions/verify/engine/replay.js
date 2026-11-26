@@ -5,10 +5,11 @@ import { Game } from './game.js';
 import { levelById } from './levels.js';
 
 /**
- * @typedef {{ shovel: number, armor: number, weapon?: string | null }} Gear
+ * @typedef {{ shovel: number, armor?: number, weapon?: string | null, helm?: number | string, brust?: number | string, umhang?: number | string, hose?: number | string }} Gear
  * @typedef {{ v: number, level: string, gear: Gear, opt: Record<string, any>, frames: number, done: boolean, deaths: number, in: number[], name?: string }} Replay
  */
-export const REPLAY_VERSION = 1;
+// 2: schnellerer Hieb, Mindestsprung, Schaufel-Sprung per B, kein Edelsteinverlust (Läufe von Version 1 passen nicht mehr)
+export const REPLAY_VERSION = 2;
 const MASK = ['left', 'right', 'down', 'jump', 'attack', 'jumpP', 'attackP'];
 export const maskToInput = m => ({ left: !!(m & 1), right: !!(m & 2), down: !!(m & 4), jump: !!(m & 8), attack: !!(m & 16), jumpP: !!(m & 32), attackP: !!(m & 64) });
 void MASK;
@@ -20,7 +21,7 @@ export function unrle(a) { const out = []; for (let i = 0; i < a.length; i += 2)
 // Alles, was den Lauf beeinflusst, kommt in die Wiederholung (aber keine fremden Blutflecken)
 export function replayOf(game, extra = {}) {
   const o = game.simOpt || {};
-  return { v: REPLAY_VERSION, level: game.level.id, gear: game.gear, opt: { seed: o.seed || 7, cheats: o.cheats || {}, relics: o.relics || {}, curses: o.curses || {}, elite: o.elite || 0, bossTier: o.bossTier || 0, noCheck: !!o.noCheck, timeLimit: o.timeLimit || 0 },
+  return { v: REPLAY_VERSION, level: game.level.id, gear: game.gear, opt: { seed: o.seed || 7, cheats: o.cheats || {}, relics: o.relics || {}, curses: o.curses || {}, elite: o.elite || 0, bossTier: o.bossTier || 0, noCheck: !!o.noCheck, timeLimit: o.timeLimit || 0, autoPogo: o.autoPogo !== false },
     frames: game.frame, done: game.done, deaths: game.deaths, in: rle(game.inputs), ...extra };
 }
 

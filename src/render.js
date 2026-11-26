@@ -173,13 +173,15 @@ export class Renderer {
     else if (c === 'A') { // Pfeilwerfer: Steinblock mit Schlitz, glüht vor dem Schuss
       x.drawImage(ts.stone, px, py); const tr = g.traps.find(t => t.tx === tx && t.ty === ty), fx = tr && tr.face > 0 ? px + 12 : px;
       x.fillStyle = K; x.fillRect(fx, py + 6, 4, 4); x.fillStyle = tr && tr.warn > 0 && (this.t >> 1) & 1 ? '#ff5030' : '#3a1010'; x.fillRect(fx + 1, py + 7, 2, 2);
-      x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 3, py + 3, 10, 1); return;
+      x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px + 3, py + 3, 10, 1);
+      if (g.ar.fx.light && (this.t >> 4) & 1) { x.fillStyle = 'rgba(255,80,50,0.28)'; x.fillRect(px, py, 16, 16); } return;
     }
     else if (c === 'K') { // Kippboden: Bretter mit Scharnier, wackeln vor dem Kippen
       const fl = g.flips.get(tx + ',' + ty), wob = fl && fl.state === 'warn' ? ((this.t >> 1) & 1) * 2 - 1 : 0;
       x.save(); x.translate(px + 8, py + 2); x.rotate(wob * 0.06); x.drawImage(ts.plank, -8, -2); x.restore();
       x.fillStyle = K; x.fillRect(px, py + 5, 16, 1); x.fillStyle = '#8a8a9a'; x.fillRect(px + 1, py + 4, 2, 2); x.fillRect(px + 13, py + 4, 2, 2);
-      x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 7, py, 2, 5); return;
+      x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px + 7, py, 2, 5);
+      if (g.ar.fx.light && (this.t >> 4) & 1) { x.fillStyle = 'rgba(255,80,50,0.28)'; x.fillRect(px, py, 16, 6); } return;
     }
     else if (c === 'I') { // Trollblock: unsichtbar, nur ein seltenes Glitzern verrät ihn
       if ((this.t + tx * 31 + ty * 17) % 240 < 6) { x.fillStyle = 'rgba(255,255,255,0.5)'; x.fillRect(px + 7, py + 7, 1, 1); x.fillRect(px + 6, py + 8, 3, 1); }
@@ -201,6 +203,8 @@ export class Renderer {
     if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
     if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
     this.ent0(g, e, th);
+    if (e.frozen > 0 && !e.dead) { const x = this.x; x.globalAlpha = e.frozen < 40 && (this.t >> 2) & 1 ? 0.3 : 0.6; x.fillStyle = '#bff0ff'; x.fillRect(Math.round(e.x) - 1, Math.round(e.y) - 1, e.w + 2, e.h + 2); x.globalAlpha = 1; x.fillStyle = '#ffffff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y), e.w - 2, 1); }
+    if (e.poison > 0 && !e.dead && (this.t + e.x) % 9 === 0) g.parts.push({ x: e.x + Math.random() * e.w, y: e.y, vx: 0, vy: -0.4, life: 16, col: g.mod.fire ? 'fire' : 'spore', grav: 0 });
     if (e.golden && !e.dead) {
       const x = this.x;
       if ((this.t + e.x) % 12 < 2) { x.fillStyle = '#fff6b0'; x.fillRect(Math.round(e.x + Math.random() * e.w), Math.round(e.y + Math.random() * e.h), 1, 1); }
@@ -322,7 +326,19 @@ export class Renderer {
         return;
       }
       case 'proj':
-        if (e.kind === 'star') {
+        if (e.kind === 'boomerang') {
+          const sx = Math.round(e.x), sy = Math.round(e.y), ph = (f >> 1) & 3;
+          x.fillStyle = K; x.fillRect(sx, sy + 2, 8, 4); x.fillRect(sx + 2, sy, 4, 8);
+          x.fillStyle = '#d09050'; if (ph & 1) x.fillRect(sx + 1, sy + 3, 6, 2); else x.fillRect(sx + 3, sy + 1, 2, 6); x.fillStyle = '#fff2cf'; x.fillRect(sx + 3, sy + 3, 2, 2);
+        } else if (e.kind === 'spark') {
+          // Funkenspur: kleine flackernde Flamme
+          const sx = Math.round(e.x), sy = Math.round(e.y), fl = (f + sx) >> 2 & 1, a = Math.min(1, e.life / 20);
+          x.globalAlpha = a; x.fillStyle = '#c02a00'; x.fillRect(sx, sy + 2, 4, 2); x.fillStyle = '#ff8a2a'; x.fillRect(sx + 1, sy + 1 - fl, 2, 2); x.fillStyle = '#ffe070'; x.fillRect(sx + 1 + fl, sy - fl, 1, 1); x.globalAlpha = 1;
+        } else if (e.kind === 'shard' || e.kind === 'mirror' || e.kind === 'thunder') {
+          const sx = Math.round(e.x), sy = Math.round(e.y), c = { shard: ['#bff6ff', '#ffffff'], mirror: ['#9ad8ff', '#ffffff'], thunder: ['#ffe070', '#ffffff'], spark: ['#ff8a2a', '#ffe070'] }[e.kind];
+          x.fillStyle = K; x.fillRect(sx - 1, sy - 1, e.w + 2, e.h + 2);
+          x.fillStyle = (f >> 1) & 1 ? c[0] : c[1]; x.fillRect(sx, sy, e.w, e.h);
+        } else if (e.kind === 'star') {
           const sx = Math.round(e.x), sy = Math.round(e.y), c = (f >> 1) & 1 ? '#ffffff' : '#d8c8ff';
           x.fillStyle = K; x.fillRect(sx + 1, sy, 4, 6); x.fillRect(sx, sy + 1, 6, 4);
           x.fillStyle = c; x.fillRect(sx + 2, sy, 2, 6); x.fillRect(sx, sy + 2, 6, 2);
@@ -394,7 +410,7 @@ export class Renderer {
     const p = g.p; if (p.dead) return;
     this.lookFx(g, p);
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
-    const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
+    const hs = S.hero(g.look || g.gear.armor, g.gear.shovel, g.gear.weapon);
     const tint = this.look && this.look.farbe && COSMETIC_FILTER[this.look.farbe];
     if (tint && FILTER_OK) { this.x.filter = tint; try { this.playerBody(g, p, hs); } finally { this.x.filter = 'none'; } return; }
     if (!tint) return this.playerBody(g, p, hs);
@@ -437,7 +453,7 @@ export class Renderer {
     const Y = Y0;
     const U = hs.shU[i], H = hs.shH[i], Dn = hs.shD[i];
     if (hs.scarf && !white) this.scarf(hs, X, Y + bob, face, pose, vx, vy);
-    if (hs.fx && !white) this.fx(hs.fx, X, Y, face, false);
+    if (hs.fxs && !white) for (const f of hs.fxs) this.fx(f[0], X, Y, face, false, f[1]); else if (hs.fx && !white) this.fx(hs.fx, X, Y, face, false);
     if (pose <= 2) x.drawImage(U, face > 0 ? X - 5 : X + 8, Y + 7 - U.height + bob);
     const body = (white || hs)[legs][i];
     if (land > 0) { const q = Math.min(3, land); x.drawImage(body, X - 5 - q, Y - 10 + q, 20 + q * 2, 24 - q); }
@@ -467,7 +483,7 @@ export class Renderer {
       x.drawImage(Dn, X + 2, Y + 9);
       if (!white && vy > 2) { x.globalAlpha = 0.5; x.fillStyle = '#ffffff'; for (let k = 0; k < 3; k++) x.fillRect(X + 1 + k * 4, Y - 6 - ((this.t * 3 + k * 5) % 8), 1, 4); x.globalAlpha = 1; }
     }
-    if (hs.fx && !white) this.fx(hs.fx, X, Y, face, true);
+    if (hs.fxs && !white) for (const f of hs.fxs) this.fx(f[0], X, Y, face, true, f[1]); else if (hs.fx && !white) this.fx(hs.fx, X, Y, face, true);
     // Easter Egg: wer „Raphi“ heisst, trägt eine Krone
     if (this.crown && !white && hs.scarf) {
       const cx0 = face > 0 ? X - 1 : X + 1, cy0 = Y - 13 + (pose === 0 ? 0 : 0);
@@ -512,11 +528,21 @@ export class Renderer {
     x.fillStyle = colAt(n - 1); x.fillRect(Math.round(ex - face), Math.round(ey + 1), 1, 2); x.fillRect(Math.round(ex - face * 2), Math.round(ey), 1, 1);
   }
   // Effekte der hohen Rüstungsstufen. front=false: hinter dem Helden, true: davor.
-  fx(kind, X, Y, face, front) {
+  fx(kind, X, Y, face, front, col0 = null) {
     const x = this.x, t = this.t;
     const P = (col, row) => [face > 0 ? X - 5 + col : X + 14 - col, Y - 10 + row];
     const dot = (c, r, col, s = 1) => { const [a, b] = P(c, r); x.fillStyle = col; x.fillRect(Math.round(a), Math.round(b), s, s); };
+    const C = col0 || '#ffd84a';
     switch (kind) {
+      // Effekte der einzigartigen Rüstungsteile
+      case 'aura': if (!front) { const [a, b] = P(9.5, 13), r = 13 + Math.sin(t / 14) * 1.5, gr = x.createRadialGradient(a, b, 2, a, b, r); gr.addColorStop(0, C + '66'); gr.addColorStop(1, C + '00'); x.fillStyle = gr; x.fillRect(a - r, b - r, r * 2, r * 2); if (t % 7 === 0) dot(3 + (t * 5) % 14, 22 - (t % 20), C); } return;
+      case 'eyes': if (front) { x.globalAlpha = 0.55 + 0.45 * Math.sin(t / 9); dot(12, 10, C); dot(10, 10, C); x.globalAlpha = 0.25; dot(13, 10, C); x.globalAlpha = 1; } return;
+      case 'halo': if (!front) for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; dot(9.5 + Math.cos(a) * 4.5, -1 + Math.sin(a) * 1.3, k % 3 === Math.floor(t / 7) % 3 ? '#ffffff' : C); } return;
+      case 'flames': if (front) for (let k = 0; k < 3; k++) { const ph = (t + k * 7) % 14; dot(8 + k * 2, 3 - ph * 0.35, ph < 5 ? '#ffffff' : ph < 10 ? C : '#c02a00'); } return;
+      case 'rune': if (front) { x.globalAlpha = 0.3 + 0.3 * Math.sin(t / 11); dot(9, 15, C, 2); x.globalAlpha = 1; } return;
+      case 'drip': if (front) { const ph = t % 50; if (ph < 30) dot(8 + (Math.floor(t / 50) % 3) * 2, 18 + ph * 0.2, C); } return;
+      case 'feet': if (!front && t % 3 === 0) { x.globalAlpha = 0.7; dot(4 + (t * 7) % 10, 23 - (t % 4), C); x.globalAlpha = 1; } return;
+      case 'ash': if (!front) for (let k = 0; k < 2; k++) { const ph = (t * 0.5 + k * 31) % 40; dot(1 + k * 2 + Math.sin((t + k * 11) / 7), 14 + ph * 0.25, C); } return;
       case 'visor': if (front) { x.globalAlpha = 0.35 + 0.35 * Math.sin(t / 8); for (let c = 6; c <= 13; c++) dot(c, 9, '#bff6ff'); x.globalAlpha = 1; } return;
       case 'shine': if (front && t % 120 < 12) { const k = t % 120; for (let d = 0; d < 3; d++) dot(4 + k + d, 2 + k - d, '#ffffff'); } return;
       case 'sparkle': if (front) for (let k = 0; k < 2; k++) { const ph = (t + k * 37) % 70; if (ph < 8) dot(2 + ((k * 7 + Math.floor(t / 70) * 5) % 16), 4 + ((k * 11 + Math.floor(t / 70) * 3) % 18), ph < 4 ? '#ffffff' : '#bfe8ff'); } return;
@@ -571,6 +597,7 @@ export class Renderer {
 
   hud(g, ghosts) {
     const x = this.x, W = this.W, p = g.p;
+    if (g.slowmo) { x.fillStyle = 'rgba(110,150,255,0.13)'; x.fillRect(0, 0, W, this.H); }
     // Eiserne Plakette hinter der Anzeige oben links
     {
       const per0 = W < 220 ? 6 : 10, rows = Math.ceil(p.maxhp / per0), pw = Math.max(58, Math.min(per0, p.maxhp) * 8 + 8), ph = 40 + (rows - 1) * 7;
@@ -580,6 +607,9 @@ export class Renderer {
     }
     const per = W < 220 ? 6 : 10;
     for (let i = 0; i < p.maxhp; i++) x.drawImage(S.heart(i < p.hp), 6 + (i % per) * 8, 6 + Math.floor(i / per) * 7);
+    // Schildladungen (Rüstungseffekte) als blaue Rauten hinter den Herzen
+    const shields = (g.wardN || 0) + (g.gemCharges || 0);
+    for (let k = 0; k < shields; k++) { const sx = 6 + Math.min(per, p.maxhp) * 8 + 2 + k * 6, sy = 7; x.fillStyle = K; x.fillRect(sx, sy, 5, 5); x.fillStyle = '#7ad0ff'; x.fillRect(sx + 1, sy + 1, 3, 3); x.fillStyle = '#ffffff'; x.fillRect(sx + 1, sy + 1, 1, 1); }
     const gy0 = Math.floor((p.maxhp - 1) / per) * 7;
     x.translate(0, gy0);
     x.drawImage(S.gemSprite(5), 6, 16);
@@ -655,7 +685,7 @@ function partCol(c, th, g, q) {
     case 'stone': return alt ? th.stoneL : th.stone;
     case 'spark': return alt ? '#ffe066' : '#ffffff';
     case 'poof': return alt ? '#ffffff' : '#c8b8e8';
-    case 'hero': return alt ? TIERS[g.gear.armor].light : '#c23a5a';
+    case 'hero': return alt ? TIERS[g.armorTier || 0].light : '#c23a5a';
     case 'spore': return alt ? '#ffb0c0' : '#ffffff';
     case 'dust': return alt ? '#e8dcc8' : '#b8a890';
     case 'ghost': return alt ? '#8fe8ff' : '#e8ffff';

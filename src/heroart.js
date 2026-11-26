@@ -171,3 +171,90 @@ export const WEAPON_ART = {
   spuerschaufel: ['.........kkk......', '........kSWSk.....', 'kkkkkkkkkSSSSk....', 'kHhhhhhhkSWSWSk...', 'kkkkkkkkkSSSSk....', '........kSWSk.....', '.........kkk......'],
   urfunke: ['...........k.k....', '..........kxkxk...', 'kkkkkkkkk.kSxSxk..', 'kHhhhhhhkkSSWSSSk.', 'kkkkkkkkkSSSSSk...', '.........kkkkk....', '..................'],
 };
+
+// Formen der Truhen-Waffen (gleiche Konvention wie WEAPON_ART, Farben aus weapons.js)
+export const WEAPON_SHAPES = {
+  spaten: ['..........kkk.....', '.........kSSSk....', 'kkkkkkkkkSwSSSk...', 'kHhhhhhhkSSwSSSk..', 'kkkkkkkkkSSSSSk...', '.........kSSSk....', '..........kkk.....'],
+  axt: ['.........kkkkk....', '........kSSSSSk...', 'kkkkkkkkkSwSSk....', 'kHhhhhhhkSSSk.....', 'kkkkkkkkkSSSSk....', '........kSSSSSk...', '.........kkkkk....'],
+  sichel: ['...........kkkk...', '..........kSSSSk..', 'kkkkkkkkkkSk..kSk.', 'kHhhhhhhkSSk...kk.', 'kkkkkkkkkkk.......', '..................', '..................'],
+  faecher: ['.........k.k.k.k..', '........kSkSkSkSk.', 'kkkkkkkkkSxSxSxSk.', 'kHhhhhhhkSSwSSSSk.', 'kkkkkkkkkSxSxSxSk.', '........kSkSkSkSk.', '.........k.k.k.k..'],
+  haken: ['..............kk..', '.............kSSk.', 'kkkkkkkkkkkkkSkSk.', 'kHhhhhhhkSSSSSkSk.', 'kkkkkkkkkkkkkk.kk.', '..................', '..................'],
+  bumerang: ['.........kk.......', '........kSSk......', 'kkkkkkkkkSwSk.....', 'kHhhhhhhkkSSSSkkk.', 'kkkkkkkkk.kSSSSSSk', '...........kkkkkk.', '..................'],
+  sense: ['.........kkkkkkk..', '........kSSSSSSSk.', 'kkkkkkkkkSkkkkkkSk', 'kHhhhhhhhhk.....kk', 'kkkkkkkkkkk.......', '..................', '..................'],
+  anker: ['.........k....k...', '........kSk..kSk..', 'kkkkkkkkkSk..kSk..', 'kHhhhhhhkSSSSSSk..', 'kkkkkkkkkSk..kSk..', '........kSk..kSk..', '.........k....k...'],
+  speer: ['..................', '...............k..', 'kkkkkkkkkkkkkkkSk.', 'kHhhhhhhhhhhhkSwSk', 'kkkkkkkkkkkkkkkSk.', '...............k..', '..................'],
+  keule: ['.........kkkkk....', '........kSkSkSk...', 'kkkkkkkkkSSSSSSk..', 'kHhhhhhhkSSwSSSSk.', 'kkkkkkkkkSSSSSSk..', '........kSkSkSk...', '.........kkkkk....'],
+  saege: ['..................', '.........kkkkkkk..', 'kkkkkkkkkSSSSSSSk.', 'kHhhhhhhkSwSSSSSk.', 'kkkkkkkkkSSSSSSSk.', '.........kSkSkSk..', '..........k.k.k...'],
+  dreizack: ['..........kkkkk...', '.........kSk.kSk..', 'kkkkkkkkkkSkkkSkk.', 'kHhhhhhhhhSSSSSSSk', 'kkkkkkkkkkSkkkSkk.', '.........kSk.kSk..', '..........kkkkk...'],
+  klinge: ['..................', '.........kkkkkkk..', 'kkkkkkkkxSwwwSSSk.', 'kHhHhHhkxSSSSSSSSk', 'kkkkkkkkxSSSSSSSk.', '.........kkkkkkk..', '..................'],
+};
+
+/* ---------- Bausteine für einzigartige Rüstungsteile ---------- */
+// Materialien: dunkle Fantasie-Paletten. a dunkel · A Grundton · h Glanz · x Akzent · X Akzent dunkel · e Leuchten · v Sehschlitz · c/C Stoff · w Knochen/Weiss · y Gold · g/G Edelstein
+export const MATERIALS = {
+  obsidian: { a: '#141018', A: '#2e2638', h: '#6a5a80', x: '#c02a3a', X: '#6a1020', e: '#ff3a3a', v: '#000000', c: '#2a1020', C: '#140810', w: '#8a7aa0', y: '#d4b46a', g: '#ff3a3a', G: '#8a1020' },
+  knochen: { a: '#7a6a50', A: '#d8ccb0', h: '#fff6e0', x: '#5a1010', X: '#2a0808', e: '#ff4020', v: '#1a0a08', c: '#4a3a2a', C: '#2a2018', w: '#f2e6c8', y: '#d4b46a', g: '#ff4020', G: '#8a2010' },
+  blut: { a: '#3a0810', A: '#8a1020', h: '#ff5a5a', x: '#ffd84a', X: '#a07010', e: '#ff2020', v: '#100004', c: '#6a0a14', C: '#30040a', w: '#d8c0b0', y: '#ffd84a', g: '#ff2020', G: '#6a0a14' },
+  leere: { a: '#140828', A: '#3a1a60', h: '#a070ff', x: '#ff4fd8', X: '#8a1a7a', e: '#ff9af0', v: '#000000', c: '#1a0a30', C: '#08020f', w: '#c8a8ff', y: '#ff9af0', g: '#ff4fd8', G: '#8a1a7a' },
+  gold: { a: '#6a4a10', A: '#d4a030', h: '#fff0a0', x: '#8a1020', X: '#4a0810', e: '#ffffff', v: '#1a1004', c: '#5a1020', C: '#2a0810', w: '#fff6d0', y: '#ffd84a', g: '#e0304f', G: '#8a1020' },
+  rost: { a: '#4a2a14', A: '#9a5a2a', h: '#e0a060', x: '#5a5a60', X: '#2a2a30', e: '#ffb040', v: '#140a04', c: '#5a4030', C: '#2a1a10', w: '#c0a080', y: '#d0a040', g: '#ffb040', G: '#8a4a10' },
+  frost: { a: '#2a4a6a', A: '#8ac8f0', h: '#f0ffff', x: '#ffffff', X: '#6a9ac0', e: '#80f0ff', v: '#0a1420', c: '#3a5a8a', C: '#1a2a4a', w: '#e0f8ff', y: '#bff6ff', g: '#80f0ff', G: '#3a8ac0' },
+  glut: { a: '#3a1008', A: '#a03010', h: '#ffb040', x: '#ffe070', X: '#c06010', e: '#ffd040', v: '#100400', c: '#6a1808', C: '#300800', w: '#ff8a30', y: '#ffe070', g: '#ffd040', G: '#ff6a10' },
+  jade: { a: '#0e3a2c', A: '#2a9a6a', h: '#a0ffd0', x: '#ffd84a', X: '#a07010', e: '#7dffcf', v: '#04140d', c: '#0e3a2c', C: '#06201a', w: '#c8ffe8', y: '#ffd84a', g: '#7dffcf', G: '#1fb88a' },
+  silber: { a: '#5a6070', A: '#c8d0e0', h: '#ffffff', x: '#4a6ad0', X: '#2a3a8a', e: '#9ad8ff', v: '#0e1420', c: '#2a3a6a', C: '#141c3a', w: '#ffffff', y: '#ffd84a', g: '#9ad8ff', G: '#4a6ad0' },
+  asche: { a: '#2a2828', A: '#6a6460', h: '#b0a8a0', x: '#ff6a30', X: '#8a2a10', e: '#ffa060', v: '#0a0808', c: '#3a3434', C: '#1a1616', w: '#8a8480', y: '#c0a060', g: '#ff6a30', G: '#8a2a10' },
+  mond: { a: '#3a3a6a', A: '#9a9ad8', h: '#f0f0ff', x: '#ffd84a', X: '#a07a10', e: '#ffffff', v: '#0a0a20', c: '#2a2a5a', C: '#14143a', w: '#e0e0ff', y: '#ffd84a', g: '#bff6ff', G: '#6a6ad0' },
+  sumpf: { a: '#2a3a18', A: '#5a7a30', h: '#b0d070', x: '#d0a040', X: '#6a5010', e: '#d0ff60', v: '#0a1004', c: '#3a4a20', C: '#1a2410', w: '#a0b080', y: '#d0a040', g: '#d0ff60', G: '#5a8a20' },
+};
+// Zusätzliche Helm-Grundformen
+export const HELM_BASES = {
+  kapuze: [[4, 8, 'kkkk'], [5, 7, 'kAAAAk'], [6, 6, 'kAhAAAAk'], [7, 5, 'kAhAAAAAAk'], [8, 5, 'kAAAkkkkkk'], [9, 4, 'kAAAkvvvvvk'], [10, 4, 'kAAAkvevevk'], [11, 4, 'kaAAkvvvvvk'], [12, 4, 'kaaAAkkkkkk'], [13, 5, 'kkaaaaaak'], [14, 6, 'kkkkkkk']],
+  maske: [[5, 7, 'kkkkkk'], [6, 6, 'kwwwwwwk'], [7, 5, 'kwwhwwwwwk'], [8, 5, 'kwwwwwwwwk'], [9, 5, 'kwkekwkekk'], [10, 5, 'kwkkkwkkkk'], [11, 5, 'kwwwwkwwwk'], [12, 5, 'kawvwvwvwk'], [13, 6, 'kkkkkkkk']],
+  grosshelm: [[5, 6, 'kkkkkkkk'], [6, 5, 'kAAhhAAAAk'], [7, 5, 'kAhAAAAAAk'], [8, 5, 'kAAAAAAAAk'], [9, 5, 'kaAAvvvvvk'], [10, 5, 'kaAAkekekk'], [11, 5, 'kaAAAAvAAk'], [12, 5, 'kaaAAAAAak'], [13, 5, 'kkkkkkkkkk']],
+  kronhelm: [[6, 6, 'kkkkkkkk'], [7, 5, 'kAhAAAAAAk'], [8, 5, 'kAAAAAAAAk'], [9, 5, 'kaAAkkkkkk'], [10, 5, 'kaAAkvevek'], [11, 5, 'kaAAkvvvvk'], [12, 5, 'kaaAAAAAak'], [13, 6, 'kkkkkkkk']],
+};
+// Verzierungen (werden über die Grundform gemalt)
+export const HELM_DECO = {
+  hoerner: [[1, 2, 'kk'], [2, 1, 'kwk'], [3, 1, 'kwk'], [4, 1, 'kwwk'], [5, 2, 'kwwk'], [6, 3, 'kwk'], [7, 4, 'kk'], [1, 16, 'kk'], [2, 16, 'kwk'], [3, 16, 'kwk'], [4, 15, 'kwwk'], [5, 14, 'kwwk'], [6, 14, 'kwk'], [7, 14, 'kk']],
+  krone: [[1, 6, 'k'], [1, 9, 'kk'], [1, 13, 'k'], [2, 5, 'kyk'], [2, 8, 'kyyk'], [2, 12, 'kyk'], [3, 5, 'kyykyykyyk'], [4, 5, 'kyxyyyyxyk'], [5, 5, 'kkkkkkkkkk']],
+  stacheln: [[1, 7, 'k'], [2, 7, 'kw'], [0, 10, 'k'], [1, 10, 'kw'], [2, 10, 'kw'], [1, 13, 'k'], [2, 13, 'kw'], [3, 6, 'kwk'], [3, 9, 'kwwk'], [3, 12, 'kwk']],
+  geweih: [[0, 3, 'k.k'], [1, 3, 'kwk'], [1, 1, 'kk'], [2, 2, 'kwwk'], [3, 4, 'kwk'], [4, 5, 'kwk'], [0, 14, 'k.k'], [1, 14, 'kwk'], [1, 17, 'kk'], [2, 14, 'kwwk'], [3, 13, 'kwk'], [4, 12, 'kwk']],
+  einhorn: [[1, 13, 'kk'], [2, 12, 'kwk'], [3, 11, 'kwk'], [4, 10, 'kwk']],
+  federn: [[0, 10, 'kk'], [1, 9, 'kxxk'], [2, 8, 'kxXxk'], [3, 7, 'kxXk'], [4, 7, 'kxk']],
+  kiefer: [[12, 5, 'kwvwvwvwvk'], [13, 6, 'kwkwkwkk'], [14, 7, 'k.k.k']],
+  schnabel: [[10, 14, 'kyk'], [11, 14, 'kyyk'], [12, 14, 'kk']],
+  laterne: [[1, 9, 'kkk'], [2, 9, 'kek'], [3, 9, 'kek'], [4, 8, 'kkkkk']],
+  sterne: [[2, 6, 'y'], [1, 12, 'y'], [3, 14, 'w']],
+  nieten: [[7, 7, 'h'], [7, 12, 'h'], [12, 7, 'y'], [12, 12, 'y']],
+  dornen: [[3, 6, 'k.k.k.k.k'], [4, 6, 'xkxkxkxkx']],
+  schellen: [[4, 3, 'kk'], [5, 2, 'kxxk'], [6, 2, 'kyyk'], [7, 3, 'kk'], [4, 15, 'kk'], [5, 15, 'kxxk'], [6, 15, 'kyyk'], [7, 15, 'kk']],
+};
+export const TORSO_DECO = {
+  stacheln: [[10, 3, 'k'], [11, 3, 'kw'], [12, 2, 'kwwk'], [13, 2, 'kkkk'], [10, 16, 'k'], [11, 15, 'wk'], [12, 14, 'kwwk'], [13, 14, 'kkkk']],
+  rune: [[15, 9, 'ee'], [16, 8, 'e..e'], [17, 9, 'ee']],
+  kern: [[15, 8, 'kxxk'], [16, 8, 'xeex'], [17, 8, 'xeex'], [18, 8, 'kxxk']],
+  rippen: [[15, 7, 'wkwkwk'], [16, 6, 'wwkwwkww'], [17, 7, 'wkwkwk']],
+  nieten: [[15, 7, 'g'], [15, 12, 'g'], [17, 8, 'g'], [17, 11, 'g']],
+  ketten: [[15, 6, 'x.x.x.x.'], [16, 7, 'x.x.x.x'], [17, 6, 'x.x.x.x.']],
+  schaedel: [[15, 8, 'kwwk'], [16, 8, 'wvvw'], [17, 8, 'kwwk'], [18, 9, 'vv']],
+  spiegel: [[15, 7, 'kwwwwk'], [16, 7, 'whhhhw'], [17, 7, 'kwwwwk']],
+  schuppen: [[15, 6, 'xAxAxAxA'], [16, 7, 'AxAxAxA'], [17, 6, 'xAxAxAxA']],
+  dornen: [[14, 5, 'x'], [14, 14, 'x'], [19, 5, 'x'], [19, 14, 'x']],
+  federn: [[14, 4, 'kwk'], [15, 3, 'kwwk'], [16, 3, 'kwk']],
+};
+// Umhang hinter dem Rücken (Held schaut nach rechts: Rücken links)
+export const CAPES = {
+  kurz: [[14, 5, 'kk'], [15, 4, 'kcc'], [16, 3, 'kccC'], [17, 3, 'kcCC'], [18, 3, 'kccC'], [19, 3, 'kcCk'], [20, 4, 'kk']],
+  lang: [[14, 5, 'kk'], [15, 4, 'kcc'], [16, 3, 'kccC'], [17, 2, 'kccCC'], [18, 2, 'kcCCC'], [19, 2, 'kccCC'], [20, 1, 'kccCCk'], [21, 1, 'kcCCk'], [22, 1, 'kccCk'], [23, 2, 'kkkk']],
+  zerfetzt: [[14, 5, 'kk'], [15, 4, 'kcc'], [16, 3, 'kccC'], [17, 2, 'kccCC'], [18, 2, 'kcCCC'], [19, 1, 'kccCCk'], [20, 1, 'kc.Ck'], [21, 1, 'k..Ck'], [22, 2, 'k.k']],
+  fluegel: [[9, 1, 'kk'], [10, 0, 'khck'], [11, 0, 'khcck'], [12, 0, 'kcccCk'], [13, 0, 'kccCCk'], [14, 0, 'kcCCk'], [15, 1, 'kcCk'], [16, 1, 'kcCk'], [17, 2, 'kCk'], [18, 2, 'kk']],
+  kragen: [[11, 4, 'kk'], [12, 3, 'kcck'], [13, 3, 'kcCk'], [14, 3, 'kcCk'], [15, 3, 'kcCk'], [16, 3, 'kCCk'], [17, 3, 'kcCk'], [18, 4, 'kCk'], [19, 4, 'kk']],
+};
+// Beinstile: verändern die Schritt-Zeilen (r = Zeile 0–3)
+export const LEG_STYLES = {
+  glatt: (row) => row,
+  schienen: (row, r) => (r === 0 ? row.replace(/A/g, 'h') : row),
+  runen: (row, r) => (r === 1 ? row.replace(/A/g, 'e') : row),
+  stiefel: (row, r) => (r === 2 ? row.replace(/a/g, 'x') : r === 3 ? row.replace(/k/g, 'k') : row),
+  krallen: (row, r) => (r === 3 ? row.replace(/^(\.*)k/, '$1x').replace(/k(\.*)$/, 'x$1') : r === 2 ? row.replace(/a/g, 'h') : row),
+};

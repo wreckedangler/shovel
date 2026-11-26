@@ -1,9 +1,11 @@
 // Spielstand im Browser (localStorage). Fällt still auf Arbeitsspeicher zurück.
 const KEY = 'schaufelheld-v1', BACKUP = 'schaufelheld-v1-backup';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const DEF = {
   saveVersion: SAVE_VERSION, device: '', lastBackup: 0, playDays: 0, quality: 'auto', a11y: { symbols: false, shake: 1, flash: true, uiScale: 1, swapAB: false, lefty: false }, deathMap: {},
-  gems: 0, earned: 0, shovel: 0, armor: 0, unlocked: 1,
+  gems: 0, earned: 0, shovel: 0, unlocked: 1,
+  // Rüstung in vier Teilen: geschmiedete Stufe je Platz, angelegtes Teil (Stufe oder ID eines einzigartigen Stücks), gefundene Stücke
+  helm: 0, brust: 0, umhang: 0, hose: 0, equip: { helm: 0, brust: 0, umhang: 0, hose: 0 }, pieces: {},
   best: {},        // levelId -> Frames
   ghosts: {},      // levelId -> eigener bester Geist-Code
   imported: {},    // levelId -> [{code, name, frames}]
@@ -31,7 +33,10 @@ function mergeDeep(def, o) {
   return out;
 }
 // Umwandlung alter Spielstände
+const SLOTS = ['helm', 'brust', 'umhang', 'hose'];
 const MIGRATIONS = {
+  // 3: eine Rüstung wird zu vier Teilen derselben Stufe
+  2: d => { const a = Math.max(0, Math.min(11, Math.floor(+d.armor || 0))); for (const k of SLOTS) d[k] = a; d.equip = { helm: a, brust: a, umhang: a, hose: a }; d.pieces = d.pieces || {}; delete d.armor; return d; },
   1: d => { if (!Array.isArray(d.relicSlots)) d.relicSlots = [null, null, null]; while (d.relicSlots.length < 3) d.relicSlots.push(null); return d; },
 };
 function migrate(o) {
@@ -41,8 +46,16 @@ function migrate(o) {
 }
 // Plausibilität: beschädigte Werte reparieren statt abzustürzen
 function sanitize(d) {
-  for (const k of ['gems', 'earned', 'shovel', 'armor', 'unlocked', 'shards', 'deathsTotal']) if (!Number.isFinite(d[k]) || d[k] < 0) d[k] = DEF[k] ?? 0;
-  d.shovel = Math.min(11, Math.floor(d.shovel)); d.armor = Math.min(11, Math.floor(d.armor));
+  for (const k of ['gems', 'earned', 'shovel', 'unlocked', 'shards', 'deathsTotal', ...SLOTS]) if (!Number.isFinite(d[k]) || d[k] < 0) d[k] = DEF[k] ?? 0;
+  d.shovel = Math.min(11, Math.floor(d.shovel));
+  if (!isObj(d.equip)) d.equip = { helm: 0, brust: 0, umhang: 0, hose: 0 };
+  if (!isObj(d.pieces)) d.pieces = {};
+  for (const k of SLOTS) {
+    d[k] = Math.min(11, Math.floor(d[k]));
+    const e = d.equip[k];
+    // angelegt: Stufe bis zur geschmiedeten oder ein gefundenes Stück
+    if (typeof e === 'string' ? !d.pieces[e] : !(Number.isFinite(e) && e >= 0 && e <= d[k])) d.equip[k] = d[k];
+  }
   if (!d.device) d.device = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   return d;
 }

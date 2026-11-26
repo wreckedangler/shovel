@@ -1,4 +1,6 @@
 // Truhen, Relikte, Aussehen und Splitter. Reine Daten und Würfel-Logik, ohne DOM (Node-testbar).
+import { UNIQUES } from './armor.js';
+import { CHEST_WEAPONS } from './weapons.js';
 
 export const RAR = [
   { id: 'gewoehnlich', sym: '●', name: 'Gewöhnlich', col: '#cfc4ae', glow: '#8a8170', shards: 5 },
@@ -47,7 +49,10 @@ export const COSMETICS = [
   { id: 'aura-frost', kind: 'aura', name: 'Frostlicht', rar: 2, col: '120,210,255' },
   { id: 'aura-urlicht', kind: 'aura', name: 'Urlicht', rar: 3, col: '255,236,170' },
 ];
-export const ITEMS = [...RELICS.map(r => ({ ...r, kind: 'relikt' })), ...COSMETICS];
+// Einzigartige Rüstungsteile und Truhen-Waffen liegen ebenfalls in den Truhen
+export const ITEMS = [...RELICS.map(r => ({ ...r, kind: 'relikt' })), ...COSMETICS,
+  ...UNIQUES.map(u => ({ id: u.id, kind: 'ruestung', name: u.name, rar: u.rar, slot: u.slot })),
+  ...CHEST_WEAPONS.map(w => ({ id: w.id, kind: 'waffe', name: w.name, rar: w.lr }))];
 export const itemById = id => ITEMS.find(i => i.id === id);
 
 // Splitter-Preise für die Schmiedestufen 7–12 (Index 6–11)
@@ -84,12 +89,22 @@ export function openChest(D, chestId, rand = Math.random) {
     if (lvl === 0) { D.relics[item.id] = 1; res.isNew = true; const free = D.relicSlots.indexOf(null); if (free >= 0) D.relicSlots[free] = item.id; }
     else if (lvl < 3) { D.relics[item.id] = lvl + 1; res.levelUp = lvl + 1; }
     else { res.shards = RAR[rar].shards; }
+  } else if (item.kind === 'ruestung' || item.kind === 'waffe') {
+    const store = item.kind === 'waffe' ? (D.weapons = D.weapons || {}) : (D.pieces = D.pieces || {});
+    if (!store[item.id]) { store[item.id] = true; res.isNew = true; } else res.shards = RAR[rar].shards;
   } else if (!D.cosmetics[item.id]) { D.cosmetics[item.id] = true; res.isNew = true; }
   else res.shards = RAR[rar].shards;
   if (res.shards) D.shards += res.shards;
   return res;
 }
-export const owned = (D, i) => (i.kind === 'relikt' ? (D.relics[i.id] || 0) >= 3 : !!D.cosmetics[i.id]);
+export const owned = (D, i) => (i.kind === 'relikt' ? (D.relics[i.id] || 0) >= 3 : i.kind === 'ruestung' ? !!(D.pieces && D.pieces[i.id]) : i.kind === 'waffe' ? !!(D.weapons && D.weapons[i.id]) : !!D.cosmetics[i.id]);
+// Gegenstand direkt vergeben (Boss-Belohnung). Gibt true zurück, wenn neu; sonst gibt es Splitter.
+export function grantItem(D, id) {
+  const it = ITEMS.find(i => i.id === id); if (!it) return false;
+  if (owned(D, it)) { D.shards += RAR[it.rar].shards; return false; }
+  if (it.kind === 'ruestung') (D.pieces = D.pieces || {})[id] = true; else if (it.kind === 'waffe') (D.weapons = D.weapons || {})[id] = true; else if (it.kind === 'relikt') D.relics[id] = (D.relics[id] || 0) + 1; else D.cosmetics[id] = true;
+  return true;
+}
 
 // Pixel-Symbole der Relikte (für ui und Enthüllung). k=Umriss, Farben je Buchstabe.
 export const RELIC_ART = {
