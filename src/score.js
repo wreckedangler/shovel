@@ -126,6 +126,24 @@ export function hall(ac, out) {
   const inp = ac.createGain(); inp.connect(dry).connect(out); inp.connect(cv).connect(wet).connect(out);
   return inp;
 }
+// Mastering: Klang säubern, verdichten, Spitzen begrenzen. Live und im Render dieselbe Kette.
+// Tiefen unter 40 Hz raus und Bass etwas zurück (frisst Pegel, Handys geben sie nicht wieder), Mulm um 220 Hz weg,
+// Präsenz für die Melodie, Luft obenrum, sanfter Bus-Kompressor, Begrenzer, weicher Clipper als Sicherung.
+export const MASTER = { makeup: 1.95, out: 0.89 };
+export function master(ac, out, trim = 1) {
+  const f = (type, freq, gain = 0, q = 0.7) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = freq; b.gain.value = gain; b.Q.value = q; return b; };
+  const comp = (th, kn, ra, at, re) => { const c = ac.createDynamicsCompressor(); c.threshold.value = th; c.knee.value = kn; c.ratio.value = ra; c.attack.value = at; c.release.value = re; return c; };
+  const inp = ac.createGain(), mk = ac.createGain(), og = ac.createGain();
+  mk.gain.value = MASTER.makeup; og.gain.value = MASTER.out * trim;
+  const clip = ac.createWaveShaper(), n = 2048, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1, a = Math.abs(x); c[i] = a < 0.8 ? x : Math.sign(x) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2)); }
+  clip.curve = c; clip.oversample = '4x';
+  inp.connect(f('highpass', 40)).connect(f('highpass', 40)).connect(f('lowshelf', 100, -3))
+    .connect(f('peaking', 220, -2.5, 0.9)).connect(f('peaking', 3000, 2, 0.8)).connect(f('highshelf', 5000, 6))
+    .connect(comp(-22, 8, 2, 0.03, 0.3)).connect(mk)
+    .connect(comp(-3, 0, 20, 0.001, 0.08)).connect(clip).connect(og).connect(out);
+  return inp;
+}
 // Platz im Orchester (Stereobild); ohne StereoPanner spielt alles aus der Mitte
 const PAN = { choirL: -0.4, choirR: 0.4, vln: -0.45, vla: -0.15, cello: 0.3, cello8: 0.3, cb: 0.45, strpad: -0.2, flute: -0.25, oboe: 0.05, horn: 0.35, hornpad: 0.35, tpt: 0.15, tbn: 0.45, harp: -0.55, celesta: -0.35, bell: 0.1 };
 const busCache = new WeakMap();
@@ -239,7 +257,7 @@ export function playEvent(ac, room, e, t, e8) {
 
 // Live abspielen mit Vorausplanung; gibt eine Stopp-Funktion zurück
 export function startScore(ac, out, score) {
-  const C = compile(score), e8 = 60 / score.bpm / 2, room = hall(ac, out);
+  const C = compile(score), e8 = 60 / score.bpm / 2, mst = master(ac, out, 0.4), room = hall(ac, mst);
   let i = 0, base = ac.currentTime + 0.15, off = 0;
   const tick = () => {
     const horizon = ac.currentTime + 0.5;
@@ -252,12 +270,12 @@ export function startScore(ac, out, score) {
     }
   };
   tick(); const timer = setInterval(tick, 100);
-  return () => { clearInterval(timer); try { room.disconnect(); } catch {} };
+  return () => { clearInterval(timer); try { room.disconnect(); mst.disconnect(); } catch {} };
 }
 // Vorab rendern (Hörprobe): einmal komplett durch
 // Wie live: immer nur die nächsten Sekunden anlegen (OfflineAudioContext.suspend), sonst rechnen alle Filter von Anfang an mit
 export function renderScore(ac, score) {
-  const C = compile(score), e8 = 60 / score.bpm / 2, room = hall(ac, ac.destination), len = 0.2 + C.total * e8 + 4;
+  const C = compile(score), e8 = 60 / score.bpm / 2, room = hall(ac, master(ac, ac.destination)), len = 0.2 + C.total * e8 + 4;
   let i = 0;
   const sched = until => { while (i < C.ev.length && 0.2 + Math.max(0, C.ev[i].t) * e8 < until) { playEvent(ac, room, C.ev[i], 0.2 + Math.max(0, C.ev[i].t) * e8, e8); i++; } };
   sched(2.5);
