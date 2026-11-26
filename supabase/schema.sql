@@ -2,7 +2,7 @@
 -- Ohne Anmeldung: jeder darf lesen und eintragen, aber die Datenbank prüft selbst, was plausibel ist.
 
 -- Namensfilter (grobe Liste, ergänzt den Filter im Spiel)
-create or replace function sh_name_ok(n text) returns boolean language sql immutable as $$
+create or replace function sh_name_ok(n text) returns boolean language sql immutable set search_path = '' as $$
   select char_length(n) between 1 and 16
      and lower(translate(n, '0134578@$!', 'oieastbasi')) !~ '(arsch|fick|fuck|shit|schei|hure|nutte|fotze|wichs|schwuchtel|spast|nigg|neger|hitler|nazi|kanake|bitch|cunt|porn|rape|vergewalt|kike|faggot|retard|whore|slut|1488)'
 $$;
@@ -21,7 +21,8 @@ create table if not exists ghosts (
 create index if not exists ghosts_level on ghosts (level, frames);
 alter table ghosts enable row level security;
 drop policy if exists "lesen" on ghosts; create policy "lesen" on ghosts for select using (true);
-drop policy if exists "eintragen" on ghosts; create policy "eintragen" on ghosts for insert with check (true);
+-- "verified" setzt nur die Edge Function (mit Dienstschlüssel), nie ein Spieler
+drop policy if exists "eintragen" on ghosts; create policy "eintragen" on ghosts for insert with check (verified is not true);
 
 -- Tagesschacht: ein Lauf pro Gerät und Tag
 create table if not exists daily_runs (
@@ -49,7 +50,10 @@ alter table daily_runs enable row level security;
 drop policy if exists "lesen" on daily_runs; create policy "lesen" on daily_runs for select using (true);
 -- nur für heute (± 1 Tag wegen Zeitzonen) eintragen
 drop policy if exists "eintragen" on daily_runs; create policy "eintragen" on daily_runs for insert
-  with check (to_date(date, 'YYYY-MM-DD') between current_date - 1 and current_date + 1);
+  with check (verified is not true and to_date(date, 'YYYY-MM-DD') between current_date - 1 and current_date + 1);
+-- Die Geräte-Kennung bleibt privat: Spieler dürfen alle Spalten lesen ausser "device"
+revoke select on daily_runs from anon, authenticated;
+grant select (id, date, gv, name, k, frames, x, y, tail, ma, mb, mx, my, mk, carried, replay, verified, version, created_at) on daily_runs to anon, authenticated;
 
 -- Cloud-Sicherung des Spielstands. Zugriff nur mit dem geheimen Schlüssel im Kopf "x-save-token".
 create table if not exists saves (
@@ -74,6 +78,13 @@ create table if not exists deaths_anon (
 alter table deaths_anon enable row level security;
 drop policy if exists "eintragen" on deaths_anon; create policy "eintragen" on deaths_anon for insert with check (true);
 -- (bewusst keine Lese-Policy: auswerten nur im Supabase-Dashboard)
+
+-- Rechte für die öffentliche Rolle (neue Supabase-Projekte vergeben sie nicht mehr automatisch)
+grant usage on schema public to anon, authenticated;
+grant select, insert on ghosts to anon, authenticated;
+grant insert on daily_runs to anon, authenticated;
+grant select, insert, update, delete on saves to anon, authenticated;
+grant insert on deaths_anon to anon, authenticated;
 
 -- ===== Stufe 2 (optional, nach dem Bereitstellen der Edge Function "verify") =====
 -- Danach dürfen nur noch nachgeprüfte Läufe eingetragen werden:
