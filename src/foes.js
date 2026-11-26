@@ -26,7 +26,7 @@ function hurtFoe(g, e, dmg, dir, src) {
   g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2); g.freeze = Math.max(g.freeze, 3);
   if (g.cheat.konfetti) g.burst(e.x + e.w / 2, e.y, 24, 'confetti', 3, 0.08, 50);
   g.num(e.x + e.w / 2, e.y - 2, dmg, dmg >= 4 ? '#ff9a50' : '#ffffff');
-  if (dir && e !== g.boss) e.vx = dir * 1.8;
+  if (dir && e !== g.boss) e.vx = dir * 2.4;
   if (e.hp <= 0) {
     if (e === g.boss) return g.bossDefeated(e);
     if (e.elite === 'teilt' && !e.mini && MAKERS[e.type]) for (const d of [-1, 1]) { const m = MAKERS[e.type](e.x + d * 6, e.y - 4); m.mini = true; m.hp = 1; m.vx = d * 1.5; m.vy = -2; m.loot = 4; g.add(m); }
@@ -39,7 +39,7 @@ function hurtFoe(g, e, dmg, dir, src) {
 const foeBase = (o) => ({ foe: true, iframe: 0, flash: 0, vx: 0, vy: 0, hurtBy: hurtFoe, ...o });
 
 function beetle(x, y) {
-  return foeBase({ type: 'beetle', x, y, w: 14, h: 9, hp: 2, dmg: 1, dir: -1, loot: 8,
+  return foeBase({ type: 'beetle', x, y, w: 14, h: 9, hp: 1, dmg: 1, dir: -1, loot: 8,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       if (Math.abs(e.vx) > 0.6) e.vx *= 0.85; else e.vx = 0.45 * e.dir;

@@ -22,8 +22,10 @@ export class Renderer {
   snapCamera(g) { this.cam = this.target(g); }
   target(g) {
     const p = g.p;
-    const lead = this.W < 220 ? 18 : 28;
-    const x = Math.max(0, Math.min(g.w * T - this.W, p.x + p.w / 2 + p.face * lead - this.W / 2));
+    // Vorausblick: in Blickrichtung und mit dem Tempo, weich nachgeführt
+    const want = p.face * (this.W < 260 ? 40 : 52) + p.vx * 10;
+    this.lead = (this.lead ?? want) + (want - (this.lead ?? want)) * 0.05;
+    const x = Math.max(0, Math.min(g.w * T - this.W, p.x + p.w / 2 + this.lead - this.W / 2));
     const maxY = g.h * T - this.H;
     // Ist die Ansicht höher als das Level (Hochformat), sitzt der Boden unten und oben ist Himmel
     const y = maxY < 0 ? maxY : Math.max(0, Math.min(maxY, p.y - this.H * 0.55));

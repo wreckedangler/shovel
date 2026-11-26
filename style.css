@@ -411,3 +411,4 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 }
 @media (max-width:370px){.home .tile{font-size:10px!important;letter-spacing:.06em}.home .status{gap:9px;font-size:13px}.home .foot button{padding:2px 8px!important}}
 .tsmanual summary{cursor:pointer;color:var(--mute);font-size:12px;letter-spacing:.06em;margin:6px 0}
+.home .tile small.lh{font-size:9px;letter-spacing:.02em;color:var(--dim);text-transform:none;line-height:1.1;text-align:center}

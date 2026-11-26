@@ -298,3 +298,13 @@ Ein Schacht pro Tag für alle (Samen aus dem Datum, Stufe k = Generator-Tiefe 2k
 - **Aufteilung:** `src/core.js` (Konstanten, Helfer), `src/foes.js` (alle Gegner, Bosse, Fallen, Projektile mit `MAKERS`-Liste), `src/game.js` (Spielwelt, Held, Regeln).
 - **Leistung:** feste Kacheln werden in 16×16-Blöcken vorgezeichnet und nur bei Änderungen erneuert (`game.setT`), Listen werden an Ort und Stelle aufgeräumt, der Held wird zwischen zwei Logikschritten weich gezeichnet (90/120 Hz).
 - **Typen:** `jsconfig.json` prüft ausgewählte Module mit TypeScript (JSDoc), auch in den GitHub-Tests.
+
+## Spielgefühl (v0.17)
+
+- **Hochformat:** Spielfeld 13 statt 10 Kacheln breit, Kamera schaut in Laufrichtung und mit dem Tempo voraus.
+- **Schaufel-Sprung am Handy:** B im Fallen löst ihn aus und hält ihn bis zur Landung (erneut B bricht ab). B im Steigen bleibt ein normaler Hieb. ▼ halten funktioniert weiter. Abschaltbar in den Optionen.
+- **Kampf:** Hieb 11 statt 16 Bilder, Käfer fallen mit einem Treffer, Gegner werden weiter zurückgestossen.
+- **Fairness:** kein Edelstein-Verlust beim Tod, Schutz nach Treffer 50 statt 70 Bilder, Mindestsprung (kurzes Antippen bricht erst nach 4 Bildern ab), Staub beim Wenden.
+- **Schrittweise Freischaltung:** Tagesschacht und Schmiede nach 1-1, Truhen und Sammlung nach 1-2, Waffenkammer mit der ersten geheimen Waffe oder nach 1-3, Endlose Tiefen nach dem Boss von Welt 1. Gesperrte Kacheln zeigen, was zu tun ist; Neues wird angekündigt.
+- **Belohnungen:** Relikte stärker (Hasenpfote bis +25 % und auf Stufe 3 ein Luftsprung, Greifenfeder +10 % pro Stufe, Grabmeisters Daumen +2 pro Stufe), Edelsteine in den Tiefen um ein Viertel gekürzt, Wächter höchstens 2,2-mal so stark.
+- Wiederholungen haben jetzt Version 2; ältere Geister-Codes werden nicht mehr nachgespielt.

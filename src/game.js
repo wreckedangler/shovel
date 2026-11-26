@@ -17,14 +17,14 @@ export class Game {
     this.mod = weaponMods(gear.weapon);
     // Schmiede-Perks der hohen Stufen (kumulativ) und Relikte
     const m = this.mod, R = this.relic = opt.relics || {};
-    for (let k = 0; k <= gear.shovel; k++) { const s = SHOVEL[k]; if (s.fast) m.atkLen = Math.min(m.atkLen, 12); if (s.stars) m.stars = true; if (s.fire) m.fire = true; if (s.area) m.area = true; if (s.seer) m.seer = true; }
+    for (let k = 0; k <= gear.shovel; k++) { const s = SHOVEL[k]; if (s.fast) m.atkLen = Math.min(m.atkLen, 9); if (s.stars) m.stars = true; if (s.fire) m.fire = true; if (s.area) m.area = true; if (s.seer) m.seer = true; }
     if (this.sh.gem) m.gemMul *= this.sh.gem;
     if (R.gier) m.gemMul *= [1, 1.15, 1.3, 1.5][R.gier];
-    if (R.sprint) m.run *= 1 + R.sprint * 0.05;
+    if (R.sprint) m.run *= 1 + [0, 0.1, 0.18, 0.25][R.sprint];
     this.magnet = Math.max(22, [0, 36, 52, 72][R.magnet || 0], this.ar.magnet ? 60 : 0);
     this.rushMul = [1, 1.3, 1.6, 2][R.rausch || 0];
-    this.pogoMul = 1 + (R.feder || 0) * 0.06;
-    this.airJumps = this.ar.air || 0;
+    this.pogoMul = 1 + (R.feder || 0) * 0.1;
+    this.airJumps = (this.ar.air || 0) + (R.sprint >= 3 ? 1 : 0);
     this.ward = !!this.ar.ward; this.shieldT = 0; this.phoenix = R.phoenix || 0;
     this.dmg = Math.round(this.sh.dmg * this.mod.dmgMul);
     this.reach = this.sh.reach + this.mod.reach;
@@ -36,7 +36,7 @@ export class Game {
     this.h = this.tiles.length;
     this.w = this.tiles[0].length;
     this.rand = rng(opt.seed || 7);
-    this.inputs = []; this.simOpt = { ...opt, marks: undefined }; this.dirty = new Set(); this.hiddenVer = 0;
+    this.inputs = []; this.simOpt = { ...opt, marks: undefined }; this.autoPogo = opt.autoPogo !== false; this.dirty = new Set(); this.hiddenVer = 0;
     this.cheat = opt.cheats || {};
     this.pgrav = GRAV * (this.cheat.mond ? 0.5 : 1);
     this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = []; this.traps = []; this.flips = new Map();
@@ -124,7 +124,7 @@ export class Game {
       if (e.elite === 'zaeh') { e.hp *= 3; } e.loot = (e.loot || 8) * 3;
     }
     this.bossTier = opt.bossTier || 0;
-    if (this.boss && this.bossTier) { this.boss.hp = this.boss.maxhp = Math.round(this.boss.maxhp * (1 + 0.35 * this.bossTier)); }
+    if (this.boss && this.bossTier) { this.boss.hp = this.boss.maxhp = Math.round(this.boss.maxhp * (1 + 0.3 * Math.min(4, this.bossTier))); }
     this.noCheck = !!opt.noCheck;
     if (level.chase) {
       const ch = level.chase, vert = ch.kind === 'flut' || ch.kind === 'lava';
@@ -276,7 +276,7 @@ export class Game {
     this.burst(tx * T + 8, ty * T + 8, 12, c === 'S' ? 'stone' : c === 'R' ? 'ore' : 'dirt', 2.2);
     this.shake = Math.max(this.shake, 3);
     this.ev(c === 'S' ? 'crack' : 'dig', tx * T, ty * T);
-    this.dropGems(tx * T + 8, ty * T + 8, (c === 'R' ? 45 : c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul) + (this.relic.spaten || 0));
+    this.dropGems(tx * T + 8, ty * T + 8, (c === 'R' ? 45 : c === 'S' ? 12 : (2 + Math.floor(this.rand() * 5)) * this.mod.dirtMul) + (this.relic.spaten || 0) * 2);
   }
 
   step(inp) {
@@ -301,7 +301,7 @@ export class Game {
     this.stepPlayer(inp);
     for (const e of this.ents) if (!e.dead && e.update) {
       e.update(this, e);
-      if (!e.dead && (e.elite === 'schnell' || (e === this.boss && this.bossTier && this.frame % Math.max(2, 6 - this.bossTier) === 0))) e.update(this, e);
+      if (!e.dead && (e.elite === 'schnell' || (e === this.boss && this.bossTier && this.frame % Math.max(3, 7 - this.bossTier) === 0))) e.update(this, e);
     }
     this.stepTraps();
     this.contacts();
@@ -338,8 +338,8 @@ export class Game {
       const acc = p.onGround ? 0.32 : 0.22;
       const RUN = this.mod.run;
       if (p.dash > 0) { /* Geister-Sprint */ }
-      else if (i.left && !i.right) { p.vx = Math.max(-RUN, p.vx - acc); p.face = -1; }
-      else if (i.right && !i.left) { p.vx = Math.min(RUN, p.vx + acc); p.face = 1; }
+      else if (i.left && !i.right) { if (p.onGround && p.vx > 1.2) this.parts.push({ x: p.x + 8, y: p.y + 13, vx: 0.6, vy: -0.4, life: 12, col: 'dust', grav: 0 }); p.vx = Math.max(-RUN, p.vx - acc); p.face = -1; }
+      else if (i.right && !i.left) { if (p.onGround && p.vx < -1.2) this.parts.push({ x: p.x + 2, y: p.y + 13, vx: -0.6, vy: -0.4, life: 12, col: 'dust', grav: 0 }); p.vx = Math.min(RUN, p.vx + acc); p.face = 1; }
       else { p.vx *= p.onGround ? 0.68 : 0.93; if (Math.abs(p.vx) < 0.05) p.vx = 0; }
     }
     p.coyote = p.onGround ? 6 : Math.max(0, p.coyote - 1);
@@ -358,16 +358,22 @@ export class Game {
       this.ev('dash'); this.burst(cx(p), p.y + 7, 10, 'ghost', 1.5, 0, 18);
     }
     if (p.dash > 0) { p.dash--; p.vx = p.face * 5; p.vy = 0; if (p.dash % 2) this.parts.push({ x: p.x + 5, y: p.y + 7, vx: 0, vy: 0, life: 14, col: 'ghost', grav: 0 }); }
-    if (!i.jump && p.jumping && p.vy < -2.2) p.vy = -2.2;
+    // Mindestsprung: erst nach 4 Bildern darf ein kurzes Antippen den Sprung abbrechen
+    if (p.jumping) p.jt = (p.jt || 0) + 1; else p.jt = 0;
+    if (!i.jump && p.jumping && p.jt >= 4 && p.vy < -2.2) p.vy = -2.2;
 
     if (p.atkCd > 0) p.atkCd--;
     const L = this.mod.atkLen;
-    if ((i.attackP || this.pendAtk) && p.atk === 0 && p.atkCd === 0) { this.pendAtk = false; p.atk = L; p.atkLen = L; p.hits = new Set(); this.ev('swing'); }
+    // Handy: B im Fallen = Schaufel-Sprung (bleibt bis zur Landung), B im Steigen = normaler Hieb
+    if (this.autoPogo && (i.attackP || this.pendAtk) && !p.onGround && !p.pogoLatch && p.vy > 0.3 && p.hurt <= 0 && !i.down) { this.pendAtk = false; p.pogoLatch = true; this.ev('swing'); }
+    else if (this.autoPogo && i.attackP && p.pogoLatch) { p.pogoLatch = false; }
+    if ((i.attackP || this.pendAtk) && p.atk === 0 && p.atkCd === 0 && !p.pogoLatch) { this.pendAtk = false; p.atk = L; p.atkLen = L; p.hits = new Set(); this.ev('swing'); }
     if (p.atk > 0) {
-      p.atk--; if (p.atk === 0) p.atkCd = L < 16 ? 0 : 3;
+      p.atk--; if (p.atk === 0) p.atkCd = L < 11 ? 0 : 2;
       if (p.atk <= L * 0.75 && p.atk >= L * 0.3) this.swing();
     }
-    p.pogo = !p.onGround && i.down && p.atk === 0 && p.hurt <= 0;
+    if (p.onGround || p.hurt > 0) p.pogoLatch = false;
+    p.pogo = !p.onGround && (i.down || p.pogoLatch) && p.atk === 0 && p.hurt <= 0;
 
     if (p.dash <= 0) p.vy = Math.min(MAXFALL, p.vy + this.pgrav);
     if (p.pogo && p.vy > 0) this.pogoCheck();
@@ -501,7 +507,7 @@ export class Game {
       return;
     }
     p.hp -= dmg; this.hurtCount++; this.bossHurt++; if (!this.rushT) this.rush = Math.max(0, this.rush - 45);
-    p.inv = this.ar.inv || 70; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
+    p.inv = this.ar.inv || 50; this.freeze = Math.max(this.freeze, 4); this.chain = 0; p.hurt = Math.round(14 * this.ar.kb) + 4;
     p.vx = (dir || -p.face) * 2.2 * this.ar.kb; p.vy = spike ? -6 : -3; p.onGround = false; p.jumping = false;
     this.shake = 5; this.ev('hurt');
     if (p.hp <= 0) this.kill();
@@ -531,7 +537,7 @@ export class Game {
       return;
     }
     p.dead = 70; p.hp = 0; this.deaths++;
-    const lost = Math.floor(this.gems * 0.25);
+    const lost = 0; // kein Edelstein-Verlust mehr beim Tod: schwere Stellen sollen nicht doppelt bestrafen
     this.gems -= lost;
     this.burst(cx(p), p.y + 7, 24, 'hero', 3, 0.1, 40);
     this.ev('die'); this.shake = 8;

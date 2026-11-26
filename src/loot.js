@@ -19,12 +19,12 @@ export const PITY = 30; // spätestens nach so vielen Öffnungen ohne Legendär 
 // Relikte: 3 Plätze, jedes Relikt steigt durch Duplikate bis Stufe 3.
 export const RELICS = [
   { id: 'magnet', name: 'Ziehstein', rar: 0, desc: l => `Edelsteine fliegen aus ${[0, 36, 52, 72][l]} px zu dir.` },
-  { id: 'spaten', name: 'Grabmeisters Daumen', rar: 0, desc: l => `+${l} Edelstein pro gegrabenem Block.` },
-  { id: 'sprint', name: 'Hasenpfote', rar: 0, desc: l => `+${l * 5}% Laufgeschwindigkeit.` },
+  { id: 'spaten', name: 'Grabmeisters Daumen', rar: 0, desc: l => `+${l * 2} Edelsteine pro gegrabenem Block.` },
+  { id: 'sprint', name: 'Hasenpfote', rar: 0, desc: l => `+${[0, 10, 18, 25][l]}% Laufgeschwindigkeit${l >= 3 ? ' und ein Luftsprung' : ''}.` },
   { id: 'gier', name: 'Elsterauge', rar: 1, desc: l => `+${[0, 15, 30, 50][l]}% Edelsteine.` },
   { id: 'rausch', name: 'Glutherz', rar: 1, desc: l => `Rausch füllt sich ${[0, 30, 60, 100][l]}% schneller.` },
   { id: 'herz', name: 'Eichenherz', rar: 1, desc: l => `+${l} Herz${l > 1 ? 'en' : ''}.` },
-  { id: 'feder', name: 'Greifenfeder', rar: 2, desc: l => `Schaufel-Sprünge ${l * 6}% höher.` },
+  { id: 'feder', name: 'Greifenfeder', rar: 2, desc: l => `Schaufel-Sprünge ${l * 10}% höher.` },
   { id: 'kette', name: 'Kettenglied', rar: 2, desc: l => `Kettenbonus ×${l + 1}.` },
   { id: 'glueck', name: 'Goldener Käfer', rar: 2, desc: l => `${[7, 14, 20, 28][l]}% goldene Gegner.` },
   { id: 'schild', name: 'Wächterrune', rar: 3, desc: l => `Blockt alle ${[0, 40, 30, 20][l]} s einen Treffer.` },

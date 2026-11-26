@@ -60,7 +60,8 @@ function resize() {
   if (portrait) {
     const ctrl = Math.round(Math.max(210, innerHeight * 0.3));
     const cssH = innerHeight - ctrl;
-    VW = 160; VH = Math.max(150, Math.min(248, Math.round(VW * cssH / innerWidth)));
+    // 13 Kacheln breit statt 10: im Hochformat mehr Vorausblick
+    VW = 208; VH = Math.max(170, Math.min(280, Math.round(VW * cssH / innerWidth)));
     sc = Math.min(innerWidth / VW, cssH / VH);
     document.documentElement.style.setProperty('--ch', Math.round(VH * sc) + 'px');
   } else {
@@ -188,7 +189,7 @@ function drawMenuBg() {
 /* ---------- Spielen ---------- */
 async function startLevel(id, ghostCodes = []) {
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), ...runOpts(level) });
+  game = new Game(level, { shovel: D.shovel, armor: D.armor, weapon: D.weapon }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -715,7 +716,22 @@ function drawDescent() {
   if (t > 150) { ctx.fillStyle = `rgba(5,4,3,${(t - 150) / 20})`; ctx.fillRect(0, 0, VW, VH); }
 }
 /* ---------- Endlose Tiefen ---------- */
-const endlessOpen = () => !!D.cleared['1-1'];
+// Systeme öffnen sich der Reihe nach, damit neue Spieler nicht erschlagen werden
+const UNLOCKS = [
+  { id: 'daily', name: 'Tagesschacht', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Jeden Tag ein Schacht für alle. Ein Leben.' },
+  { id: 'forge', name: 'Schmiede', test: () => !!D.cleared['1-1'], hint: 'Schaffe 1-1', desc: 'Bessere Schaufel und Rüstung für Edelsteine.' },
+  { id: 'chests', name: 'Truhen', test: () => !!D.cleared['1-2'], hint: 'Schaffe 1-2', desc: 'Schlüssel und Edelsteine öffnen Truhen mit Relikten und Aussehen.' },
+  { id: 'weapons', name: 'Waffenkammer', test: () => Object.keys(D.weapons).length > 0 || !!D.cleared['1-3'], hint: 'Finde eine geheime Waffe', desc: 'Geheime Waffen mit eigenen Kräften.' },
+  { id: 'endless', name: 'Endlose Tiefen', test: () => !!D.cleared['1-B'], hint: 'Besiege den Boss von Welt 1', desc: 'Unendlich viele erzeugte Levels, immer tiefer.' },
+];
+const isOpen = id => { const u = UNLOCKS.find(x => x.id === id); return !u || u.test() || playCheats(D).length > 0 || D.gems >= 999999; };
+const endlessOpen = () => isOpen('endless');
+function announceUnlocks() {
+  D.seenUnlocks = D.seenUnlocks || {};
+  const fresh = UNLOCKS.filter(u => u.test() && !D.seenUnlocks[u.id]);
+  fresh.forEach((u, i) => { D.seenUnlocks[u.id] = true; setTimeout(() => { toast('Neu: ' + u.name, u.desc, 'ach'); sfx('secret'); }, 600 + i * 1800); });
+  if (fresh.length) save.write();
+}
 const eSeed = () => { if (!D.endless.seed) { D.endless.seed = 1 + Math.floor(Math.random() * 999999); save.write(); } return D.endless.seed; };
 const genId = (seed, depth) => `∞${depth}-${seed}`;
 const E0 = () => D.endless;
@@ -778,8 +794,8 @@ async function finishEndless() {
   }
   const E = D.endless, dep = level.depth, hc = hcRun(level), main = mainRun(level) && !hc;
   const coins = game.coins.length, info = { coins: (level.map.join('').match(/O/g) || []).length };
-  const mul = (main || hc ? curseMul() : 1) * (hc ? 1.5 : 1) * (level.bossTier ? 2 : 1);
-  const bonus = Math.round((40 + dep * 12) * mul), coinGems = coins * 60, earned = Math.round(game.gems * mul) + bonus + coinGems;
+  const mul = (main || hc ? curseMul() : 1) * (hc ? 1.5 : 1) * (level.bossTier ? 2 : 1) * 0.75;
+  const bonus = Math.round((30 + dep * 6) * mul), coinGems = coins * 60, earned = Math.round(game.gems * mul) + bonus + coinGems;
   D.gems += earned; D.earned += earned; E.runs++; E.coins += coins;
   let keyHtml = '';
   if (main) {
@@ -821,10 +837,11 @@ function hideUI() { ui.hidden = true; ui.innerHTML = ''; }
 function title() {
   stopAmbience(); setIntensity(0); setMuffle(false); setSpace('open'); mode = 'menu'; game = null; touchEl.hidden = true; pauseBtn.hidden = true; lastMenu = 'title';
   playMusic(THEMES.karte.music);
-  tsAbandoned();
+  tsAbandoned(); announceUnlocks();
   const next = LEVELS.find(l => !l.secret && !l.qual && levelOpen(l.id) && !D.cleared[l.id]) || LEVELS.find(l => l.id === '3-B');
   const tsDone = D.ts.date === dayKey() && D.ts.done, keys = keyCount();
-  const tile = (a, icon, label, extra = '', locked = false) => `<button class="tile ${locked ? 'locked' : ''}" data-a="${locked ? 'nope' : a}">${ic(locked ? 'lock' : icon)}<span>${label}</span>${extra}</button>`;
+  const tile = (a, icon, label, extra = '', lockId = '') => { const locked = lockId && !isOpen(lockId), hint = locked ? UNLOCKS.find(u => u.id === lockId).hint : '';
+    return `<button class="tile ${locked ? 'locked' : ''}" data-a="${locked ? 'lockedhint' : a}" data-id="${esc(hint)}">${ic(locked ? 'lock' : icon)}<span>${label}</span>${locked ? `<small class="lh">${esc(hint)}</small>` : extra}</button>`; };
   const alerts = [
     updateReady ? '<button class="chip gold" data-a="reload">Neue Version laden</button>' : '',
     dailyReady() ? `<button class="chip ember" data-a="daily">${ic('trophy')} Tagesschatz bereit</button>` : '',
@@ -834,14 +851,14 @@ function title() {
     <div class="status"><span>${ic('gem')} ${D.gems.toLocaleString('de-CH')}</span><span>${ic('lock')} ${keys}</span><span>${ic('scroll')} ${completion(D)} %</span><button class="iconbtn" data-a="options" aria-label="Optionen">${ic('gear')}</button></div>
     <div data-a="logo">${logoImg()}</div>
     <button class="big play" data-a="continue" data-id="${next.id}">Abenteuer<small>Weiter: ${esc(next.id)} · ${esc(next.name)}</small></button>
-    <button class="tscard ${tsDone ? 'done' : ''}" data-a="tagesschacht"><b>Tagesschacht #${dayNumber()}</b><small>${tsDone ? `Heute geschafft: Stufe ${D.ts.end.k} ✓ · Serie ${tsStreak()}` : D.ts.date === dayKey() && D.ts.k > 1 ? `Läuft · Stufe ${D.ts.k}` : 'Heute noch offen · ein Leben'}</small>${tsDone ? '' : '<span class="badge">!</span>'}</button>
+    ${isOpen('daily') ? '' : '<!--'}<button class="tscard ${tsDone ? 'done' : ''}" data-a="tagesschacht"><b>Tagesschacht #${dayNumber()}</b><small>${tsDone ? `Heute geschafft: Stufe ${D.ts.end.k} ✓ · Serie ${tsStreak()}` : D.ts.date === dayKey() && D.ts.k > 1 ? `Läuft · Stufe ${D.ts.k}` : 'Heute noch offen · ein Leben'}</small>${tsDone ? '' : '<span class="badge">!</span>'}</button>${isOpen('daily') ? '' : '-->'}
     ${alerts ? `<div class="chips">${alerts}</div>` : ''}
     <div class="tiles">
-      ${tile('endless', 'rune', 'Tiefen', D.endless.best ? `<em>${D.endless.best}</em>` : '', !endlessOpen())}
-      ${tile('treasury', 'dia', 'Truhen', keys ? `<i class="badge">${keys}</i>` : '')}
-      ${tile('forge', 'anvil', 'Schmiede')}
-      ${tile('collection', 'star', 'Sammlung')}
-      ${tile('armory', 'sword', 'Waffen', `<em>${Object.keys(D.weapons).length}/${WEAPONS.length}</em>`)}
+      ${tile('endless', 'rune', 'Tiefen', D.endless.best ? `<em>${D.endless.best}</em>` : '', 'endless')}
+      ${tile('treasury', 'dia', 'Truhen', keys ? `<i class="badge">${keys}</i>` : '', 'chests')}
+      ${tile('forge', 'anvil', 'Schmiede', '', 'forge')}
+      ${tile('collection', 'star', 'Sammlung', '', 'chests')}
+      ${tile('armory', 'sword', 'Waffen', `<em>${Object.keys(D.weapons).length}/${WEAPONS.length}</em>`, 'weapons')}
       ${tile('achs', 'trophy', 'Erfolge', `<em>${Object.keys(D.ach).length}/${ACH.length}</em>`)}
     </div>
     <div class="foot"><button data-a="wardrobe">Garderobe</button><button data-a="cheats">Schummelbuch</button><button data-a="options">Optionen</button></div>
@@ -888,7 +905,7 @@ function map(sel, wi) {
     <div class="wtabs">${tabs}</div>
     <div class="cards">${cards}</div>
     <div id="detail">${sel ? '' : '<p class="note">Wähle ein Level.</p>'}</div>
-    <div class="row"><button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button><button data-a="forge">Schmiede</button><button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button><button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="wardrobe">Garderobe</button><button data-a="options">Optionen</button></div>
+    <div class="row">${isOpen('chests') ? `<button class="treasurebtn" data-a="treasury">Schatzkammer${keyCount() ? ` <span class="badge">${keyCount()}</span>` : ''}</button><button data-a="collection">Sammlung</button>` : ''}${isOpen('forge') ? '<button data-a="forge">Schmiede</button>' : ''}${isOpen('weapons') ? `<button data-a="armory">Waffen ${Object.keys(D.weapons).length}/${WEAPONS.length}</button>` : ''}<button data-a="achs">Erfolge ${Object.keys(D.ach).length}/${ACH.length}</button><button data-a="options">Optionen</button></div>
     <p class="note soon">Münzen ${totalCoins(D)}/${TOTAL_COINS} · ${endlessOpen() ? 'Endlose Tiefen offen: Tab ∞' : 'Schaffe 1-1, um die endlosen Tiefen zu öffnen'}</p>
   </div>`);
   if (sel) detail(sel);
@@ -1004,6 +1021,7 @@ function options(msg = '') {
       <button data-a="a11y" data-id="flash" class="${!A.flash ? 'on' : ''}">Blitze ${A.flash ? 'an' : 'aus'}</button>
       <button data-a="a11y" data-id="uiScale">Schrift ${A.uiScale > 1 ? 'gross' : 'normal'}</button>
       ${isTouch ? `<button data-a="a11y" data-id="swapAB" class="${A.swapAB ? 'on' : ''}">A/B ${A.swapAB ? 'getauscht' : 'normal'}</button>` : ''}
+      <button data-a="autopogo" class="${D.autoPogo !== false ? 'on' : ''}">Schaufel-Sprung: ${D.autoPogo !== false ? 'B im Fallen' : 'nur ▼ halten'}</button>
     </div>
     <h3 class="sub">Spielstand sichern</h3>
     <p class="note">${save.loadedFrom === 'sicherung' ? '<b style="color:#ff9a80">Der Spielstand wurde aus der Notfall-Kopie wiederhergestellt.</b> ' : ''}Der Browser kann gespeicherte Daten löschen (Safari nach 7 Tagen ohne Besuch). Sichere deinen Spielstand als Code, z. B. in deinen Notizen.${D.lastBackup ? ` Letzte Sicherung: ${new Date(D.lastBackup).toLocaleDateString('de-CH')}.` : ' Noch nie gesichert.'}</p>
@@ -1045,6 +1063,7 @@ ui.addEventListener('click', async e => {
   if (a !== 'nope' && a !== 'buy') sfx('click');
   switch (a) {
     case 'title': return title();
+    case 'lockedhint': sfx('nope'); return toast('Noch verschlossen', id || '');
     case 'continue': goFullscreen(); return map(id);
     case 'treasury': return treasury();
     case 'tagesschacht': return tagesschacht();
@@ -1108,6 +1127,7 @@ ui.addEventListener('click', async e => {
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;
     case 'vibrate': D.vibrate = !D.vibrate; save.write(); haptic('hit'); b.outerHTML = toggles().match(/<button data-a="vibrate".*?<\/button>/s)[0]; return;
+    case 'autopogo': D.autoPogo = D.autoPogo === false; save.write(); return options(D.autoPogo ? 'B im Fallen löst den Schaufel-Sprung aus. ▼ halten geht weiterhin.' : 'Schaufel-Sprung nur noch mit ▼ halten.');
     case 'quality': D.quality = { auto: 'hoch', hoch: 'niedrig', niedrig: 'auto' }[D.quality] || 'auto'; save.write(); applyA11y(); return options();
     case 'a11y': { const A = D.a11y;
       if (id === 'shake') A.shake = A.shake >= 1 ? 0.4 : A.shake > 0 ? 0 : 1; else if (id === 'uiScale') A.uiScale = A.uiScale > 1 ? 1 : 1.18; else A[id] = !A[id];

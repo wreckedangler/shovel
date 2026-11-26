@@ -58,7 +58,7 @@ export const weaponById = id => WEAPONS.find(w => w.id === id) || null;
 
 // Wirkung im Spiel
 export function weaponMods(id) {
-  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 16, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false, quake: false, seer: false };
+  const m = { run: 2.0, jump: 5.6, reach: 0, atkLen: 11, dmgMul: 1, gemMul: 1, area: false, dirtMul: 1, stars: false, wave: false, soul: false, dash: false, fire: false, quake: false, seer: false };
   switch (id) {
     case 'federklinge': m.run = 2.35; m.jump = 6.05; m.reach = 4; break;
     case 'blitzspaten': m.run = 2.3; m.atkLen = 9; break;
