@@ -1,5 +1,7 @@
 // Spiellogik ohne DOM: läuft im Browser und in Node-Tests gleich.
 // Fester Zeitschritt: ein step() = 1/60 Sekunde.
+import { populateRoamers } from './roamers.js';
+import { duelBoss } from './duel-combat.js';
 import { populateHunt } from './hunters.js';
 import { SHOVEL, ARMOR } from './gear.js';
 import { weaponMods } from './weapons.js';
@@ -89,6 +91,7 @@ export class Game {
         case 'u': this.add(kuckuck(px + 1, py + 3)); break;
       }
     }
+    if (level.duel != null) this.boss = this.add(duelBoss(level.duel));
     if (level.hunt != null) populateHunt(this, level.hunt);
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
     this.secretTotal += countFakeGroups(this.tiles);
@@ -152,6 +155,7 @@ export class Game {
       inv: 0, hurt: 0, safe: 0, coyote: 0, jbuf: 0, jumping: false, dead: 0, drop: 0, anim: 0,
       land: 0, dash: 0, dashUsed: false,
     };
+    if (level.duel == null && Number.isInteger(opt.roamerSeed)) populateRoamers(this, opt.roamerSeed);
     p.onGround = false;
     if (opt.curses && opt.curses.einherz) p.hp = p.maxhp = 1;
   }
@@ -677,7 +681,11 @@ export class Game {
         case 'icicle': if (e.state !== 'gone') { this.hurtPlayer(e.state === 'fall' ? 2 : 1, sign(cx(p) - cx(e)) || 1); if (e.state === 'fall') { e.state = 'gone'; e.t = 240; this.burst(cx(e), e.y + 10, 10, 'stone', 2); } } break;
         case 'eproj': if (p.safe <= 0 || e.kind === 'shock') { if (e.kind !== 'shock') e.dead = true; this.hurtPlayer(e.dmg, sign(cx(p) - cx(e))); } break;
         default:
-          if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
+          if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) {
+            const hits = this.hurtCount;
+            this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
+            if (this.hurtCount > hits && e.onWound) e.onWound(this, e);
+          }
       }
     }
     if (this.boss && this.boss.state === 'idle' && this.level.gate != null && p.x > (this.level.gate + 2) * T) this.startBoss();
@@ -690,6 +698,7 @@ export class Game {
     const b = this.boss;
     Object.assign(b, { x: b.home.x, y: b.home.y, hp: b.maxhp, state: 'idle', t: 0, hidden: false, vx: 0, vy: 0 });
     this.ents = this.ents.filter(e => e.type !== 'rock' && e.type !== 'eproj');
+    if (b.type === 'duelist') { b.phase = 1; b.marks = []; b.action = null; }
     b.sideSwing = false; b.nonPogo = false; b.cyc = 0;
     if (b.isChief) { b.foe = true; b.flash = 0; b.iframe = 0; }
     this.setGate('.');

@@ -388,7 +388,8 @@ function secrets(map, list) {
 }
 const room = (x0, x1, y, extra = []) => [...Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, '.', '#']), ...extra];
 
-export const SECRET_WORLD = { id: '?', name: 'Geheimnisse', levels: ['1-G', '2-G', '3-G', 'X-0'] };
+import { DUEL_LEVELS } from './duels.js';
+export const SECRET_WORLD = { id: '?', name: 'Geheimnisse', levels: ['1-G', '2-G', '3-G', 'X-0', ...DUEL_LEVELS.map(l => l.id)] };
 import { HUNT_LEVELS } from './hunts.js';
 
 export const WORLDS = [
@@ -537,6 +538,7 @@ export const LEVELS = [
     signs: ['DAS MYZELNETZ. DIE PILZE WISPERN: RIESENWUCHS.'] },
   { id: 'X-0', name: 'Die Schaufelgruft', theme: 'bau', map: secrets(GX, [[47, 2, 'O'], [34, 12, 'O']]), par: 80, secret: true, coinsNeeded: 30, altar: 'spuerschaufel',
     signs: ['DIE SCHAUFELGRUFT. HIER RUHEN DIE, DIE ZU VIEL GEGRABEN HABEN. AUF DEM GRABSTEIN: DISCOGRUFT.'] },
+  ...DUEL_LEVELS,
 ];
 
 import { generateLevel } from './gen.js';
