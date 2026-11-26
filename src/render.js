@@ -305,7 +305,7 @@ export class Renderer {
         return;
       }
       case 'door': x.drawImage(S.doorSprite(), e.x, e.y); if ((f >> 4) & 1) { x.fillStyle = '#ffd84a'; x.fillRect(e.x + 7, e.y - 4, 2, 2); } return;
-      case 'spitter': x.drawImage(S.spitterSprite(e.puff > 0)[(e.face > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return;
+      case 'spitter': x.drawImage(S.spitterSprite(e.puff > 0 || e.windup > 0)[(e.face > 0 ? 1 : 0) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y)); return;
       case 'morchel': {
         const sp = S.morchelSprite(e.flash > 0 || (e.state === 'dying' && (f >> 2) & 1)), sq = e.state === 'tired' ? 2 : 0;
         x.drawImage(sp[e.face > 0 ? 1 : 0], Math.round(e.x) - 1, Math.round(e.y) - 2 + sq, 32, 32 - sq);
@@ -683,7 +683,7 @@ export class Renderer {
       S.drawText(x, 'KETTE', W - 30, 30, '#c4abd8', 1, 'center');
       S.drawText(x, '×' + g.chain, W - 30, 38, c, 2, 'center');
     }
-    if (g.banner) {
+    if (g.banner && !this.externalNotices) {
       const b = g.banner, a = Math.min(1, b.t / 20), y0 = this.H / 2 - 30;
       x.globalAlpha = a;
       const bg = x.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, 'rgba(5,4,3,0)'); bg.addColorStop(0.2, 'rgba(5,4,3,0.85)'); bg.addColorStop(0.8, 'rgba(5,4,3,0.85)'); bg.addColorStop(1, 'rgba(5,4,3,0)');

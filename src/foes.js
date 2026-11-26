@@ -86,9 +86,12 @@ function toad(x, y) {
         e.vx *= 0.7; e.face = dx < 0 ? -1 : 1;
         if (--e.t <= 0 && Math.abs(dx) < 120 * (g.stealth || 1)) {
           // nicht in Abgründe springen
-          const land = Math.floor((cx(e) + e.face * 34) / T);
+          const longHop = g.enemyRevision && Math.abs(dx) > 62;
+          const speed = longHop ? 2.05 : 1.6, lift = longHop ? 5.1 : 4.6;
+          const reach = g.enemyRevision ? speed * (2 * lift / GRAV - 1) : 34;
+          const land = Math.floor((cx(e) + e.face * reach) / T);
           let safe = false; for (let k = 0; k < 4; k++) if (g.solid(land, Math.floor((e.y + e.h) / T) + k)) safe = true;
-          if (safe) { e.vx = e.face * 1.6; e.vy = -4.6; g.ev('boing', e.x, e.y); }
+          if (safe) { e.vx = e.face * speed; e.vy = -lift; g.ev('boing', e.x, e.y); }
           e.t = 70 + Math.floor(g.rand() * 40);
         }
       }
@@ -355,7 +358,23 @@ function spitter(x, y) {
   return foeBase({ type: 'spitter', x, y, w: 14, h: 12, hp: 2, dmg: 1, t: 30, face: -1, loot: 12,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
-      const dx = cx(g.p) - cx(e); e.face = sign(dx);
+      const dx = cx(g.p) - cx(e);
+      if (g.enemyRevision) {
+        if (e.windup) {
+          if (--e.windup === 0) {
+            g.add(eproj(cx(e) - 3, e.y - 2, e.aim, -3.6, 'spore'));
+            g.ev('blob', e.x, e.y);
+          }
+        } else {
+          e.face = sign(dx);
+          if (++e.t % 96 === 0 && Math.abs(dx) < 150 * (g.stealth || 1)) {
+            e.windup = 15;
+            e.aim = Math.max(-2.4, Math.min(2.4, dx / 45));
+          }
+        }
+        return;
+      }
+      e.face = sign(dx);
       if (++e.t % 110 === 0 && Math.abs(dx) < 150 * (g.stealth || 1)) {
         const v = Math.max(-2.4, Math.min(2.4, dx / 45));
         g.add(eproj(cx(e) - 3, e.y - 2, v, -3.6, 'spore')); g.ev('blob', e.x, e.y); e.puff = 10;

@@ -27,7 +27,8 @@ for (let i = 1; i <= 300 && tested.size < ROAMERS.length; i++) {
     g.p.x = e.x + 14; g.p.y = e.y;
     e.t = 1; e.update(g, e);
     assert.equal(e.state, 'warn', e.design.name);
-    for (let t = 0; t < 35; t++) e.update(g, e);
+    assert.equal(e.t, e.windup);
+    for (let t = 0; t < e.windup; t++) e.update(g, e);
     assert.equal(e.state, 'stalk', e.design.name);
     assert(g.ents.every(a => Number.isFinite(a.x) && Number.isFinite(a.y)));
     tested.add(e.design.id);

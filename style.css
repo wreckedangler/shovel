@@ -202,17 +202,17 @@ h3{margin:0;font-weight:400}
 .dchest{margin:8px auto;animation:float 2.4s ease-in-out infinite;filter:drop-shadow(0 0 20px #d4b46a)}
 
 /* Grosse Momente (Ort entdeckt, Feind bezwungen, gefallen) */
-#moment{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);z-index:20;pointer-events:none;text-align:center;padding:18px 0;opacity:0}
-#moment.show{animation:moment var(--dur,3.2s) ease-in-out both}
-#moment::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(5,4,3,.82) 18%,rgba(5,4,3,.82) 82%,transparent)}
-#moment .in{position:relative}
-#moment .sub{color:var(--mute);letter-spacing:.32em;text-transform:uppercase;font-size:11px;margin-top:6px}
-#moment.death::before{background:linear-gradient(90deg,transparent,rgba(20,2,2,.85) 15%,rgba(20,2,2,.85) 85%,transparent)}
-@keyframes moment{0%{opacity:0;letter-spacing:0}12%{opacity:1}80%{opacity:1}100%{opacity:0}}
-#moment img{animation:momentimg var(--dur,3.2s) ease-out both}
-@keyframes momentimg{0%{transform:scale(.92);filter:blur(2px)}20%{transform:scale(1);filter:none}100%{transform:scale(1.04)}}
-#moment .line{height:1px;width:60%;margin:8px auto;background:var(--line)}
-#moment.death .line{background:linear-gradient(90deg,transparent,#8a2418,transparent)}
+#noticeRail{position:fixed;inset:0 0 auto;min-height:calc(44px + env(safe-area-inset-top));padding:calc(2px + env(safe-area-inset-top)) max(54px,env(safe-area-inset-right)) 2px max(54px,env(safe-area-inset-left));display:grid;place-items:center;background:#100e0b;z-index:5;pointer-events:none}
+#moment{text-align:center;color:var(--gold-hi);line-height:1.15;display:none}
+#moment.show{display:block}
+#moment strong,#moment small{display:block}
+#moment strong{font-size:clamp(12px,2.6vw,16px)}
+#moment small{font-size:clamp(10px,2vw,13px);color:#ddceba}
+#moment.death strong{color:#ffa899}
+#moment.jade strong{color:var(--jade)}
+body:has(#ui:not([hidden])) #noticeRail:has(#moment:not(.show)){visibility:hidden}
+body:has(#ui:not([hidden])) #noticeRail:has(#moment.show){z-index:9}
+
 
 /* ---------- Touch-Steuerung ---------- */
 #touch{position:fixed;inset:0;pointer-events:auto;z-index:5}
@@ -419,8 +419,8 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .equip{display:flex;gap:14px;align-items:flex-start}
 .eqpv{flex:none;width:220px;position:sticky;top:0;text-align:center}
 .eqpv #preview{width:200px;height:200px;margin:0 auto;border:10px solid transparent;border-image:var(--fr-line) 4 / 10px;background:radial-gradient(circle at 50% 60%,#3a1c0c,#0a0604 72%) padding-box;image-rendering:pixelated}
-.stats6{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:6px}
-.stats6 span{display:flex;flex-direction:column;align-items:center;padding:3px 0;background:rgba(10,8,6,.55);border:1px solid #2a2218}
+.stats6{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;margin-top:6px}
+.stats6 span{min-width:0;overflow-wrap:anywhere;display:flex;flex-direction:column;align-items:center;padding:3px 0;background:rgba(10,8,6,.55);border:1px solid #2a2218}
 .stats6 b{font-weight:400;font-size:16px;color:var(--gold-hi)}
 .stats6 small{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);line-height:1.1;text-align:center}
 .fxchips{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;justify-content:center}
@@ -461,7 +461,7 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .picker small{font-size:10px;color:var(--mute);line-height:1.25;letter-spacing:0;text-transform:none}
 @media (max-width:640px){
   .equip{flex-direction:column;align-items:stretch}
-  .eqpv{position:static;width:auto;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;text-align:left}
+  .eqpv{position:static;width:auto;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;text-align:left}
   .eqpv #preview{width:132px;height:132px;border-width:6px;border-image-width:6px}
   .eqpv .fxchips{grid-column:1/-1;justify-content:flex-start}
   .stats6{margin-top:0}
@@ -473,7 +473,7 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
   .picker{grid-template-columns:1fr}
 }
 @media (orientation:landscape) and (max-height:520px){
-  .eqpv{width:180px}.eqpv #preview{width:150px;height:150px}
+  .eqpv{max-width:100%}.eqpv #preview{width:min(150px,100%);height:auto}
   .stats6 b{font-size:13px}
 }
 /* Waffenkarten: Text und Knopf bleiben in der Karte */
@@ -563,3 +563,10 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .portrait-D-6{background-image:url('art/nahtmutter.webp')}
 .portrait-D-7{background-image:url('art/nullfuerst.webp')}
 .fxchip.set{border-color:rgba(255,216,74,.6);color:#ffe6a0;background:rgba(90,60,10,.4)}
+
+@media (max-width:440px){
+  .eqpv{grid-template-columns:minmax(0,1fr)}
+  .stats6{width:100%}
+}
+.panel,.home,.rcard,.toast,.reveal,.reveal.mythisch{background-color:#15120f;background-clip:border-box}
+#ui:has(.panel),#ui:has(.home){background-color:#100e0c}

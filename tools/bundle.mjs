@@ -37,3 +37,16 @@ html = html.replace('<script type="module" src="src/main.js"></script>', loader)
 mkdirSync(new URL('dist/', root), { recursive: true });
 writeFileSync(new URL('dist/schaufelheld.html', root), html);
 console.log(`dist/schaufelheld.html geschrieben (${(html.length / 1024).toFixed(0)} KB, ${Object.keys(mods).length} Module)`);
+
+// Offline-Download: dieselbe Datei als ZIP (Codex: öffentlicher Download), damit er nie veraltet
+{
+  const { deflateRawSync, crc32 } = await import('node:zlib');
+  const name = Buffer.from('Schaufelheld.html'), data = Buffer.from(html), comp = deflateRawSync(data, { level: 9 }), crc = crc32(data);
+  const loc = Buffer.alloc(30); loc.writeUInt32LE(0x04034b50, 0); loc.writeUInt16LE(20, 4); loc.writeUInt16LE(0x0800, 6); loc.writeUInt16LE(8, 8);
+  loc.writeUInt32LE(crc >>> 0, 14); loc.writeUInt32LE(comp.length, 18); loc.writeUInt32LE(data.length, 22); loc.writeUInt16LE(name.length, 26);
+  const cen = Buffer.alloc(46); cen.writeUInt32LE(0x02014b50, 0); cen.writeUInt16LE(20, 4); cen.writeUInt16LE(20, 6); cen.writeUInt16LE(0x0800, 8); cen.writeUInt16LE(8, 10);
+  cen.writeUInt32LE(crc >>> 0, 16); cen.writeUInt32LE(comp.length, 20); cen.writeUInt32LE(data.length, 24); cen.writeUInt16LE(name.length, 28);
+  const off = 30 + name.length + comp.length, end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(46 + name.length, 12); end.writeUInt32LE(off, 16);
+  writeFileSync(new URL('dist/schaufelheld.zip', root), Buffer.concat([loc, name, comp, cen, name, end]));
+}
