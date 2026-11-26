@@ -1,5 +1,6 @@
 // Start, Hauptschleife und Menüs.
 import { Game } from './game.js';
+import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById } from './levels.js';
 import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, ARMOR, PRICE, AVAILABLE } from './gear.js';
@@ -28,7 +29,7 @@ import { CONFIG } from './config.js';
 import { GEN_VERSION } from './gen.js';
 import { dayKey, dayNumber, daySeed, stageDepth, depthStage, msUntilTomorrow, MSG_A, MSG_B, msgText, encodeMark, decodeMark, shareText } from './daily.js';
 import { initTreasury, treasury, treasuryClick, collection, collectionClick } from './treasury.js';
-import { WEAPONS, RARITY, weaponById } from './weapons.js';
+import { WEAPONS, RARITY, weaponById, finishWeapons, hasRoyalChests } from './weapons.js';
 import { SECRET_WORLD, QUAL_WORLD } from './levels.js';
 import { ACH, SCARVES, LEVEL_INFO, TOTAL_COINS, rankFor, RANK_ORDER, completion, totalCoins, coinsOf, today, yesterday } from './progress.js';
 
@@ -125,9 +126,13 @@ function tick() {
     if (e.name === 'die' && tsRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') tsDeath(); }, 1100); }
     if (e.name === 'die' && hcRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') hcEnd(); }, 1100); }
     if (e.name === 'timeout') { moment('ZEIT ABGELAUFEN', 'Die Tiefe beginnt neu', 'death', 2.4); const lv = level; setTimeout(() => { if (level === lv && mode === 'play') startLevel(lv.id, curCodes); }, 1200); }
-    if (e.name === 'chest' && e.v) { D.chests[e.v] = true; save.write(); if (Object.keys(D.chests).filter(k => k.startsWith('1-')).length >= 3) unlockWeapon('goldschaufel', true); }
+    if (e.name === 'chest' && e.v && !playCheats(D).length) {
+      D.chests[e.v] = true;
+      save.write();
+      if (hasRoyalChests(D.chests)) unlockWeapon('goldschaufel', true);
+    }
     if (e.name === 'die' && !level.gen) { const dm = D.deathMap[level.id] = D.deathMap[level.id] || []; dm.push(Math.round(game.p.x / T_)); if (dm.length > 120) dm.shift(); }
-    if (e.name === 'die') { D.deathsTotal++; save.write(); if (D.deathsTotal >= 20) unlockWeapon('seelenschaufel', true); checkAch(); }
+    if (e.name === 'die') { D.deathsTotal++; save.write(); checkAch(); }
     const st = D.stats;
     switch (e.name) {
       case 'dig': st.dug++; if (st.dug % 50 === 0) checkAch(); break;
@@ -252,10 +257,7 @@ async function finish() {
   const code = await encodeReplay(replayOf(game, { name: D.name || 'Ich' }));
   if (record) { D.best[id] = frames; D.ghosts[id] = code; }
   // Waffen-Bedingungen am Levelende
-  if (id === '1-1' && game.kills === 0) unlockWeapon('federklinge');
-  if (id === '1-1' && frames < 25 * 60) unlockWeapon('blitzspaten');
-  if (id === '1-2' && game.dirtTotal > 0 && game.dirtLeft() === 0) unlockWeapon('erdfresser');
-  if (ghosts.some(g => !g.own && g.frames - frames >= 120)) unlockWeapon('geisterklinge');
+  for (const weapon of finishWeapons(game, ghosts)) unlockWeapon(weapon);
   // Schlüssel für die Schatzkammer (jeder Anlass zählt nur einmal pro Level)
   let keyHtml = '';
   const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
@@ -424,7 +426,7 @@ function haptic(name) {
 /* ---------- Waffen ---------- */
 const reveals = [];
 function unlockWeapon(id, inGame) {
-  if (D.weapons[id] || !weaponById(id)) return;
+  if (playCheats(D).length || D.weapons[id] || !weaponById(id)) return;
   D.weapons[id] = true; save.write();
   reveals.push(id);
   const w = weaponById(id), r = RARITY[w.rar];
@@ -464,7 +466,7 @@ function armory(msg = '') {
   const cards = WEAPONS.map(w => {
     const have = D.weapons[w.id], r = RARITY[w.rar], on = D.weapon === w.id;
     if (!have) return `<div class="wcard locked ${w.rar}"><div class="wi"><canvas data-icon="${w.id}" class="sil"></canvas></div>
-      <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.secret ? 'Ein Gerücht erzählt von einem Glimmen in grosser Höhe …' : w.hint)}</p></div></div>`;
+      <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.hint)}</p></div></div>`;
     return `<div class="wcard ${w.rar} ${on ? 'on' : ''}" style="--c:${r.col}"><div class="wi"><canvas data-icon="${w.id}"></canvas></div>
       <div><small style="color:${r.col}">${r.name}</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
       <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ' + ic('check') : 'Ausrüsten'}</button></div></div>`;
@@ -898,7 +900,7 @@ function map(sel, wi) {
       <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>${rk ? `<span class="rank r${rk}">${rk}</span>` : ''}
       ${l.secret ? '' : `<span class="cstars">${(D.stars[id] || [0, 0, 0]).map(v => ic(v ? 'star' : 'starOff')).join('')}</span>`}
       <span class="ccoins">${coins}</span>
-      <small>${open ? (best ? fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
+      <small>${l.hunt != null ? HUNTS[l.hunt].difficulty + ' · ' : ''}${open ? (best ? fmtTime(best) : 'Neu') : 'Gesperrt'}${open && info.secrets ? ` · ${Math.min(D.secrets[id] || 0, info.secrets)}/${info.secrets} Geheim.` : ''}</small></button>`;
   }).join('');
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="title">‹</button><h2>${w.id === '?' || w.id === 'Q' ? '' : `Welt ${w.id} · `}${esc(w.name)}</h2><span class="gems">${ic('scroll')} ${completion(D)} % ${ic('gem')} ${D.gems}</span></div>
@@ -918,7 +920,7 @@ async function detail(id) {
   for (const g of D.imported[id] || []) opts.push({ code: g.code, label: `${g.name} (${fmtTime(g.frames)})`, on: true });
   const render = (list, loading) => {
     el.innerHTML = `<div class="detail">
-      <div><h3>${esc(l.name)}</h3><p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
+      <div><h3>${esc(l.name)}</h3>${l.hunt != null ? `<p>${esc(HUNTS[l.hunt].boss.name)} · ${esc(HUNTS[l.hunt].difficulty)}</p>` : ''}<p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
       <div class="ghosts"><small>Gegen Geister rennen</small>
         ${list.length ? list.map((o, i) => `<label><input type="checkbox" data-g="${i}" ${o.on ? 'checked' : ''}> ${esc(o.label)}</label>`).join('') : '<p class="note">Noch keine Geister. Schaff das Level oder importiere einen Code in den Optionen.</p>'}
         ${loading ? '<p class="note">Lade Online-Bestenliste …</p>' : ''}
@@ -944,8 +946,8 @@ let forgeAnim = 0;
 function forge(msg = '') {
   mode = 'menu';
   const row = (key, name, table) => {
-    const cur = D[key], nx = cur + 1, can = nx < AVAILABLE, price = PRICE[nx], sp = SHARD_PRICE[nx] || 0, afford = D.gems >= price && D.shards >= sp;
-    const chips = TIERS.map((t, i) => `<canvas class="gi ${i === cur ? 'cur' : ''} ${i <= cur ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" title="${esc(t.name)}"></canvas>`).join('');
+    const cur = D[key], nx = D.gearUnlocked[key] + 1, can = nx < AVAILABLE, price = PRICE[nx], sp = SHARD_PRICE[nx] || 0, afford = D.gems >= price && D.shards >= sp;
+    const chips = TIERS.map((t, i) => `<button class="tier-pick" data-a="gear-tier" data-k="${key}" data-tier="${i}" aria-label="${name} aus ${esc(t.name)}" title="${esc(t.name)}" aria-pressed="${cur === i}" ${i > D.gearUnlocked[key] ? 'disabled' : ''}><canvas class="gi ${i === cur ? 'cur' : ''} ${i <= D.gearUnlocked[key] ? 'own' : i < AVAILABLE ? '' : 'lock'}" data-gi="${key}:${i}" aria-hidden="true"></canvas></button>`).join('');
     return `<div class="gear">
       <div class="gh"><b>${name}: <span class="tn" style="--c:${TIERS[cur].light}">${esc(TIERS[cur].name)}</span></b><small>${esc(table[cur].perk)}</small></div>
       <div class="chips">${chips}</div>
@@ -953,7 +955,7 @@ function forge(msg = '') {
         ${can ? `<button class="${afford ? 'big' : 'off'}" data-a="buy" data-k="${key}">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</button>` : ''}</div>` : '<div class="next">Maximum erreicht.</div>'}
     </div>`;
   };
-  const nA = Math.min(D.armor + 1, TIERS.length - 1), nS = Math.min(D.shovel + 1, TIERS.length - 1);
+  const nA = Math.min(D.gearUnlocked.armor + 1, TIERS.length - 1), nS = Math.min(D.gearUnlocked.shovel + 1, TIERS.length - 1);
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Schmiede</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>
     <div class="forge"><div class="pv"><canvas id="preview" width="216" height="120"></canvas><small>Jetzt <span>→</span> nächste Stufe</small></div>
@@ -1117,12 +1119,20 @@ ui.addEventListener('click', async e => {
     }
     case 'resume': return resume();
     case 'restart': return startLevel(level.id, curCodes);
+    case 'gear-tier': {
+      const k = b.dataset.k, tier = Number(b.dataset.tier);
+      if (!['shovel', 'armor'].includes(k) || !Number.isInteger(tier) || tier < 0 || tier > D.gearUnlocked[k]) return;
+      D[k] = tier; save.write();
+      forge();
+      ui.querySelector('[data-a="gear-tier"][data-k="' + k + '"][data-tier="' + tier + '"]')?.focus();
+      return;
+    }
     case 'buy': {
-      const k = b.dataset.k, nx = D[k] + 1, price = PRICE[nx];
+      const k = b.dataset.k, nx = D.gearUnlocked[k] + 1, price = PRICE[nx];
       const sp = SHARD_PRICE[nx] || 0;
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
       if (D.shards < sp) { sfx('nope'); return forge(`Dir fehlen noch ${sp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
-      D.gems -= price; D.shards -= sp; D[k] = nx; save.write(); sfx('legend');
+      D.gems -= price; D.shards -= sp; D.gearUnlocked[k] = nx; D[k] = nx; save.write(); sfx('legend');
       forge(); return gearReveal(k, nx);
     }
     case 'stick': D.stick = !D.stick; save.write(); applyControls(); b.outerHTML = toggles().match(/<button data-a="stick".*?<\/button>/s)[0]; return;

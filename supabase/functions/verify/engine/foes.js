@@ -7,7 +7,7 @@ function gem(x, y, val, fixed) {
     update(g, e) {
       e.age++;
       const p = g.p;
-      if (e.age > 12 && !p.dead && Math.abs(cx(p) - e.x) < 22 && Math.abs(p.y + 7 - e.y) < 22) {
+      if (e.age > 12 && !p.dead && Math.abs(cx(p) - e.x) < g.magnet && Math.abs(p.y + 7 - e.y) < g.magnet) {
         e.fixed = false; e.x += (cx(p) - 3 - e.x) * 0.25; e.y += (p.y + 4 - e.y) * 0.25; return;
       }
       if (e.fixed) return;
@@ -26,7 +26,7 @@ function hurtFoe(g, e, dmg, dir, src) {
   g.ev('hit', e.x, e.y); g.shake = Math.max(g.shake, 2); g.freeze = Math.max(g.freeze, 3);
   if (g.cheat.konfetti) g.burst(e.x + e.w / 2, e.y, 24, 'confetti', 3, 0.08, 50);
   g.num(e.x + e.w / 2, e.y - 2, dmg, dmg >= 4 ? '#ff9a50' : '#ffffff');
-  if (dir && e !== g.boss) e.vx = dir * 1.8;
+  if (dir && e !== g.boss) e.vx = dir * 2.4;
   if (e.hp <= 0) {
     if (e === g.boss) return g.bossDefeated(e);
     if (e.elite === 'teilt' && !e.mini && MAKERS[e.type]) for (const d of [-1, 1]) { const m = MAKERS[e.type](e.x + d * 6, e.y - 4); m.mini = true; m.hp = 1; m.vx = d * 1.5; m.vy = -2; m.loot = 4; g.add(m); }
@@ -39,7 +39,7 @@ function hurtFoe(g, e, dmg, dir, src) {
 const foeBase = (o) => ({ foe: true, iframe: 0, flash: 0, vx: 0, vy: 0, hurtBy: hurtFoe, ...o });
 
 function beetle(x, y) {
-  return foeBase({ type: 'beetle', x, y, w: 14, h: 9, hp: 2, dmg: 1, dir: -1, loot: 8,
+  return foeBase({ type: 'beetle', x, y, w: 14, h: 9, hp: 1, dmg: 1, dir: -1, loot: 8,
     update(g, e) {
       if (e.iframe) e.iframe--; if (e.flash) e.flash--;
       if (Math.abs(e.vx) > 0.6) e.vx *= 0.85; else e.vx = 0.45 * e.dir;
@@ -218,7 +218,7 @@ function proj(x, y, vx, vy, dmg, kind) {
         e.dead = true; g.burst(e.x + 3, e.y + 3, 6, kind === 'wave' ? 'dirt' : 'spark', 1.5); return;
       }
       if (kind === 'wave' && !g.solid(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h + 2) / T))) { e.dead = true; return; }
-      if (g.frame % 3 === 0) g.parts.push({ x: e.x + 3, y: e.y + 3, vx: 0, vy: kind === 'wave' ? -1 : 0, life: 12, col: kind === 'wave' ? 'dirt' : 'star', grav: 0.05 });
+      if (g.frame % 3 === 0) g.parts.push({ x: e.x + 3, y: e.y + 3, vx: 0, vy: kind === 'wave' ? -1 : 0, life: 12, col: kind === 'wave' ? 'dirt' : kind === 'ember' ? 'fire' : 'star', grav: 0.05 });
       for (const f of g.ents) if (f.foe && !f.hidden && !f.dead && !e.hit.has(f) && overlap(e, f)) { e.hit.add(f); f.hurtBy(g, f, e.dmg, sign(e.vx)); if (kind === 'star') e.dead = true; }
       for (const f of g.ents) if (f.type === 'chest' && !f.open && overlap(e, f)) g.openChest(f);
     } };

@@ -11,6 +11,7 @@ import { THEMES } from './themes.js';
 import { TIERS } from './gear.js';
 import { weaponById, RARITY } from './weapons.js';
 import { ghostAt, fmtTime } from './ghost.js';
+import { drawHunter } from './hunt-art.js';
 import * as S from './sprites.js';
 
 const K = '#140c1c';
@@ -208,6 +209,7 @@ export class Renderer {
     }
   }
   ent0(g, e, th) {
+    if (e.type === 'hunter') return drawHunter(this.x, e, this.t);
     const x = this.x, f = this.t;
     switch (e.type) {
       case 'gem': {
@@ -322,6 +324,12 @@ export class Renderer {
         return;
       }
       case 'proj':
+        if (e.kind === 'ember') {
+          const tail = e.vx > 0 ? -6 : 2;
+          x.fillStyle = '#f34820'; x.fillRect(e.x + tail, e.y + 2, 10, 3);
+          x.fillStyle = '#fff394'; x.fillRect(e.x, e.y + 1, 6, 4);
+          return;
+        }
         if (e.kind === 'star') {
           const sx = Math.round(e.x), sy = Math.round(e.y), c = (f >> 1) & 1 ? '#ffffff' : '#d8c8ff';
           x.fillStyle = K; x.fillRect(sx + 1, sy, 4, 6); x.fillRect(sx, sy + 1, 6, 4);
@@ -332,11 +340,25 @@ export class Renderer {
           x.fillStyle = '#ff9a50'; x.fillRect(sx + 1, sy + 10 - hgt, 8, hgt - 1); x.fillStyle = '#ffe070'; x.fillRect(sx + 3, sy + 10 - hgt, 4, 2);
         }
         return;
+      case 'brazier': {
+        const px = e.x, py = e.y;
+        x.fillStyle = '#625572'; x.fillRect(px + 6, py + 9, 4, 6);
+        x.fillRect(px + 3, py + 14, 10, 2);
+        x.fillStyle = '#aa7848'; x.fillRect(px + 2, py + 7, 12, 3);
+        x.fillStyle = '#ffd46e'; x.fillRect(px + 1, py + 6, 14, 1);
+        if (e.lit || g.carryingEmber) {
+          x.globalAlpha = e.lit ? 1 : 0.45;
+          x.fillStyle = '#ff7028'; x.fillRect(px + 5, py + 2, 6, 4);
+          x.fillStyle = '#ffe585'; x.fillRect(px + 7, py + ((f >> 2) & 1), 3, 5);
+          x.globalAlpha = 1;
+        }
+        return;
+      }
       case 'altar': {
         if (!e.taken) { x.fillStyle = 'rgba(255,170,60,0.16)'; x.beginPath(); x.arc(e.x + 12, e.y + 2, 22 + Math.sin(f / 8) * 3, 0, 7); x.fill(); }
         x.drawImage(S.altarSprite(!e.taken), e.x + 4, e.y + 12);
         if (!e.taken) {
-          const ic = S.weaponIcon('urfunke');
+          const ic = S.weaponIcon(g.level.altar || 'urfunke');
           x.drawImage(ic, e.x + 12 - ic.width / 2, e.y - 6 + Math.round(Math.sin(f / 14) * 2));
           if (f % 4 === 0) g.parts.push({ x: e.x + 8 + Math.random() * 8, y: e.y + 4, vx: (Math.random() - 0.5) * 0.4, vy: -0.6, life: 26, col: 'fire', grav: -0.01 });
         }
@@ -393,6 +415,11 @@ export class Renderer {
   player(g) {
     const p = g.p; if (p.dead) return;
     this.lookFx(g, p);
+    if (g.carryingEmber) {
+      const x = Math.round(p.x + 4 - p.face * 10), y = Math.round(p.y - 4 + Math.sin(this.t / 8) * 2);
+      this.x.fillStyle = '#fc6525'; this.x.fillRect(x, y, 5, 6);
+      this.x.fillStyle = '#fff394'; this.x.fillRect(x + 1, y + 2, 3, 3);
+    }
     if (p.inv > 0 && (this.t >> 2) & 1 && p.hurt <= 0) return;
     const hs = S.hero(g.gear.armor, g.gear.shovel, g.gear.weapon);
     const tint = this.look && this.look.farbe && COSMETIC_FILTER[this.look.farbe];

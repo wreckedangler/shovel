@@ -1,9 +1,9 @@
 // Spielstand im Browser (localStorage). Fällt still auf Arbeitsspeicher zurück.
 const KEY = 'schaufelheld-v1', BACKUP = 'schaufelheld-v1-backup';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const DEF = {
   saveVersion: SAVE_VERSION, device: '', lastBackup: 0, playDays: 0, quality: 'auto', a11y: { symbols: false, shake: 1, flash: true, uiScale: 1, swapAB: false, lefty: false }, deathMap: {},
-  gems: 0, earned: 0, shovel: 0, armor: 0, unlocked: 1,
+  gems: 0, earned: 0, shovel: 0, armor: 0, gearUnlocked: { shovel: 0, armor: 0 }, unlocked: 1,
   best: {},        // levelId -> Frames
   ghosts: {},      // levelId -> eigener bester Geist-Code
   imported: {},    // levelId -> [{code, name, frames}]
@@ -32,6 +32,7 @@ function mergeDeep(def, o) {
 }
 // Umwandlung alter Spielstände
 const MIGRATIONS = {
+  2: d => { d.gearUnlocked = { shovel: d.shovel, armor: d.armor }; return d; },
   1: d => { if (!Array.isArray(d.relicSlots)) d.relicSlots = [null, null, null]; while (d.relicSlots.length < 3) d.relicSlots.push(null); return d; },
 };
 function migrate(o) {
@@ -43,6 +44,11 @@ function migrate(o) {
 function sanitize(d) {
   for (const k of ['gems', 'earned', 'shovel', 'armor', 'unlocked', 'shards', 'deathsTotal']) if (!Number.isFinite(d[k]) || d[k] < 0) d[k] = DEF[k] ?? 0;
   d.shovel = Math.min(11, Math.floor(d.shovel)); d.armor = Math.min(11, Math.floor(d.armor));
+  if (!isObj(d.gearUnlocked)) d.gearUnlocked = {};
+  for (const key of ['shovel', 'armor']) {
+    const owned = d.gearUnlocked[key];
+    d.gearUnlocked[key] = Number.isFinite(owned) ? Math.max(d[key], Math.min(11, Math.floor(owned))) : d[key];
+  }
   if (!d.device) d.device = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   return d;
 }
