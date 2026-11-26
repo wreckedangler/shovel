@@ -710,7 +710,7 @@ export class Game {
   }
   respawn() {
     const p = this.p;
-    Object.assign(p, { x: this.check.x, y: this.check.y, vx: 0, vy: 0, hp: p.maxhp, inv: 60, hurt: 0, atk: 0, pogo: false });
+    Object.assign(p, { x: this.check.x, y: this.check.y, vx: 0, vy: 0, hp: p.maxhp, inv: 120, hurt: 0, atk: 0, pogo: false });
     if (this.boss && this.boss.state !== 'idle' && !this.boss.dead) this.resetBoss();
     if (this.chase) this.chase.pos = this.chase.vert ? this.check.y + 150 : this.check.x - 130, this.chase.t = 0;
     for (const e of this.ents) if (e.type === 'icicle') { e.state = 'hang'; e.x = e.ox; e.y = e.oy; e.vy = 0; }

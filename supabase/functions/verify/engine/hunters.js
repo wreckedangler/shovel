@@ -97,7 +97,7 @@ function updateHunter(g, e) {
 function hunter(design, hunt, rank, slot, isChief) {
   const w = isChief ? 26 + 2 * Math.floor(rank / 2) : 14 + slot;
   const h = isChief ? 25 + rank : 13 + slot;
-  const x = (isChief ? 50 : [10, 20, 28][slot]) * T;
+  const x = (isChief ? 50 : [10, 20, 24][slot]) * T;  // nicht direkt neben der Laterne (31)
   const y = (design.move === 'fly' ? 9.5 : 11) * T - h;
   const hp = isChief ? 14 + rank * 7 : 1 + Math.floor((rank + slot) / 2);
   return foeBase({ type: 'hunter', design, rank, colors: hunt.colors, x, y, w, h, home: { x, y },

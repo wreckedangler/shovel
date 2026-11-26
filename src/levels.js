@@ -541,6 +541,16 @@ export const LEVELS = [
   ...DUEL_LEVELS,
 ];
 
+// Zusätzliche Laternen in Welt 1: die letzte Strecke bis zum Ziel war für Einsteiger zu lang (tools/audit.mjs)
+function addLantern(id, col) {
+  const L = LEVELS.find(l => l.id === id), rows = L.map.map(r => r.split(''));
+  for (let x = col; x < col + 20; x++) for (let y = 2; y < rows.length - 1; y++) {
+    const below = rows[y + 1][x];
+    if (rows[y][x] === '.' && rows[y - 1][x] === '.' && '#=SD'.includes(below) && rows[y].slice(x - 2, x + 3).every(c => c === '.' || c === 'G')) { rows[y][x] = 'C'; L.map = rows.map(r => r.join('')); return; }
+  }
+}
+addLantern('1-1', 100); addLantern('1-2', 92); addLantern('1-3', 40);
+
 import { generateLevel } from './gen.js';
 const genCache = new Map();
 // Generierte Levels haben die Kennung ∞<Tiefe>-<Seed>
