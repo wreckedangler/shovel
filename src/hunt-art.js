@@ -92,7 +92,11 @@ export function drawHunter(ctx, e, frame) {
   if (e.face < 0) ctx.scale(-1, 1);
   if (e.fade > 0) ctx.globalAlpha = 0.35;
   if (e.flash || (e.state === 'dying' && pulse)) ctx.globalAlpha = 0.5;
-  ctx.drawImage(sprite(e), 0, 0, e.w, e.h - bob);
+  // Beim Ausholen sinkt der Körper auf den Füßen ein, beim Ausfall streckt er sich.
+  const load = warned && e.windup ? Math.min(1, 1 - e.t / e.windup) : 0;
+  const crouch = Math.round(load * Math.min(4, e.h / 6));
+  const thrust = e.state === 'strike' && e.action === 'dash' && e.t > 7 ? 2 : 0;
+  ctx.drawImage(sprite(e), -Math.floor(crouch / 2), crouch + thrust, e.w + crouch + thrust, e.h - bob - crouch - thrust);
   if (e.isChief && e.rank >= 6 && (warned || e.state === 'strike')) {
     ctx.fillStyle = e.colors[2];
     ctx.fillRect(0, 2, 2, e.h - 4); ctx.fillRect(e.w - 2, 2, 2, e.h - 4);

@@ -17,6 +17,7 @@ export { T, fsin, fcos } from './core.js';
 export class Game {
   constructor(level, gear, opt = {}) {
     this.level = level;
+    this.enemyRevision = opt.enemyRevision ?? 1;
     this.sh = SHOVEL[gear.shovel];
     // Rüstung aus vier Teilen (altes Format { armor: n } = alle Teile Stufe n, ergibt exakt die alten Werte)
     this.look = loadout(gear);

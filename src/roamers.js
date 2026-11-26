@@ -27,7 +27,7 @@ function attack(g, e) {
     case 'docht': mote(g, e, x - d * 9, e.y + e.h - 6, 0, 0, 110); break;
     case 'uhr': {
       const landing = e.sites.reduce((best, s) => Math.abs(s.x - e.tx) < Math.abs(best.x - e.tx) ? s : best);
-      e.x = landing.x; e.y = landing.y; e.vy = 0;
+      e.x = Math.max(e.left, Math.min(e.right, landing.x + Math.floor((14 - e.w) / 2))); e.y = landing.y + 14 - e.h; e.vy = 0;
       break;
     }
     case 'seide': for (const dist of [17, 39]) mote(g, e, x + d * dist, y, 0, 0, 96); break;
@@ -47,7 +47,8 @@ function attack(g, e) {
     case 'maske':
       if (!e.copied) {
         e.copied = true;
-        const twin = makeRoamer(e.design, e.sites, e.sites[0]);
+        const twin = makeRoamer(e.design, e.sites, e.sites[0], g.enemyRevision);
+        if (g.enemyRevision) twin.y = twin.homeY = e.sites[0].y + 5;
         Object.assign(twin, { copied: true, w: 9, h: 9, hp: 1, healCap: 1, loot: 2 });
         g.add(twin);
       } else shot(d * 1.4, -2.4, 'spore');
@@ -81,11 +82,11 @@ function update(g, e) {
   if (e.state === 'warn') {
     if (--e.t === 0) {
       attack(g, e);
-      e.state = 'stalk'; e.t = 108;
+      e.state = 'stalk'; e.t = e.cooldown;
     }
   } else if (near && --e.t <= 0 && (e.design.id !== 'glocke' || Math.abs(g.p.vx) < 0.2)) {
     if (!e.introduced) { g.num(cx(e), e.y - 10, e.design.name, e.colors[2]); e.introduced = true; }
-    e.state = 'warn'; e.t = 35; e.face = dir; e.tx = cx(g.p); e.ty = g.p.y;
+    e.state = 'warn'; e.t = e.windup; e.face = dir; e.tx = cx(g.p); e.ty = g.p.y;
   }
   let speed = 0;
   if (e.charge > 0) { e.charge--; speed = e.face * 2.7; }
@@ -102,15 +103,31 @@ function update(g, e) {
   if (e.hitWall || e.x < e.left || e.x > e.right) e.patrol *= -1;
   e.x = Math.max(e.left, Math.min(e.right, e.x));
   if (style === 'float' || style === 'mirror') {
-    e.vy = (e.homeY - 8 + fsin(g.frame / 23) * 6 - e.y) * 0.25;
+    e.vy = (e.homeY - 8 + fsin((g.frame + (g.enemyRevision ? e.left : 0)) / 23) * 6 - e.y) * 0.25;
   } else e.vy = Math.min(MAXFALL, e.vy + GRAV);
   g.moveY(e);
   if (e.y > g.h * T + 16) e.dead = true;
 }
 
-function makeRoamer(design, sites, site) {
-  return foeBase({ type: 'roamer', design, colors: design.colors, x: site.x, y: site.y, homeY: site.y,
-    sites, left: sites[0].x, right: sites[sites.length - 1].x, w: 14, h: 14, hp: 3, healCap: 3,
+// Breite, Höhe, Ausholzeit und Pause in Simulationsticks.
+const physique = {
+  falter: [23, 11, 24, 83], kessel: [21, 17, 40, 125], glocke: [18, 23, 44, 122],
+  regen: [24, 12, 34, 104], docht: [10, 20, 26, 90], uhr: [14, 19, 30, 112],
+  seide: [21, 12, 32, 115], prisma: [13, 20, 29, 100], ritter: [18, 22, 39, 118],
+  kompass: [18, 16, 37, 117], tinte: [16, 18, 24, 104], pilz: [21, 16, 36, 120],
+  kreide: [11, 21, 36, 108], saat: [12, 15, 25, 86], spiegel: [15, 22, 32, 113],
+  maske: [16, 17, 34, 117], anker: [22, 21, 41, 123], funke: [11, 12, 33, 90],
+  würfel: [16, 16, 31, 105], stern: [20, 15, 38, 116],
+};
+
+function makeRoamer(design, sites, site, revision) {
+  const [width, h, windup, cooldown] = revision ? physique[design.id] : [14, 14, 35, 108];
+  const left = sites[0].x, end = sites[sites.length - 1].x + 14;
+  const w = Math.min(width, end - left), right = end - w;
+  const x = Math.max(left, Math.min(right, site.x + Math.floor((14 - w) / 2)));
+  const y = site.y + 14 - h;
+  return foeBase({ type: 'roamer', design, colors: design.colors, x, y, homeY: y, windup, cooldown,
+    sites, left, right, w, h, hp: 3, healCap: 3,
     state: 'stalk', face: 1, patrol: 1, t: 42, charge: 0, pull: 0, fade: 0, dmg: 1, loot: 12, update,
     hurtBy(g, e, damage, dir, source) {
       if (design.id === 'ritter' && e.state === 'warn' && source !== 'pogo' && dir === -e.face) {
@@ -162,6 +179,6 @@ export function populateRoamers(g, seed) {
     // meist eine Art, die zum Ort passt, manchmal ein Fremdling
     const local = pool.filter(d => home.includes(d.id)), from = local.length && random() < 0.7 ? local : pool;
     const design = from[Math.floor(random() * from.length)]; pool.splice(pool.indexOf(design), 1);
-    g.add(makeRoamer(design, lane, site));
+    g.add(makeRoamer(design, lane, site, g.enemyRevision));
   }
 }

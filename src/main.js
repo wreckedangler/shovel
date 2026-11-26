@@ -66,24 +66,28 @@ function resize() {
   const portrait = isTouch && innerHeight > innerWidth;
   document.body.classList.toggle('portrait', portrait);
   document.body.classList.toggle('touchdev', isTouch);
+  const rail = document.getElementById('noticeRail').offsetHeight;
+  const available = Math.max(1, innerHeight - rail);
   let sc;
   if (portrait) {
     const ctrl = Math.round(Math.max(210, innerHeight * 0.3));
-    const cssH = innerHeight - ctrl;
+    const cssH = Math.max(1, available - ctrl);
     // 13 Kacheln breit statt 10: im Hochformat mehr Vorausblick
     VW = 208; VH = Math.max(170, Math.min(280, Math.round(VW * cssH / innerWidth)));
     sc = Math.min(innerWidth / VW, cssH / VH);
-    document.documentElement.style.setProperty('--ch', Math.round(VH * sc) + 'px');
+    document.documentElement.style.setProperty('--ch', Math.round(rail + VH * sc) + 'px');
   } else {
     VH = isTouch ? 144 : 180;
-    VW = Math.max(240, Math.min(isTouch ? 360 : 400, Math.round(VH * innerWidth / innerHeight)));
-    sc = Math.min(innerWidth / VW, innerHeight / VH);
+    VW = Math.max(240, Math.min(isTouch ? 360 : 400, Math.round(VH * innerWidth / available)));
+    sc = Math.min(innerWidth / VW, available / VH);
   }
   canvas.width = VW; canvas.height = VH; ctx.imageSmoothingEnabled = false;
   canvas.style.width = VW * sc + 'px'; canvas.style.height = VH * sc + 'px';
+  canvas.style.top = (portrait ? rail : rail + available / 2) + 'px';
   R.resize(VW, VH);
 }
 addEventListener('resize', resize); resize();
+new ResizeObserver(resize).observe($('#noticeRail'));
 
 initInput(touchEl, () => unlockAudio());
 const applyControls = () => { setStickMode(!!D.stick); document.body.classList.toggle('stickmode', !!D.stick); };
@@ -160,6 +164,11 @@ function tick() {
 }
 function draw() {
   if (R.atmo) { R.atmo.noFlash = !D.a11y.flash; if (D.quality !== 'auto') R.atmo.low = D.quality === 'niedrig'; }
+  if (mode === 'play' && game?.banner && game.banner !== shownBanner) {
+    shownBanner = game.banner;
+    moment(shownBanner.text, shownBanner.sub, 'gold', shownBanner.t / 60);
+  }
+  R.externalNotices = true;
   R.look = D.look; R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
   const playing = game && mode !== 'menu';
   canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
@@ -265,7 +274,7 @@ async function startLevel(id, ghostCodes = []) {
   goFullscreen();
   const wn = ALLW().find(w => w.levels.includes(id));
   const sub = tsRun(level) ? `Tagesschacht #${dayNumber()} · Stufe ${D.ts.k} · ${bioName(level)}` : level.gen ? `Tiefe ${level.depth} · ${bioName(level)} · ${STYLE_NAME[level.style]}` : wn ? (wn.id === '?' ? 'Geheimer Ort' : `Welt ${wn.id} · ${wn.name}`) : '';
-  setTimeout(() => { if (game && game.level === level) moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2); }, 250);
+  moment(level.name.toUpperCase(), sub, level.secret || level.gen ? 'jade' : 'gold', 3.2);
 }
 function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true; sfx('click'); setMuffle(true);
   // Live-Duell: das Spiel läuft weiter (der Gegner wartet nicht)
@@ -392,6 +401,10 @@ function toast(title, text, kind = '') {
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const el = document.createElement('div'); el.className = 'toast ' + kind;
   el.innerHTML = `<b>${ic(kind === 'ach' ? 'trophy' : 'scroll')} ${esc(title)}</b><span>${text}</span>`;
+  if (mode === 'play') {
+    moment(title, el.querySelector('span').textContent, 'gold', 3);
+    return;
+  }
   box.appendChild(el);
   setTimeout(() => el.classList.add('out'), 2800); setTimeout(() => el.remove(), 3300);
 }
@@ -584,22 +597,21 @@ function armory(msg = '') {
 
 /* ---------- Menüs ---------- */
 function show(html) {
+  $('#moment').className = '';
   ui.innerHTML = html; ui.hidden = false;
   // Überschriften und Levelnamen in Pixel-Serifenschrift setzen
   for (const h of ui.querySelectorAll('h2')) if (!h.querySelector('img')) h.innerHTML = serifImg(h.textContent.trim(), 13, h.closest('.reveal.mythisch') ? 'jade' : 'gold', 2);
   for (const b of ui.querySelectorAll('.card b')) b.innerHTML = serifImg(b.textContent.trim(), b.textContent.trim().length > 14 ? 9 : 11, b.closest('.locked') ? 'dim' : 'pale', 2);
 }
 /* ---------- Grosse Momente ---------- */
-let momentT = 0;
+let momentT = 0, shownBanner = null;
 function moment(text, sub = '', kind = 'gold', dur = 3.2) {
-  let el = $('#moment');
-  if (!el) { el = document.createElement('div'); el.id = 'moment'; document.body.appendChild(el); }
-  el.className = ''; void el.offsetWidth;
-  const pal = kind === 'death' ? 'red' : kind;
-  el.innerHTML = `<div class="in"><div class="line"></div>${serifImg(text, text.length > 18 ? 13 : 16, pal, innerWidth < 500 ? 2 : 3)}${sub ? `<div class="sub">${esc(sub)}</div>` : ''}<div class="line"></div></div>`;
-  el.style.setProperty('--dur', dur + 's');
-  el.className = 'show ' + (kind === 'death' ? 'death' : '');
-  clearTimeout(momentT); momentT = setTimeout(() => { el.className = ''; }, dur * 1000);
+  const el = $('#moment');
+  el.querySelector('strong').textContent = text;
+  el.querySelector('small').textContent = sub || '';
+  el.className = 'show ' + kind;
+  clearTimeout(momentT);
+  momentT = setTimeout(() => { el.className = ''; }, dur * 1000);
   if (kind === 'death') sfx('die');
 }
 /* ---------- Schummelbuch ---------- */
