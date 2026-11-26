@@ -82,7 +82,7 @@ export function openChest(D, chestId, rand = Math.random) {
   D.loot.opened++;
   // Rüstungsteile erst, wenn ihre Stufe in Reichweite ist: höchstens eine Stufe über der besten geschmiedeten
   const reach = Math.max(0, ...SLOT_IDS.map(s => +D[s] || 0)) + 1;
-  const pool = ITEMS.filter(i => i.rar === rar && !('boss' in i && i.boss) && !('tier' in i && i.tier > reach));
+  const pool = ITEMS.filter(i => i.rar === rar && !('boss' in i && i.boss) && !('tier' in i && +i.tier > reach));
   // Fehlende Gegenstände sind doppelt so wahrscheinlich wie Duplikate
   const weights = pool.map(i => (owned(D, i) ? 1 : 2));
   let w = rand() * weights.reduce((a, b) => a + b, 0), item = pool[0];
