@@ -12,6 +12,8 @@ jobs:
       - run: node tools/geartest.mjs
       - run: node tools/balance.mjs
       - run: node tools/arenatest.mjs 24
+      - run: node tools/roamertest.mjs
+      - run: node tools/dueltest.mjs
       - run: node tools/gentest.mjs 1000
       - name: Suchbot-Stichprobe (Qualpfad 1, generiertes Level)
         run: |

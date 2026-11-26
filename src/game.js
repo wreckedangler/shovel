@@ -1,5 +1,7 @@
 // Spiellogik ohne DOM: läuft im Browser und in Node-Tests gleich.
 // Fester Zeitschritt: ein step() = 1/60 Sekunde.
+import { populateRoamers } from './roamers.js';
+import { duelBoss } from './duel-combat.js';
 import { populateHunt } from './hunters.js';
 import { SHOVEL } from './gear.js';
 import { armorStats, loadout, pvpNormalize } from './armor.js';
@@ -121,6 +123,7 @@ export class Game {
         case 'u': this.add(kuckuck(px + 1, py + 3)); break;
       }
     }
+    if (level.duel != null) this.boss = this.add(duelBoss(level.duel));
     if (level.hunt != null) populateHunt(this, level.hunt);
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
     this.secretTotal += countFakeGroups(this.tiles);
@@ -184,6 +187,7 @@ export class Game {
       inv: 0, hurt: 0, safe: 0, coyote: 0, jbuf: 0, jumping: false, dead: 0, drop: 0, anim: 0,
       land: 0, dash: 0, dashUsed: false,
     };
+    if (level.duel == null && Number.isInteger(opt.roamerSeed)) populateRoamers(this, opt.roamerSeed);
     p.onGround = false;
     if (opt.curses && opt.curses.einherz) p.hp = p.maxhp = 1;
   }
@@ -798,7 +802,11 @@ export class Game {
         default:
           if (e.frozen > 0) break;
           if (e.foe && !e.hidden && p.dash > 0 && this.af.shadow) { e.hurtBy(this, e, this.dmg, p.face, 'dash'); break; }
-          if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
+          if (e.foe && !e.hidden && p.safe <= 0 && e.dmg) {
+            const hits = this.hurtCount;
+            this.hurtPlayer(e.dmg, sign(cx(p) - cx(e)));
+            if (this.hurtCount > hits && e.onWound) e.onWound(this, e);
+          }
           if (this.af.thorns && e.foe && !e.hidden && !e.dead && e.dmg && !(e.iframe > 0)) e.hurtBy(this, e, Math.round(this.af.thorns), 0, 'thorn');
       }
     }
@@ -812,6 +820,7 @@ export class Game {
     const b = this.boss;
     Object.assign(b, { x: b.home.x, y: b.home.y, hp: b.maxhp, state: 'idle', t: 0, hidden: false, vx: 0, vy: 0 });
     this.ents = this.ents.filter(e => e.type !== 'rock' && e.type !== 'eproj');
+    if (b.type === 'duelist') { b.phase = 1; b.marks = []; b.action = null; }
     b.sideSwing = false; b.nonPogo = false; b.cyc = 0;
     if (b.isChief) { b.foe = true; b.flash = 0; b.iframe = 0; }
     this.setGate('.');

@@ -45,9 +45,9 @@ const silhouettes = {
 
 const artCache = new Map();
 function sprite(e) {
-  const key = e.design.shape;
+  const key = e.design.shape || e.design.id;
   if (artCache.has(key)) return artCache.get(key);
-  const rows = silhouettes[key].split('/');
+  const rows = (e.design.art || silhouettes[key]).split('/');
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(...rows.map(row => row.length)) + 2;
   canvas.height = rows.length + 2;
@@ -69,16 +69,28 @@ export function drawHunter(ctx, e, frame) {
   const x = Math.round(e.x), y = Math.round(e.y);
   const pulse = (frame >> 2) % 2;
   const warned = e.state === 'warn';
-  if (warned && (e.action === 'bolt' || e.action === 'rain')) {
+  if (warned && e.type !== 'duelist' && (e.action === 'bolt' || e.action === 'rain')) {
     ctx.fillStyle = pulse ? e.colors[2] : e.colors[1];
     for (const dx of e.action === 'rain' ? [-32, 0, 32] : [0]) {
       for (let py = 19; py < 176; py += 10) ctx.fillRect(e.targetX + dx + 1, py, 2, 3);
+    }
+  }
+  if (warned && ['kreide', 'stern'].includes(e.design.id)) {
+    ctx.fillStyle = e.colors[2];
+    ctx.fillRect(e.tx - 4, e.ty + 7, 9, 1); ctx.fillRect(e.tx, e.ty + 3, 1, 9);
+  }
+  if (e.type === 'duelist' && warned) {
+    ctx.fillStyle = e.colors[2];
+    for (const mark of e.marks) for (let y = 20; y < 176; y += 10) ctx.fillRect(Math.round(mark), y, 2, 4);
+    if (e.action === 'lunge' || e.action === 'return') {
+      for (let i = 1; i < 8; i++) ctx.fillRect(x + e.w / 2 + i * e.face * 11, y + e.h / 2, 5, 1);
     }
   }
   ctx.save();
   const bob = e.state === 'stalk' && Math.abs(e.vx) > 0.1 ? (frame >> 3) % 2 : 0;
   ctx.translate(x + (e.face < 0 ? e.w : 0), y + bob);
   if (e.face < 0) ctx.scale(-1, 1);
+  if (e.fade > 0) ctx.globalAlpha = 0.35;
   if (e.flash || (e.state === 'dying' && pulse)) ctx.globalAlpha = 0.5;
   ctx.drawImage(sprite(e), 0, 0, e.w, e.h - bob);
   if (e.isChief && e.rank >= 6 && (warned || e.state === 'strike')) {

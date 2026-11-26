@@ -1,5 +1,6 @@
 // Start, Hauptschleife und Menüs.
 import { Game } from './game.js';
+import { DUELS } from './duels.js';
 import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById } from './levels.js';
 import { THEMES } from './themes.js';
@@ -243,7 +244,7 @@ function arenaLeave(res) {
 async function startLevel(id, ghostCodes = []) {
   match = null;
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
+  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, roamerSeed: level.gen ? (level.seed ^ Math.imul(level.depth, 2654435761)) >>> 0 : Math.floor(Math.random() * 0x100000000), cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -297,9 +298,12 @@ async function finish() {
   if (!level.secret && !level.qual) D.unlocked = Math.max(D.unlocked, li + 2);
   // Geheimausgang
   let secretMsg = '';
+  const discovered = DUELS.filter(b => !D.secretOpen[b.id] && b.open(D));
+  for (const b of discovered) D.secretOpen[b.id] = true;
   if (viaSecret && level.secretExit && !D.secretOpen[level.secretExit]) { D.secretOpen[level.secretExit] = true; secretMsg = `Geheimlevel entdeckt: ${levelById(level.secretExit).name}`; }
   const gruft = LEVELS.find(l => l.coinsNeeded);
   if (gruft && !D.secretOpen[gruft.id] && totalCoins(D) >= gruft.coinsNeeded) { D.secretOpen[gruft.id] = true; secretMsg = (secretMsg ? secretMsg + ' · ' : '') + 'Die Schaufelgruft hat sich geöffnet!'; }
+  if (discovered.length) secretMsg = [secretMsg, ...discovered.map(b => b.hall + ' entdeckt · Karte → Geheim')].filter(Boolean).join(' · ');
   // Rang
   const info = LEVEL_INFO[id];
   const rank = rankFor(level, { frames, deaths: game.deaths, coinsGot: D.coins[id].length, coinsTotal: info.coins, secretsGot: D.secrets[id], secretsTotal: info.secrets });
@@ -956,7 +960,7 @@ function title() {
 let curWorld = 0;
 const worldOpen = wi => wi >= WORLDS.length ? true : WORLDS[wi] && LEVELS.findIndex(l => l.id === WORLDS[wi].levels[0]) < D.unlocked;
 const qualOpen = n => WORLDS[n - 1].levels.some(id => D.ranks[id] === 'S');
-const levelOpen = id => { const l = levelById(id); if (l.qual) return qualOpen(l.qual); return l.secret ? !!D.secretOpen[id] : LEVELS.findIndex(x => x.id === id) < D.unlocked; };
+const levelOpen = id => { const l = levelById(id); if (l.duel != null) return !!D.secretOpen[id] || DUELS[l.duel].open(D); if (l.qual) return qualOpen(l.qual); return l.secret ? !!D.secretOpen[id] : LEVELS.findIndex(x => x.id === id) < D.unlocked; };
 const ALLW = () => [...WORLDS, SECRET_WORLD, QUAL_WORLD];
 function installTip() {
   const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
@@ -970,7 +974,7 @@ function map(sel, wi) {
   if (wi != null) curWorld = wi;
   else if (sel) curWorld = Math.max(0, ALLW().findIndex(w => w.levels.includes(sel)));
   const w = ALLW()[curWorld];
-  const nSec = SECRET_WORLD.levels.filter(id => D.secretOpen[id]).length;
+  const nSec = SECRET_WORLD.levels.filter(levelOpen).length;
   const tabs = WORLDS.map((ww, i) => `<button class="wtab ${i === curWorld ? 'on' : ''} ${worldOpen(i) ? '' : 'locked'}" data-a="${worldOpen(i) ? 'world' : 'nope'}" data-w="${i}">Welt ${ww.id}${worldOpen(i) ? '' : ' ' + ic('lock')}</button>`).join('')
     + `<button class="wtab sec ${curWorld === WORLDS.length ? 'on' : ''}" data-a="world" data-w="${WORLDS.length}">Geheim ${nSec}/${SECRET_WORLD.levels.length}</button>`
     + `<button class="wtab qual ${curWorld === WORLDS.length + 1 ? 'on' : ''}" data-a="world" data-w="${WORLDS.length + 1}">Qual ${QUAL_WORLD.levels.filter(id => D.cleared[id]).length}/${QUAL_WORLD.levels.length}</button>`
@@ -979,7 +983,7 @@ function map(sel, wi) {
     const l = levelById(id), open = levelOpen(id), best = D.best[id], info = LEVEL_INFO[id], rk = D.ranks[id];
     if (l.qual && !open) return `<button class="card locked qualcard" data-a="nope"><span class="no">${esc(id)}</span><b>${esc(l.name)}</b><small>Ein S-Rang in Welt ${l.qual} öffnet diesen Pfad.</small></button>`;
     if (l.secret && !open) return `<button class="card locked secretcard" data-a="nope"><span class="no">???</span><b>???</b>
-      <small>${l.coinsNeeded ? `Öffnet sich bei ${l.coinsNeeded} Schaufelmünzen (${totalCoins(D)})` : `Irgendwo in ${esc(l.from)} …`}</small></button>`;
+      <small>${l.duel != null ? esc(DUELS[l.duel].hint) : l.coinsNeeded ? `Öffnet sich bei ${l.coinsNeeded} Schaufelmünzen (${totalCoins(D)})` : `Irgendwo in ${esc(l.from)} …`}</small></button>`;
     const coins = Array.from({ length: info.coins }, (_, k) => `<i class="${(D.coins[id] || []).includes(k) ? 'on' : ''}"></i>`).join('');
     return `<button class="card ${open ? '' : 'locked'} ${sel === id ? 'sel' : ''} th-${l.theme} ${l.secret ? 'secretcard' : ''}" data-a="${open ? 'pick' : 'nope'}" data-id="${id}">
       <span class="no">${esc(id)}</span><b>${esc(l.name)}</b>${rk ? `<span class="rank r${rk}">${rk}</span>` : ''}
@@ -1005,7 +1009,7 @@ async function detail(id) {
   for (const g of D.imported[id] || []) opts.push({ code: g.code, label: `${g.name} (${fmtTime(g.frames)})`, on: true });
   const render = (list, loading) => {
     el.innerHTML = `<div class="detail">
-      <div><h3>${esc(l.name)}</h3>${l.hunt != null ? `<p>${esc(HUNTS[l.hunt].boss.name)} · ${esc(HUNTS[l.hunt].difficulty)}</p>` : ''}<p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
+      <div><h3>${esc(l.name)}</h3>${l.duel != null ? `<p>${esc(DUELS[l.duel].name)} · Optionales Meisterduell</p>` : ''}${l.hunt != null ? `<p>${esc(HUNTS[l.hunt].boss.name)} · ${esc(HUNTS[l.hunt].difficulty)}</p>` : ''}<p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
       <div class="ghosts"><small>Gegen Geister rennen</small>
         ${list.length ? list.map((o, i) => `<label><input type="checkbox" data-g="${i}" ${o.on ? 'checked' : ''}> ${esc(o.label)}</label>`).join('') : '<p class="note">Noch keine Geister. Schaff das Level oder importiere einen Code in den Optionen.</p>'}
         ${loading ? '<p class="note">Lade Online-Bestenliste …</p>' : ''}

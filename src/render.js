@@ -214,7 +214,7 @@ export class Renderer {
     }
   }
   ent0(g, e, th) {
-    if (e.type === 'hunter') return drawHunter(this.x, e, this.t);
+    if (e.type === 'hunter' || e.type === 'roamer' || e.type === 'duelist') return drawHunter(this.x, e, this.t);
     const x = this.x, f = this.t;
     switch (e.type) {
       case 'gem': {
@@ -309,7 +309,22 @@ export class Renderer {
       case 'kuckuck': x.drawImage(S.cuckooSprite()[(e.dir > 0 ? 0 : 1) + (e.flash ? 2 : 0)], Math.round(e.x), Math.round(e.y) - 1 + ((f >> 3) & 1)); return;
       case 'eproj': {
         const ex = Math.round(e.x), ey = Math.round(e.y);
-        if (e.kind === 'gear') x.drawImage(S.cogSprite((f >> 1) % 4, 4, 6), ex - 1, ey - 1);
+        if (e.kind === 'mote') {
+          x.fillStyle = e.color;
+          switch (e.motif) {
+            case 'falter': case 'stern':
+              x.fillRect(ex, ey + 1, 6, 3); x.fillRect(ex + 2, ey, 2, 5);
+              x.fillStyle = K; x.fillRect(ex + 1, ey + 2, 3, 1); break;
+            case 'tinte': case 'docht':
+              x.globalAlpha *= 0.8; x.fillRect(ex - 1, ey + 1, 7, 4);
+              x.fillRect(ex + 1, ey - 1, 4, 7); x.globalAlpha = 1; break;
+            case 'regen': case 'kreide': x.fillRect(ex + 2, ey - 2, 2, 7); break;
+            case 'anker': x.fillRect(ex - 2, ey + 2, 8, 2); x.fillRect(ex + 1, ey, 2, 3); break;
+            case 'seide': x.fillRect(ex, ey, 5, 1); x.fillRect(ex, ey + 4, 5, 1);
+              x.fillRect(ex + 2, ey + 1, 1, 3); break;
+            default: x.fillRect(ex, ey + 2, 5, 1); x.fillRect(ex + 2, ey, 1, 5); break;
+          }
+        } else if (e.kind === 'gear') x.drawImage(S.cogSprite((f >> 1) % 4, 4, 6), ex - 1, ey - 1);
         else if (e.kind === 'spore') { x.fillStyle = K; x.fillRect(ex, ey + 1, 7, 5); x.fillRect(ex + 1, ey, 5, 7); x.fillStyle = (f >> 2) & 1 ? '#c86aff' : '#e0a0ff'; x.fillRect(ex + 1, ey + 1, 5, 5); x.fillStyle = '#fff'; x.fillRect(ex + 2, ey + 2, 1, 1); }
         else if (e.kind === 'arrow') { x.fillStyle = K; x.fillRect(ex, ey, 10, 3); x.fillStyle = '#c8b090'; x.fillRect(ex + 1, ey + 1, 8, 1); x.fillStyle = '#e8e8f0'; x.fillRect(e.vx > 0 ? ex + 8 : ex, ey, 2, 3); x.fillStyle = '#c04030'; x.fillRect(e.vx > 0 ? ex : ex + 8, ey, 2, 3); }
         else if (e.kind === 'bolt') { x.fillStyle = K; x.fillRect(ex, ey, 4, 8); x.fillStyle = '#e0b040'; x.fillRect(ex + 1, ey + 1, 2, 6); x.fillStyle = '#fff'; x.fillRect(ex + 1, ey + 6, 2, 1); }

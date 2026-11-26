@@ -21,7 +21,7 @@ export function unrle(a) { const out = []; for (let i = 0; i < a.length; i += 2)
 // Alles, was den Lauf beeinflusst, kommt in die Wiederholung (aber keine fremden Blutflecken)
 export function replayOf(game, extra = {}) {
   const o = game.simOpt || {};
-  return { v: REPLAY_VERSION, level: game.level.id, gear: game.gear, opt: { seed: o.seed || 7, cheats: o.cheats || {}, relics: o.relics || {}, curses: o.curses || {}, elite: o.elite || 0, bossTier: o.bossTier || 0, noCheck: !!o.noCheck, timeLimit: o.timeLimit || 0, autoPogo: o.autoPogo !== false },
+  return { v: REPLAY_VERSION, level: game.level.id, gear: game.gear, opt: { seed: o.seed || 7, roamerSeed: o.roamerSeed, cheats: o.cheats || {}, relics: o.relics || {}, curses: o.curses || {}, elite: o.elite || 0, bossTier: o.bossTier || 0, noCheck: !!o.noCheck, timeLimit: o.timeLimit || 0, autoPogo: o.autoPogo !== false },
     frames: game.frame, done: game.done, deaths: game.deaths, in: rle(game.inputs), ...extra };
 }
 
