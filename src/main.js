@@ -924,7 +924,7 @@ async function detail(id) {
   for (const g of D.imported[id] || []) opts.push({ code: g.code, label: `${g.name} (${fmtTime(g.frames)})`, on: true });
   const render = (list, loading) => {
     el.innerHTML = `<div class="detail">
-      <div><h3>${esc(l.name)}</h3>${l.duel != null ? `<p>${esc(DUELS[l.duel].name)} · Optionales Meisterduell</p>` : ''}${l.hunt != null ? `<p>${esc(HUNTS[l.hunt].boss.name)} · ${esc(HUNTS[l.hunt].difficulty)}</p>` : ''}<p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
+      <div>${['D-6','D-7'].includes(id) ? `<div class="legend-portrait portrait-${id}" role="img" aria-label="${esc(DUELS[l.duel].name)}"></div>` : ''}<h3>${esc(l.name)}</h3>${l.duel != null ? `<p>${esc(DUELS[l.duel].name)} · Optionales Meisterduell</p>` : ''}${l.hunt != null ? `<p>${esc(HUNTS[l.hunt].boss.name)} · ${esc(HUNTS[l.hunt].difficulty)}</p>` : ''}<p class="note">${D.best[id] ? 'Bestzeit ' + fmtTime(D.best[id]) : 'Noch nicht geschafft'}</p></div>
       <div class="ghosts"><small>Gegen Geister rennen</small>
         ${list.length ? list.map((o, i) => `<label><input type="checkbox" data-g="${i}" ${o.on ? 'checked' : ''}> ${esc(o.label)}</label>`).join('') : '<p class="note">Noch keine Geister. Schaff das Level oder importiere einen Code in den Optionen.</p>'}
         ${loading ? '<p class="note">Lade Online-Bestenliste …</p>' : ''}

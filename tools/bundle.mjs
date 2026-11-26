@@ -9,7 +9,8 @@ const mods = {};
 for (const f of readdirSync(new URL('src/', root))) if (f.endsWith('.js')) mods[f] = read('src/' + f);
 
 let html = read('index.html');
-const css = read('style.css');
+const css = read('style.css').replace(/url\('(art\/[\w-]+\.webp)'\)/g, (_, path) =>
+  'url(data:image/webp;base64,' + readFileSync(new URL(path, root)).toString('base64') + ')');
 const icon = 'data:image/png;base64,' + readFileSync(new URL('icons/icon-192.png', root)).toString('base64');
 html = html
   .replace(/<link rel="manifest"[^>]*>\n?/, '')

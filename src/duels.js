@@ -25,6 +25,14 @@ export const DUELS = [
     second: 'Supernova', advice: 'Verlasse die Sternmarke. Springe beim Hammerschlag und nutze die Pause nach der Salve.',
     patterns: [['forge','meteor','lunge'], ['nova','meteor','return','forge']], ledges: [[17,8,4],[26,7,3],[34,8,4]],
     art: '....3...3....3333/....23.32...32223/....23332...32223/...2213122...223./..322222223...2../.32211211223..2../.21123332112222../..12222222112..../...22111222....../..2212321222...../.221111111122..../..222...2222...../..212....212...../.3333...3333.....' },
+  { id:'D-6', name:'Die Nahtmutter', hall:'Die letzte Schneiderstube', theme:'grotte', colors:['#2b243b','#d4bbc3','#ffefe0'], hp:216, w:66, h:64,
+    hint:'Scherben und Kreide führen zur Schneiderstube. Gewinne die Duelle gegen Sereia und die Kreidewitwe.',
+    open:d=>!!(d.cleared['D-1'] && d.cleared['D-4']), second:'Sechs Hände', advice:'Weiche der Nadel aus. Trenne jeden hellen Knoten, solange sein Faden durchhängt. Jeder Arm lässt sich einmal pro Phase lösen.',
+    ledges:[], art:'.....3..3..3...../....323232323..../..3..2222222..3../.232..23332..232./..122.23332.221../3..112.223.211..3/23...1222221...32/.222212222212222./.1...2222222...1./32.22122222122.23/.222.1221221.222./...2222.2222...../.32211222112223../321..1222221..123/...22221112222.../..2212222222122../.222211221122222./22211122222111222' },
+  { id:'D-7', name:'Der Nullfürst', hall:'Der Thron ohne Licht', theme:'hoehle', colors:['#181320','#48354f','#f4dfaf'], hp:224, w:10, h:14,
+    hint:'Fünf alte Meister müssen sich verbeugen. Bezwinge die ersten fünf Geheimduelle.',
+    open:d=>['D-1','D-2','D-3','D-4','D-5'].every(id=>d.cleared[id]), second:'Die stumme Krone', advice:'Setze einen Schaufel-Sprung an und locke den Fürsten in dessen Schatten. Verlasse die Markierung vor dem Einschlag nach zwei Kronenschlägen. Später zählt nur die Hand.',
+    ledges:[[20,9,3],[31,8,3]], art:'..222.../.21112../.21212../..111.../.211123./1211213./..212.3./.11.11..' },
 ];
 
 function arena(boss) {
