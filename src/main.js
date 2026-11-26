@@ -102,7 +102,7 @@ let last = performance.now(), acc = 0;
 function loop(now) {
   autoQuality(now - last);
   acc += Math.min(100, now - last); last = now;
-  const spd = mode === 'play' || mode === 'won' ? (D.cheatsOn.espresso ? 1.5 : D.cheatsOn.zeitlupe ? 0.5 : 1) : 1;
+  const spd = mode === 'play' || mode === 'won' ? (game?.cheat.espresso ? 1.5 : game?.cheat.zeitlupe ? 0.5 : 1) : 1;
   const stepMs = 1000 / 60 / spd;
   while (acc >= stepMs) { acc -= stepMs; tick(); }
   R.alpha = mode === 'play' ? Math.max(0, Math.min(1, acc / stepMs)) : 1;
@@ -111,13 +111,16 @@ function loop(now) {
 }
 const SURF = { wald: 'gras', dornen: 'gras', hoehle: 'stein', grotte: 'stein', bau: 'erde', uhrturm: 'metall', glocke: 'stein', pendel: 'metall', pilz: 'pilz', moder: 'erde' };
 const surfaceOf = c => c === '=' || c === 'm' || c === undefined ? 'holz' : c === 'D' ? 'erde' : c === 'S' || c === 'R' ? 'stein' : c === 'B' || c === 'c' ? 'pilz' : SURF[level.theme] || 'erde';
+function runHasGameplayCheats() {
+  return CHEATS.some(c => c.play && game?.cheat[c.id]);
+}
 let tension = 0;
 function tick() {
   if (mode === 'descent') { menuT++; return descentTick(); }
   if (match && mode === 'play') return arenaTick();
   if (mode !== 'play' && mode !== 'won') { menuT++; return; }
   let inp = mode === 'play' ? pollInput() : { };
-  if (D.cheatsOn.spiegel && mode === 'play') inp = { ...inp, left: inp.right, right: inp.left };
+  if (game?.cheat.spiegel && mode === 'play') inp = { ...inp, left: inp.right, right: inp.left };
   if (game.sign) for (const c of CHEATS) if (!D.cheatsKnown[c.id] && game.sign.includes(c.code)) learnCheat(c);
   game.step(inp);
   // Spannung: nahe Gegner oder Boss lassen die Musik anschwellen
@@ -140,7 +143,7 @@ function tick() {
     if (e.name === 'die' && tsRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') tsDeath(); }, 1100); }
     if (e.name === 'die' && hcRun(level)) { const lv = level; setTimeout(() => { if (level === lv && mode === 'play') hcEnd(); }, 1100); }
     if (e.name === 'timeout') { moment('ZEIT ABGELAUFEN', 'Die Tiefe beginnt neu', 'death', 2.4); const lv = level; setTimeout(() => { if (level === lv && mode === 'play') startLevel(lv.id, curCodes); }, 1200); }
-    if (e.name === 'chest' && e.v && !playCheats(D).length) {
+    if (e.name === 'chest' && e.v && !runHasGameplayCheats()) {
       D.chests[e.v] = true;
       save.write();
       if (hasRoyalChests(D.chests)) unlockWeapon('goldschaufel', true);
@@ -171,10 +174,10 @@ function draw() {
   R.externalNotices = true;
   R.look = D.look; R.scarfStyle = D.scarf; R.crown = /^raphi$/i.test(D.name || ''); R.noIntro = true;
   const playing = game && mode !== 'menu';
-  canvas.style.filter = playing && D.cheatsOn.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
-  canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && D.cheatsOn.spiegel ? ' scaleX(-1)' : '');
+  canvas.style.filter = playing && game?.cheat.disco ? `hue-rotate(${(menuT * 0 + performance.now() / 8) % 360}deg) saturate(1.4)` : '';
+  canvas.style.transform = (document.body.classList.contains('portrait') ? 'translateX(-50%)' : 'translate(-50%,-50%)') + (playing && game?.cheat.spiegel ? ' scaleX(-1)' : '');
   if (mode === 'descent') drawDescent(); else if (game && mode !== 'menu') { R.draw(game, ghosts); if (match) arenaHud(ctx, match, R, VW, VH); } else drawMenuBg();
-  if (D.retro) retroFilter();
+  if (D.retro && !(playing && (game.level.arena || game.simOpt.daily))) retroFilter();
 }
 function drawMenuBg() {
   const th = THEMES.karte, bg = S.backdrop(th, VH), t = menuT;
@@ -283,7 +286,7 @@ function pause() { mode = 'pause'; touchEl.hidden = true; pauseBtn.hidden = true
   if (match) return show(`<div class="panel small"><h2>Rast</h2><p class="warn">Aufgeben zählt als Niederlage.</p>
   <button class="big" data-a="resume">Weiter</button><button data-a="arenaquit">Aufgeben</button>${toggles()}</div>`);
   show(`
-  <div class="panel small"><h2>Rast</h2>${playCheats(D).length ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
+  <div class="panel small"><h2>Rast</h2>${runHasGameplayCheats() ? '<p class="warn">Schummelwörter aktiv</p>' : ''}
   ${tsRun(level) && !D.ts.msg ? '<button data-a="tsmsg">Botschaft hinterlassen</button>' : ''}
   ${tsRun(level) ? '<p class="warn">Verlassen beendet deinen Tagesschacht.</p>' : ''}
   <button class="big" data-a="resume">Weiter</button>
@@ -297,7 +300,7 @@ async function finish() {
   if (level.gen) return finishEndless();
   const id = level.id, frames = game.frame, first = !D.cleared[id];
   const viaSecret = game.exit === 'secret';
-  const cheated = playCheats(D).length > 0;
+  const cheated = runHasGameplayCheats();
   if (cheated) game.coins = [];
   const bonus = first ? (level.qual ? 1000 : level.boss ? 300 : level.secret ? 250 : 100) : 0;
   // Sterne: geschafft · unter Zielzeit · ohne Tod. Jeder neue Stern bringt 50.
@@ -409,7 +412,7 @@ function toast(title, text, kind = '') {
   setTimeout(() => el.classList.add('out'), 2800); setTimeout(() => el.remove(), 3300);
 }
 function checkAch() {
-  if (playCheats(D).length && (mode === 'play' || mode === 'won')) return;
+  if (runHasGameplayCheats() && (mode === 'play' || mode === 'won')) return;
   for (const a of ACH) {
     if (D.ach[a.id] || !a.test(D)) continue;
     D.ach[a.id] = true; D.gems += a.gems; D.earned += a.gems;
@@ -511,7 +514,7 @@ function haptic(name) {
 /* ---------- Waffen ---------- */
 const reveals = [];
 function unlockWeapon(id, inGame) {
-  if (playCheats(D).length || D.weapons[id] || !weaponById(id)) return;
+  if (runHasGameplayCheats() || D.weapons[id] || !weaponById(id)) return;
   D.weapons[id] = true; save.write();
   reveals.push(id);
   const w = weaponById(id), r = RARITY[w.rar];
@@ -625,7 +628,7 @@ function cheatbook(msg = '') {
   const on = playCheats(D).length;
   show(`<div class="panel small">
     <div class="top"><button class="back" data-a="title">‹</button><h2>Schummelbuch</h2><span class="gems">${Object.keys(D.cheatsKnown).length} / ${CHEATS.length}</span></div>
-    <p class="note">Schummelwörter verstecken sich auf Schildern an geheimen Orten und hinter Erfolgen. Wer sie kennt, darf sie hier eintragen.</p>
+    <p class="note">Schummelwörter verstecken sich auf Schildern an geheimen Orten und hinter Erfolgen. In der Arena und im Tagesschacht sind alle Schummelwörter ausgeschaltet.</p>
     <label class="field">Schummelwort eintragen<input id="cheatcode" maxlength="24" autocomplete="off" autocapitalize="characters" placeholder="…"></label>
     <div class="row"><button class="big" data-a="cheatenter">Einritzen</button></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
@@ -651,7 +654,7 @@ const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => 
 const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
 function runOpts(L) {
   if (!L.gen) return {};
-  if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
+  if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { daily: true, elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
   const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
   if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
   if (hcRun(L)) o.noCheck = true;
@@ -840,7 +843,7 @@ const UNLOCKS = [
   { id: 'weapons', name: 'Waffenkammer', test: () => Object.keys(D.weapons).length > 0 || !!D.cleared['1-3'], hint: 'Finde eine geheime Waffe', desc: 'Geheime Waffen mit eigenen Kräften.' },
   { id: 'endless', name: 'Endlose Tiefen', test: () => !!D.cleared['1-B'], hint: 'Besiege den Boss von Welt 1', desc: 'Unendlich viele erzeugte Levels, immer tiefer.' },
 ];
-const isOpen = id => { const u = UNLOCKS.find(x => x.id === id); return !u || u.test() || playCheats(D).length > 0 || D.gems >= 999999; };
+const isOpen = id => { const u = UNLOCKS.find(x => x.id === id); return !u || u.test() || (!['daily', 'arena'].includes(id) && playCheats(D).length > 0); };
 const endlessOpen = () => isOpen('endless');
 // Sets der Meister: beim ersten Sieg, auch rückwirkend für ältere Spielstände
 function grantDuelSets() {
@@ -924,7 +927,7 @@ async function finishEndless() {
   let keyHtml = '';
   if (main) {
     E.depth = dep + 1; const rec = dep > E.best; E.best = Math.max(E.best, dep);
-    const award = (kind, why) => { const k = 'E' + dep + ':' + E.seed; if (playCheats(D).length || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
+    const award = (kind, why) => { const k = 'E' + dep + ':' + E.seed; if (runHasGameplayCheats() || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
     if (rec && dep % 25 === 0) award('urlicht', `Tiefe ${dep}`); else if (rec && dep % 10 === 0) award('gold', `Tiefe ${dep}`); else if (dep % 5 === 0) award(dep % 10 === 0 ? 'eisen' : 'holz', `Tiefe ${dep}`);
   }
   if (hc) { E.hc.depth = dep + 1; E.hc.best = Math.max(E.hc.best || 0, dep); if (dep % 5 === 0 && !D.keyLog['H' + dep + ':' + E.hc.seed]) { D.keyLog['H' + dep + ':' + E.hc.seed] = true; keyHtml += grantKey(dep % 10 === 0 ? 'gold' : 'eisen', 1, `Ohne Wiederkehr ${dep}`); } }
@@ -1253,7 +1256,6 @@ ui.addEventListener('click', async e => {
       const v = $('#cheatcode').value, c = cheatByCode(v);
       if (!v.trim()) return;
       if (/^(GAMEBOY|RETRO)$/i.test(v.trim())) { toggleRetro(); return cheatbook('Die Farben verblassen … oder kehren zurück.'); }
-      if (v.trim().toUpperCase().replace(/\s+/g, '') === 'MEISTERSCHAUFLER') { D.gems = 999999; D.shards = Math.max(D.shards, 99999); D.keys.urlicht += 20; D.keys.gold += 20; save.write(); sfx('legend'); haptic('unlock'); return cheatbook('Meisterschaufler: 999 999 Edelsteine, 99 999 Splitter und je 20 Gold- und Urlicht-Schlüssel.'); }
       if (!c) { sfx('nope'); return cheatbook('Nichts geschieht. Das Wort hat keine Macht.'); }
       D.cheatsKnown[c.id] = true; D.cheatsOn[c.id] = true; save.write(); sfx('legend');
       return cheatbook(`${esc(c.name)} erwacht.`);

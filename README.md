@@ -222,7 +222,6 @@ Mit spielverändernden Cheats zählen Ränge, Rekorde, Sterne, Münzen und Erfol
 | ESPRESSO / ZEITLUPE | Tempo ×1.5 / ×0.5 | Erfolg Meisterlich / Hartnäckig |
 | UNVERWUNDBAR | kein Schaden (Abgründe bleiben tödlich) | Erfolg Unberührbar |
 | RETRO | Gameboy-Farben | – |
-| MEISTERSCHAUFLER | Testcode: 999 999 Edelsteine, 99 999 Splitter, je 20 Gold- und Urlicht-Schlüssel | nur für Entwickler |
 
 ## Schatzkammer (v0.10)
 

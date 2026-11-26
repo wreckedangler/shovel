@@ -74,8 +74,8 @@ export class Game {
     this.h = this.tiles.length;
     this.w = this.tiles[0].length;
     this.rand = rng(opt.seed || 7);
-    this.inputs = []; this.simOpt = { ...opt, marks: undefined }; this.autoPogo = opt.autoPogo !== false; this.dirty = new Set(); this.hiddenVer = 0;
-    this.cheat = opt.cheats || {};
+    this.cheat = opt.pvp || level.arena || opt.daily ? {} : opt.cheats || {};
+    this.inputs = []; this.simOpt = { ...opt, cheats: this.cheat, marks: undefined }; this.autoPogo = opt.autoPogo !== false; this.dirty = new Set(); this.hiddenVer = 0;
     this.pgrav = GRAV * (this.cheat.mond ? 0.5 : 1);
     if (A.grav !== 1) this.pgrav *= A.grav;
     this.ents = []; this.parts = []; this.events = []; this.vents = []; this.plats = []; this.traps = []; this.flips = new Map();
