@@ -558,7 +558,7 @@ addLantern('1-1', 100); addLantern('1-2', 92); addLantern('1-3', 40);
 // Wiederholungen und Geister von vorher laufen darauf weiter, Bestzeiten werden für den neuen Stand neu geführt.
 // [x, y, Zeichen, erwartet] – erwartet ist standardmässig eine Reihe aus '.'
 function remix(id, rev, par, edits) {
-  const L = LEVELS.find(l => l.id === id), rows = L.map.map(r => r.split(''));
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), rows = L.map.map(r => r.split(''));
   for (const [x, y, str, expect] of edits) for (let i = 0; i < str.length; i++) {
     const want = expect ? expect[i] : '.', cur = rows[y] && rows[y][x + i];
     if (cur !== want) throw new Error(`Umbau ${id} bei ${x + i},${y}: erwartet '${want}', gefunden '${cur}'`);
@@ -580,7 +580,7 @@ remix('3-1', 2, 70, [[30, 7, 'v'], [57, 10, 's'], [76, 3, 's'], [100, 4, 'v'],
 remix('3-2', 2, 72, [[30, 6, 'v'], [51, 10, 's'], [69, 7, 'L'], [84, 7, 'L'], [96, 10, 's'], [111, 5, 'v'], [102, 10, 'C']]);
 remix('3-3', 2, 78, [[27, 5, 'v'], [34, 8, 'v'], [75, 3, 's'], [87, 8, 'v'], [104, 9, 'A', '#'], [63, 10, 'C']]);
 // Online-Bestenlisten und Geister gelten je Kartenstand
-export const ghostKey = id => { const L = LEVELS.find(l => l.id === id); return L && L.rev > 1 ? `${id}~${L.rev}` : id; };
+export const ghostKey = id => { const L = /** @type {any} */ (LEVELS.find(l => l.id === id)); return L && L.rev > 1 ? `${id}~${L.rev}` : id; };
 
 import { generateLevel } from './gen.js';
 const genCache = new Map();
