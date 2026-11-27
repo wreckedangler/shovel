@@ -57,6 +57,10 @@ if (D.armorModel !== 3) { for (const id in D.pieces) { const it = uniqueById(id)
 // Angelegte Rüstung als gear-Werte: Stufe (Grundstück) oder 'id@stufe' (gefundenes Stück)
 const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? `${e}@${pieceLvl(e)}` : (Number.isFinite(e) ? e : D[s])]; }));
 const lookOf = () => equipGear();
+// Hand (Ausrüstungsmodell 3): Grundschaufel (D.shovel) oder eine Waffe mit eigener Stufe (D.weaponLvl, sonst Startstufe)
+const weaponLvl = id => { const w = weaponById(id); return w ? Math.min(w.cap, Math.max(0, D.weaponLvl[id] ?? w.start)) : 0; };
+if (D.handModel !== 1) { const sh = D.gearUnlocked.shovel || 0; for (const id in D.weapons) { const w = weaponById(id); if (w && D.weaponLvl[id] === undefined) D.weaponLvl[id] = Math.max(w.start, Math.min(w.cap, sh)); } D.handModel = 1; save.write(); }
+const handTier = () => (D.weapon && D.weapons[D.weapon] && weaponById(D.weapon) ? weaponLvl(D.weapon) : D.shovel);
 setAudio(D.sfx, D.music);
 // Neuer Kartenstand: Bestzeit und Geister dieses Levels neu führen (Sterne, Ränge und Freischaltungen bleiben)
 {
@@ -205,7 +209,7 @@ function drawMenuBg() {
   for (const [img, f] of [[bg.far, 0.15], [bg.near, 0.4]]) { const ox = -Math.round(t * f) % img.width; for (let k = ox - img.width; k < VW; k += img.width) ctx.drawImage(img, k, 0); }
   const ts = S.tileset(th);
   for (let x = -1; x < VW / 16 + 1; x++) { const px = x * 16 - (t % 16); ctx.drawImage(ts.top[(x + 99 + Math.floor(t / 16)) % 3], px, VH - 20); ctx.drawImage(ts.fill[0], px, VH - 4); }
-  const hs = S.hero(lookOf(), D.shovel, D.weapon);
+  const hs = S.hero(lookOf(), handTier(), D.weapon);
   R.x = ctx; R.figure(hs, 40, VH - 34, 1, 1, t, 8, null, 0, 16, 2, 0);
   // Abdunkeln, goldenes Licht von oben, Nebel und fallende Asche
   ctx.fillStyle = 'rgba(7,6,5,0.55)'; ctx.fillRect(0, 0, VW, VH);
@@ -283,7 +287,7 @@ function arenaLeave(res, quit) {
 async function startLevel(id, ghostCodes = []) {
   match = null;
   level = levelById(id); curCodes = ghostCodes;
-  game = new Game(level, { shovel: D.shovel, weapon: D.weapon, ...equipGear() }, { seed: 7, roamerSeed: level.gen ? (level.seed ^ Math.imul(level.depth, 2654435761)) >>> 0 : Math.floor(Math.random() * 0x100000000), cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ai: aiLevelOf(D.ai), ...runOpts(level) });
+  game = new Game(level, { shovel: handTier(), weapon: D.weapon, ...equipGear() }, { seed: 7, roamerSeed: level.gen ? (level.seed ^ Math.imul(level.depth, 2654435761)) >>> 0 : Math.floor(Math.random() * 0x100000000), cheats: Object.fromEntries(activeCheats(D).map(id => [id, true])), relics: relicMods(D), autoPogo: D.autoPogo !== false, ai: aiLevelOf(D.ai), ...runOpts(level) });
   ghosts = [];
   for (const c of ghostCodes) { const g = await decodeGhost(c); if (g && g.level === id) { g.own = c === D.ghosts[id]; ghosts.push(g); } }
   R.snapCamera(game);
@@ -463,7 +467,7 @@ function wardrobe(msg = '') {
     let any = false;
     for (const cv of document.querySelectorAll('[data-sc]')) {
       any = true; const keep = R.scarfStyle; R.scarfStyle = cv.dataset.sc;
-      stage(cv, 42, 24, () => R.figure(S.hero(lookOf(), D.shovel, D.weapon), 22, 9, 1, 1, menuT, 8, null, 0, 16, 2, 0));
+      stage(cv, 42, 24, () => R.figure(S.hero(lookOf(), handTier(), D.weapon), 22, 9, 1, 1, menuT, 8, null, 0, 16, 2, 0));
       R.scarfStyle = keep;
     }
     if (any) requestAnimationFrame(tick);
@@ -598,14 +602,14 @@ function armory(msg = '') {
     if (!have) return `<div class="wcard locked ${w.rar}"><div class="wi"><canvas data-icon="${w.id}" class="sil"></canvas></div>
       <div><small style="color:${r.col}">${w.secret ? '???' : r.name}</small><b>???</b><p>${esc(w.hint)}</p></div></div>`;
     return `<div class="wcard ${w.rar} ${on ? 'on' : ''}" style="--c:${r.col}"><div class="wi"><canvas data-icon="${w.id}"></canvas></div>
-      <div><small style="color:${r.col}">${r.name}</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
+      <div><small style="color:${r.col}">${r.name} · ${esc(TIERS[weaponLvl(w.id)].name)} (bis ${esc(TIERS[w.cap].name)})</small><b>${esc(w.name)}</b><p>${esc(w.perk)}</p>
       <button data-a="equip" data-id="${w.id}">${on ? 'Ausgerüstet ' + ic('check') : 'Ausrüsten'}</button></div></div>`;
   };
   const deeds = WEAPONS.filter(w => !w.chest), chest = WEAPONS.filter(w => w.chest).sort((a, b) => b.lr - a.lr);
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="forge">‹</button><h2>Waffenkammer</h2><span class="gems">${n} / ${WEAPONS.length}</span></div>
-    <p class="note">Waffen nutzen Schaden und Reichweite deiner Schaufel-Stufe und legen ihre Kraft obendrauf.</p>
-    <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Normale Schaufel nehmen' : 'Normale Schaufel ausgerüstet'}</button></div>
+    <p class="note">Jede Waffe hat ihre eigene Stufe: sie bestimmt Schaden, Reichweite und Graben. In der Schmiede wertest du die angelegte Waffe auf, bis zu ihrer Höchststufe.</p>
+    <div class="row"><button data-a="equip" data-id="">${D.weapon ? 'Grundschaufel nehmen' : 'Grundschaufel in der Hand'}</button></div>
     <h3 class="sub">Waffen der Taten · ${deeds.filter(w => D.weapons[w.id]).length}/${deeds.length}</h3>
     <p class="note">Diese kann man nicht kaufen. Jede verlangt eine besondere Tat.</p>
     <div class="wgrid">${deeds.map(card).join('')}</div>
@@ -839,7 +843,7 @@ function drawDescent() {
   // Fahrtwind
   if (d.parts.length < 40) d.parts.push({ x: wall * 16 + Math.random() * (VW - wall * 32), y: VH + 4, v: 4 + Math.random() * 6 });
   for (const q of d.parts) { q.y -= q.v * Math.min(1, t / 30); ctx.fillStyle = 'rgba(232,220,192,0.35)'; ctx.fillRect(Math.round(q.x), Math.round(q.y), 1, 6); if (q.y < -10) q.y = VH + 4; }
-  const hs = S.hero(lookOf(), D.shovel, D.weapon); R.x = ctx; R.t = menuT;
+  const hs = S.hero(lookOf(), handTier(), D.weapon); R.x = ctx; R.t = menuT;
   const hy = VH * 0.42 + Math.sin(t / 8) * 3 + (t > 150 ? (t - 150) * 3 : 0);
   R.figure(hs, VW / 2 - 5, Math.round(hy), 1, 2, t, 8, null, 0, 16, 0, 6);
   // Tiefenzähler
@@ -1103,10 +1107,18 @@ function forge(msg = '') {
     return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}" data-id="${id}"><span class="bl">${id ? 'Aufwerten' : 'Schmieden'}: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
   };
   const pips = (cur, cap = 11) => `<span class="pips12">${TIERS.map((t, k) => `<i class="${k <= cur ? 'on' : k > cap ? 'x' : ''}" style="--c:${t.light}"></i>`).join('')}</span>`;
-  const shovelRow = `<div class="srow">
+  const wp0 = D.weapon && D.weapons[D.weapon] && weaponById(D.weapon);
+  const gu = D.gearUnlocked.shovel;
+  const shovelRow = wp0 ? (() => {
+    const lvl = weaponLvl(wp0.id), rc = RARITY[wp0.rar].col;
+    return `<div class="srow uniq" style="--rc:${rc}">
+      <canvas class="sic" data-wi="${wp0.id}"></canvas>
+      <div class="sinfo"><small>Hand · ${esc(TIERS[lvl].name)} · bis ${esc(TIERS[wp0.cap].name)}</small><b style="color:${rc}">${esc(wp0.name)}</b><p>${esc(wp0.perk)}</p>${pips(lvl, wp0.cap)}<small class="forged">${esc(SHOVEL[lvl].perk)} · Grundschaufel: ${esc(TIERS[gu].name)}</small></div>
+      <div class="sbtn">${buyBtn('hand', lvl + 1, PRICE[lvl + 1], SHARD_PRICE[lvl + 1] || 0, wp0.id, wp0.cap)}<button data-a="armory">Waffenkammer</button></div></div>`;
+  })() : `<div class="srow">
       <canvas class="sic" data-si="${D.shovel}"></canvas>
-      <div class="sinfo"><small>Schaufel</small><b class="tn" style="--c:${TIERS[D.shovel].light}">${esc(TIERS[D.shovel].name)}</b><p>${esc(SHOVEL[D.shovel].perk)}</p>${pips(D.shovel)}</div>
-      <div class="sbtn">${buyBtn('shovel', D.gearUnlocked.shovel + 1, PRICE[D.gearUnlocked.shovel + 1], SHARD_PRICE[D.gearUnlocked.shovel + 1] || 0)}</div>
+      <div class="sinfo"><small>Hand · Grundschaufel · bis ${esc(TIERS[Math.max(GRUND_CAP, gu)].name)}</small><b class="tn" style="--c:${TIERS[D.shovel].light}">${esc(TIERS[D.shovel].name)}</b><p>${esc(SHOVEL[D.shovel].perk)}</p>${pips(D.shovel, Math.max(GRUND_CAP, gu))}</div>
+      <div class="sbtn">${buyBtn('shovel', gu + 1, PRICE[gu + 1], SHARD_PRICE[gu + 1] || 0, '', Math.max(GRUND_CAP, gu))}<button data-a="armory">Waffenkammer</button></div>
       ${D.gearUnlocked.shovel ? `<div class="chips">${TIERS.slice(0, D.gearUnlocked.shovel + 1).map((t, i) => `<button class="tier-pick" data-a="gear-tier" data-k="shovel" data-tier="${i}" title="${esc(t.name)}" aria-label="Schaufel aus ${esc(t.name)}" aria-pressed="${D.shovel === i}"><canvas class="gi ${i === D.shovel ? 'cur' : ''} own" data-gi="shovel:${i}" aria-hidden="true"></canvas></button>`).join('')}</div>` : ''}</div>`;
   const slotRow = sl => {
     const s = sl.id, v = D.equip[s], it = typeof v === 'string' && uniqueById(v), t = D[s];
@@ -1141,7 +1153,6 @@ function forge(msg = '') {
         ${chips ? `<div class="fxchips">${chips}</div>` : ''}
       </div>
       <div class="slots5">${shovelRow}${SLOTS.map(slotRow).join('')}
-        <div class="srow"><canvas class="sic" data-wi="${D.weapon || ''}"></canvas><div class="sinfo"><small>Waffe</small><b>${wp ? esc(wp.name) : 'Normale Schaufel'}</b><p>${wp ? esc(wp.perk) : 'Keine Spezialwaffe angelegt.'}</p></div><div class="sbtn"><button data-a="armory">Waffenkammer</button></div></div>
         <div class="srow"><div class="sinfo"><small>Relikte</small><b>${D.relicSlots.filter(Boolean).length} / 3 angelegt</b><p>Relikte, Rüstungsteile und Splitter ${ic('dia')} findest du in Truhen.</p></div><div class="sbtn"><button data-a="treasury">Schatzkammer</button><button data-a="collection">Sammlung</button></div></div>
       </div></div>
     ${msg ? `<p class="msg">${msg}</p>` : ''}
@@ -1155,7 +1166,7 @@ function forge(msg = '') {
   const tick = () => {
     if (id !== forgeAnim || !pv.isConnected) return;
     stage(pv, 42, 42, () => {
-      const ph = Math.floor(menuT / 90) % 3, hs = S.hero(lookOf(), D.shovel, D.weapon);
+      const ph = Math.floor(menuT / 90) % 3, hs = S.hero(lookOf(), handTier(), D.weapon);
       R.figure(hs, 16, 20, 1, [0, 1, 3][ph], menuT, ph === 2 ? 8 - (menuT % 12) * 0.6 : 8, null, 0, 16, ph === 1 ? 2 : 0, 0);
     });
     requestAnimationFrame(tick);
@@ -1177,8 +1188,8 @@ function gearReveal(kind, t) {
   const tick = () => {
     if (!cv.isConnected) return;
     stage(cv, 50, 28, () => {
-      R.figure(S.hero(lookOf(), D.shovel, D.weapon), 14, 12, 1, 1, menuT, 8, null, 0, 16, 2, 0);
-      R.figure(S.hero(lookOf(), D.shovel, D.weapon), 34, 12, 1, 3, 0, 6);
+      R.figure(S.hero(lookOf(), handTier(), D.weapon), 14, 12, 1, 1, menuT, 8, null, 0, 16, 2, 0);
+      R.figure(S.hero(lookOf(), handTier(), D.weapon), 34, 12, 1, 3, 0, 6);
     });
     requestAnimationFrame(tick);
   };
@@ -1288,7 +1299,7 @@ ui.addEventListener('click', async e => {
     }
     case 'cheattoggle': D.cheatsOn[id] = !D.cheatsOn[id]; save.write(); sfx(D.cheatsOn[id] ? 'secret' : 'click'); return cheatbook();
     case 'logo': { const now = Date.now(); logoTaps = logoTaps.filter(t => now - t < 3000); logoTaps.push(now); if (logoTaps.length >= 7) { logoTaps = []; toggleRetro(); } return; }
-    case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Normale Schaufel ausgerüstet.');
+    case 'equip': D.weapon = id || null; save.write(); sfx('buy'); return armory(id ? `${esc(weaponById(id).name)} ausgerüstet.` : 'Grundschaufel in der Hand.');
     case 'options': return options();
     case 'pick': return map(id);
     case 'world': return map(null, +b.dataset.w);
@@ -1311,6 +1322,17 @@ ui.addEventListener('click', async e => {
       return;
     }
     case 'buy': {
+      if (b.dataset.k === 'hand') {
+        // Waffe aufwerten (bis zu ihrer Höchststufe)
+        const w = weaponById(b.dataset.id); if (!w || !D.weapons[w.id]) return sfx('nope');
+        const n = weaponLvl(w.id) + 1, wp = PRICE[n], wsp = SHARD_PRICE[n] || 0;
+        if (n > w.cap || n >= AVAILABLE) { sfx('nope'); return forge('Diese Waffe hat ihre Höchststufe erreicht.'); }
+        if (!gateOpen(D.cleared, n)) { sfx('nope'); return forge(TIER_GATE[n].txt + ', dann lässt sich ' + TIERS[n].name + ' schmieden.'); }
+        if (D.gems < wp) { sfx('nope'); return forge(`Dir fehlen noch ${wp - D.gems} Edelsteine.`); }
+        if (D.shards < wsp) { sfx('nope'); return forge(`Dir fehlen noch ${wsp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
+        D.gems -= wp; D.shards -= wsp; D.weaponLvl[w.id] = n; save.write(); sfx('legend');
+        return forge(`${esc(w.name)} ist jetzt ${esc(TIERS[n].name)}.`);
+      }
       if (b.dataset.id) {
         // Gefundenes Stück aufwerten (bis zu seiner Höchststufe)
         const pid = b.dataset.id, u = uniqueById(pid); if (!u || !D.pieces[pid]) return sfx('nope');
@@ -1323,6 +1345,7 @@ ui.addEventListener('click', async e => {
         return forge(`${esc(u.name)} ist jetzt ${esc(TIERS[n].name)}.`);
       }
       const k = b.dataset.k, isSh = k === 'shovel', nx = (isSh ? D.gearUnlocked.shovel : D[k]) + 1, price = isSh ? PRICE[nx] : piecePrice(nx);
+      if (isSh && nx > GRUND_CAP) { sfx('nope'); return forge(`Die Grundschaufel endet bei ${TIERS[GRUND_CAP].name}. Für mehr eine Waffe anlegen und aufwerten.`); }
       if (!isSh && nx > GRUND_CAP) { sfx('nope'); return forge(`Grundstücke enden bei ${TIERS[GRUND_CAP].name}. Für mehr ein besonderes Stück anlegen und aufwerten.`); }
       const sp = isSh ? SHARD_PRICE[nx] || 0 : Math.ceil((SHARD_PRICE[nx] || 0) / 3);
       if (nx < AVAILABLE && !gateOpen(D.cleared, nx)) { sfx('nope'); return forge(TIER_GATE[nx].txt + ', dann lässt sich ' + TIERS[nx].name + ' schmieden.'); }
@@ -1403,7 +1426,7 @@ document.addEventListener('focusin', e => { if (e.target.matches('input, textare
 applyA11y();
 tsRefresh();
 initTreasury({ D, save, sfx, haptic, show, ic, serifImg, S, R, esc, back: () => lastMenu, checkAch });
-initArena({ D, save, sfx, show, ic, esc, R, stage, toast, moment, grantKey, today, startMatch, gear: () => ({ shovel: D.shovel, weapon: D.weapon, ...equipGear() }),
+initArena({ D, save, sfx, show, ic, esc, R, stage, toast, moment, grantKey, today, startMatch, gear: () => ({ shovel: handTier(), weapon: D.weapon, ...equipGear() }),
   startLive, inLive: () => !!liveDuel,
   menuT: () => menuT, setMenu: m => { lastMenu = m; }, inMenu: m => lastMenu === m && mode === 'menu' });
 ui.addEventListener('click', e => { const b = e.target.closest('[data-ar]'); if (b) { unlockAudio(); arenaClick(b); } });

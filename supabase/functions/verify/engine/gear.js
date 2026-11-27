@@ -16,6 +16,10 @@ export const TIERS = [
   { id: 'urlicht',        name: 'Urlicht',        dark: '#ff9f3a', light: '#ffffff' },
 ];
 
+// Ausrüstungsmodell 3: Startstufe und Höchststufe je Seltenheit (0 gewöhnlich · 1 selten · 2 episch · 3 legendär/Set).
+// Grundstücke und die Grundschaufel (ohne Effekt) enden bei Mithril.
+export const GRUND_CAP = 6;
+export const RAR_START = [2, 4, 6, 7], RAR_CAP = [4, 6, 9, 11];
 export const AVAILABLE = 12;          // Stufen 7–12 brauchen zusätzlich Splitter aus Truhen (loot.js SHARD_PRICE)
 // Preise steigen ab Mithril steil an: die letzten Stufen sind ein Langzeitziel (Urlicht ist sehr selten)
 export const PRICE = [0, 150, 450, 1100, 2400, 4200, 6500, 9500, 14000, 22000, 34000, 52000];

@@ -16,6 +16,7 @@ const DEF = {
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
   pieceLvl: {},    // aufgewertete Stufe je gefundenem Stück (Ausrüstungsmodell 3)
+  weaponLvl: {},   // aufgewertete Stufe je Waffe (Hand)
   mapRev: {},      // Kartenstand je Level (Bestzeiten gelten nur für denselben Stand)
   ai: 2,           // KI-Stärke der Bosse (0–4, 2 = Standard) – zum Testen in den Optionen
   cheatsKnown: {}, cheatsOn: {}, seenSplash: false,

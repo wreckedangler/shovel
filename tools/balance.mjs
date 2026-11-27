@@ -7,7 +7,7 @@
 // node tools/balance.mjs [--quick]
 import { Game } from '../src/game.js';
 import { UNIQUES, SLOT_IDS } from '../src/armor.js';
-import { WEAPONS } from '../src/weapons.js';
+import { WEAPONS, weaponById } from '../src/weapons.js';
 
 const LIMIT = 2.5, QUICK = process.argv.includes('--quick');
 const LV = { id: 'BAL', name: 'Balance', theme: 'wald', map: ['..........', '.P........', '##########'], signs: [] };
@@ -30,15 +30,18 @@ function score(g) {
   return { s: EH * DMG * MOB, EH, DMG, MOB };
 }
 const opts = {};
-const make = (N, set, weapon, relics) => new Game(LV, { shovel: N, weapon, ...set }, { relics });
+// Waffen haben ihre eigene Stufe (Ausrüstungsmodell 3): auf Stufe N aufgewertet bis min(Höchststufe, N), mindestens ihre Startstufe
+const handOf = (N, weapon) => { const w = weapon && weaponById(weapon); return w ? Math.min(w.cap, Math.max(w.start, N)) : N; };
+const make = (N, set, weapon, relics) => new Game(LV, { shovel: handOf(N, weapon), weapon, ...set }, { relics });
+const reachable = (N, w) => !w || weaponById(w).start <= N + 1;
 const flags = [];
 const out = [];
 const tiers = QUICK ? [5] : [2, 5, 8, 11];
 for (const N of tiers) {
   for (const s of SLOT_IDS) opts[s] = [Math.min(N, 6), ...UNIQUES.filter(u => u.slot === s && u.start <= N + 1).map(u => `${u.id}@${Math.min(u.cap, Math.max(u.start, N))}`)];
-  // Vergleich: geschmiedete Stufe N, beste Relikte, beste Tat-Waffe (Waffen, die es schon vor den Rüstungsteilen gab)
+  // Vergleich: geschmiedete Rüstung Stufe N, beste Relikte, beste erreichbare Waffe (Waffen haben eigene Stufen)
   let base = 0, baseRaw = score(make(N, { armor: N }, null, {})).s;
-  for (const w of [null, ...WEAPONS.filter(w => !w.chest).map(w => w.id)]) for (const R of RELIC_SETS) base = Math.max(base, score(make(N, { armor: N }, w, R)).s);
+  for (const w of [null, ...WEAPONS.map(w => w.id)].filter(w => reachable(N, w))) for (const R of RELIC_SETS) base = Math.max(base, score(make(N, { armor: N }, w, R)).s);
   // 1) alle Rüstungskombinationen ohne Waffe und Relikte
   const top = [];
   let n = 0;
@@ -54,7 +57,7 @@ for (const N of tiers) {
   top.sort((a, b) => b.s - a.s); top.length = Math.min(top.length, QUICK ? 30 : 120);
   // 2) die besten Rüstungen mit allen Waffen und Relikt-Sätzen
   let best = [];
-  for (const t of top) for (const w of [null, ...WEAPONS.map(w => w.id)]) for (const R of RELIC_SETS) {
+  for (const t of top) for (const w of [null, ...WEAPONS.map(w => w.id)].filter(w => reachable(N, w))) for (const R of RELIC_SETS) {
     const g = make(N, t.set, w, R), sc = score(g);
     best.push({ set: t.set, w, R, ...sc });
     if (best.length > 2000) { best.sort((a, b) => b.s - a.s); best.length = 50; }

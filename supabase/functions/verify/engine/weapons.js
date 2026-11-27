@@ -1,5 +1,6 @@
+import { RAR_START, RAR_CAP } from './gear.js';
 // Legendäre und mythische Waffen. Sie ersetzen die Schaufel-Optik und legen einen Effekt
-// auf die Werte der aktuellen Schaufel-Stufe (Schaden, Reichweite, Stein bleiben erhalten).
+// auf die Grundwerte ihrer eigenen Stufe (Hand, Ausrüstungsmodell 3: Schaden, Reichweite, Graben).
 // Freigeschaltet werden sie nur über Bedingungen, nie über Edelsteine.
 
 export const RARITY = {
@@ -111,6 +112,9 @@ W_('tiefenhammer', 'Hammer der Tiefe', 3, 'keule', 'obsidian', { quake: true, th
 W_('frostzahn', 'Frostzahn', 3, 'speer', 'frost', { frost: true, chain: true, dmgMul: 0.8 }, 'Eis und Blitz. Nachteil: −20 % Schaden.');
 WEAPONS.push(...CW);
 export const CHEST_WEAPONS = CW;
+// Hand-Gegenstand (Ausrüstungsmodell 3): jede Waffe hat eine eigene Stufe, die Grundschaden, Reichweite und Graben bestimmt.
+// Truhenwaffen nach Seltenheit (legendäre aus Truhen starten wie epische auf Mithril), Tat- und Signaturwaffen wie legendäre Stücke.
+for (const w of /** @type {any[]} */ (WEAPONS)) { const r = w.chest ? w.lr : 3; w.start = RAR_START[w.chest ? Math.min(r, 2) : 3]; w.cap = RAR_CAP[r]; }
 
 export const weaponById = id => WEAPONS.find(w => w.id === id) || null;
 

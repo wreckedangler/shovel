@@ -3,7 +3,8 @@
 // die aus Effekt-Bausteinen zusammengesetzt sind (EFFECTS). Alle Effekte werden in game.js umgesetzt.
 // Wichtig: vier Teile derselben Stufe ergeben exakt die alte Rüstung ARMOR[n] (Wiederholungen bleiben gültig).
 // Reine Daten und Rechnungen ohne DOM (läuft auch in Node und in der Prüf-Funktion auf dem Server).
-import { PRICE } from './gear.js';
+import { PRICE, GRUND_CAP, RAR_START, RAR_CAP } from './gear.js';
+export { GRUND_CAP, RAR_START, RAR_CAP };
 
 export const SLOTS = [
   { id: 'helm', name: 'Helm', icon: 'helm' },
@@ -259,8 +260,6 @@ for (const u of U) if (u.legacy === undefined) throw new Error('Keine Stufe für
 // Ausrüstungsmodell 3: jedes Stück startet auf der Startstufe seiner Seltenheit und wird in der Schmiede aufgewertet,
 // höchstens bis zu seiner Höchststufe. Geschmiedete Grundstücke (ohne Effekt) enden bei Mithril.
 // Seltenheit: 0 gewöhnlich (Eisen–Titan) · 1 selten (Titan–Mithril) · 2 episch (Mithril–Leere-Kristall) · 3 legendär und Sets (Sternenmetall–Urlicht)
-export const GRUND_CAP = 6;
-export const RAR_START = [2, 4, 6, 7], RAR_CAP = [4, 6, 9, 11];
 for (const u of U) { u.start = RAR_START[u.rar]; u.cap = RAR_CAP[u.rar]; }
 // Beschreibung der Effekte eines Stücks
 export const effectText = fx => Object.entries(fx).map(([k, v]) => EFFECTS[k].txt(v)).join(' · ');
