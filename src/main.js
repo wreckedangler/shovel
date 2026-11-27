@@ -20,6 +20,7 @@ async function decodeGhost(code) {
 import { save } from './save.js';
 import { online, uploadGhost, topGhosts , uploadDailyRun, fetchDailyMarks, dailyBetter , cloudSave, cloudLoad, uploadDeaths } from './online.js';
 import { AI_LEVELS, AI_DEFAULT, AI_HINT, aiLevelOf } from './brain.js';
+import { startPresence, onOnline, onlineCount } from './presence.js';
 import * as S from './sprites.js';
 import { initSkin, ic, logoImg, refreshLogo, serifImg } from './ui-skin.js';
 import { CHEATS, cheatByCode, activeCheats, playCheats } from './cheats.js';
@@ -53,6 +54,11 @@ const T_ = 16;
 const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? (D[s] > it.tier ? `${e}@${D[s]}` : e) : (Number.isFinite(e) ? e : D[s])]; }));
 const lookOf = () => equipGear();
 setAudio(D.sfx, D.music);
+// Spieler online: Zähler im Titel laufend aktualisieren
+if (online()) {
+  startPresence();
+  onOnline(v => { for (const el of document.querySelectorAll('.onl')) { el.hidden = !v; const b = el.querySelector('b'); if (b) b.textContent = v; el.title = v === 1 ? 'Nur du bist gerade online' : `${v} Spieler gerade online`; } });
+}
 initSkin();
 
 const embers = [];
@@ -976,7 +982,7 @@ function title() {
     D.playDays >= 3 && Date.now() - (D.lastBackup || 0) > 7 * 864e5 ? '<button class="chip warn" data-a="options">Spielstand sichern</button>' : '',
   ].join('');
   show(`<div class="title home">
-    <div class="status"><span>${ic('gem')} ${D.gems.toLocaleString('de-CH')}</span><span>${ic('lock')} ${keys}</span><span>${ic('scroll')} ${completion(D)} %</span><button class="iconbtn" data-a="options" aria-label="Optionen">${ic('gear')}</button></div>
+    <div class="status"><span>${ic('gem')} ${D.gems.toLocaleString('de-CH')}</span><span>${ic('lock')} ${keys}</span><span>${ic('scroll')} ${completion(D)} %</span><span class="onl"${onlineCount() ? '' : ' hidden'}><i></i><b>${onlineCount()}</b><em> online</em></span><button class="iconbtn" data-a="options" aria-label="Optionen">${ic('gear')}</button></div>
     <div data-a="logo">${logoImg()}</div>
     <button class="big play" data-a="continue" data-id="${next.id}">Abenteuer<small>Weiter: ${esc(next.id)} · ${esc(next.name)}</small></button>
     ${isOpen('daily') ? '' : '<!--'}<button class="tscard ${tsDone ? 'done' : ''}" data-a="tagesschacht"><b>Tagesschacht #${dayNumber()}</b><small>${tsDone ? `Heute geschafft: Stufe ${D.ts.end.k} ✓ · Serie ${tsStreak()}` : D.ts.date === dayKey() && D.ts.k > 1 ? `Läuft · Stufe ${D.ts.k}` : 'Heute noch offen · ein Leben'}</small>${tsDone ? '' : '<span class="badge">!</span>'}</button>${isOpen('daily') ? '' : '-->'}
