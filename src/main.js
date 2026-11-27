@@ -4,7 +4,7 @@ import { DUELS } from './duels.js';
 import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById, ghostKey } from './levels.js';
 import { THEMES } from './themes.js';
-import { TIERS, SHOVEL, PRICE, AVAILABLE } from './gear.js';
+import { TIERS, SHOVEL, PRICE, AVAILABLE, TIER_GATE, gateOpen } from './gear.js';
 import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces } from './armor.js';
 import { duelDeeds } from './sets.js';
 import { Renderer } from './render.js';
@@ -1093,6 +1093,7 @@ function forge(msg = '') {
   const buyBtn = (key, nx, price, sp) => {
     if (nx >= TIERS.length) return '<span class="max">Höchste Stufe</span>';
     if (nx >= AVAILABLE) return '';
+    if (!gateOpen(D.cleared, nx)) return `<span class="gate">${ic('lock')} ${esc(TIERS[nx].name)}: ${esc(TIER_GATE[nx].txt)}</span>`;
     const afford = D.gems >= price && D.shards >= sp;
     return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}"><span class="bl">Schmieden: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
   };
@@ -1113,7 +1114,7 @@ function forge(msg = '') {
     return `<div class="srow ${it ? 'uniq r' + it.rar : ''}" style="--rc:${col}">
       <canvas class="sic" data-pi="${s}:${v}"></canvas>
       <div class="sinfo"><small>${esc(sl.name)} · Stufe ${(it ? it.tier : v) + 1} ${TIERS[it ? it.tier : v].name}${!it && v < t ? ` von ${t + 1}` : ''}</small><b style="color:${col}">${esc(pieceName(s, v))}</b>
-        <p>${esc(it ? effectText(it.fx) : tierPerk(s, v))}</p>${pips(t)}</div>
+        <p>${esc(it ? effectText(it.fx) : tierPerk(s, v))}</p>${pips(it ? it.tier : t)}${it ? `<small class="forged">Geschmiedet bis ${esc(TIERS[t].name)}</small>` : ''}</div>
       <div class="sbtn">${buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3))}
         <button data-a="slotpick" data-k="${s}" class="${forgeOpen === s ? 'on' : ''}">${forgeOpen === s ? 'Schliessen' : `Wechseln${own.length ? ` · ${own.length}` : ''}`}</button></div>
       ${picker}</div>`;
@@ -1305,10 +1306,11 @@ ui.addEventListener('click', async e => {
     case 'buy': {
       const k = b.dataset.k, isSh = k === 'shovel', nx = (isSh ? D.gearUnlocked.shovel : D[k]) + 1, price = isSh ? PRICE[nx] : piecePrice(nx);
       const sp = isSh ? SHARD_PRICE[nx] || 0 : Math.ceil((SHARD_PRICE[nx] || 0) / 3);
+      if (nx < AVAILABLE && !gateOpen(D.cleared, nx)) { sfx('nope'); return forge(TIER_GATE[nx].txt + ', dann lässt sich ' + TIERS[nx].name + ' schmieden.'); }
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
       if (D.shards < sp) { sfx('nope'); return forge(`Dir fehlen noch ${sp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
       D.gems -= price; D.shards -= sp; D[k] = nx; if (isSh) D.gearUnlocked.shovel = nx;
-      // geschmiedete Stufe gleich anlegen, ausser ein einzigartiges Stück ist angelegt (das wächst mit)
+      // geschmiedete Stufe gleich anlegen, ausser ein einzigartiges Stück ist angelegt (es behält seine eigene Stufe)
       if (!isSh && typeof D.equip[k] !== 'string') D.equip[k] = nx;
       save.write(); sfx('legend');
       forge(); return gearReveal(k, nx);

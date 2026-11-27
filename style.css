@@ -572,3 +572,6 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 }
 .panel,.home,.rcard,.toast,.reveal,.reveal.mythisch{background-color:#15120f;background-clip:border-box}
 #ui:has(.panel),#ui:has(.home){background-color:#100e0c}
+
+.srow .gate{display:block;font-size:11px;line-height:1.35;color:#c9b48a;opacity:.85;padding:4px 2px;text-align:center}
+.srow .sinfo small.forged{display:block;margin-top:3px;opacity:.65;font-size:11px}

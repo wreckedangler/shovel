@@ -58,7 +58,7 @@ export const ITEMS = [...RELICS.map(r => ({ ...r, kind: 'relikt' })), ...COSMETI
 export const itemById = id => ITEMS.find(i => i.id === id);
 
 // Splitter-Preise für die Schmiedestufen 7–12 (Index 6–11)
-export const SHARD_PRICE = [0, 0, 0, 0, 0, 0, 40, 70, 110, 160, 230, 320];
+export const SHARD_PRICE = [0, 0, 0, 0, 0, 0, 40, 80, 140, 240, 400, 650];
 
 export function relicMods(D) {
   const m = {};

@@ -17,7 +17,15 @@ export const TIERS = [
 ];
 
 export const AVAILABLE = 12;          // Stufen 7–12 brauchen zusätzlich Splitter aus Truhen (loot.js SHARD_PRICE)
-export const PRICE = [0, 150, 450, 1100, 2400, 4200, 5000, 6200, 7500, 9000, 11000, 14000];
+// Preise steigen ab Mithril steil an: die letzten Stufen sind ein Langzeitziel (Urlicht ist sehr selten)
+export const PRICE = [0, 150, 450, 1100, 2400, 4200, 6500, 9500, 14000, 22000, 34000, 52000];
+// Die drei höchsten Stufen öffnet erst ein grosser Sieg (gilt für Schaufel und Rüstung)
+export const TIER_GATE = {
+  9: { ids: ['3-B'], txt: 'Besiege die Morchelmutter (3-B)' },
+  10: { ids: ['Q-1', 'Q-2', 'Q-3'], txt: 'Bezwinge alle drei Qualpfade' },
+  11: { ids: ['D-7'], txt: 'Besiege den Nullfürsten (Geheimduell D-7)' },
+};
+export const gateOpen = (cleared, t) => !TIER_GATE[t] || TIER_GATE[t].ids.every(id => cleared && cleared[id]);
 
 // dmg: Schaden · reach: Reichweite in px · stone: zerschlägt Stein · pogo: Abprall-Faktor
 export const SHOVEL = [
