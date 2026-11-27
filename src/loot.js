@@ -15,7 +15,7 @@ export const CHESTS = [
   { id: 'holz', name: 'Holztruhe', price: 250, odds: [68, 26, 5, 1], up: 0.12, col: '#b98a52', dark: '#6b4426', band: '#4e5866', multi: true },
   { id: 'eisen', name: 'Eisentruhe', price: 700, odds: [35, 45, 16, 4], up: 0.1, col: '#a9b5c2', dark: '#4e5866', band: '#2a2f38', multi: true },
   { id: 'gold', name: 'Goldtruhe', price: 1800, odds: [0, 55, 33, 12], up: 0.08, col: '#ffd84a', dark: '#a8741a', band: '#6b4426' },
-  { id: 'urlicht', name: 'Urlicht-Truhe', price: 0, odds: [0, 0, 60, 40], up: 0, col: '#fff2cf', dark: '#ff9f3a', band: '#c84030', keyOnly: true },
+  { id: 'urlicht', name: 'Sternentruhe', price: 0, odds: [0, 0, 60, 40], up: 0, col: '#fff2cf', dark: '#ff9f3a', band: '#c84030', keyOnly: true },
 ];
 export const PITY = 30; // spätestens nach so vielen Öffnungen ohne Legendär kommt eine legendäre Belohnung
 
@@ -70,7 +70,7 @@ export function relicMods(D) {
 export function openChest(D, chestId, rand = Math.random) {
   let ci = CHESTS.findIndex(c => c.id === chestId);
   const from = ci;
-  if (rand() < CHESTS[ci].up && ci < CHESTS.length - 2) ci++;   // nie automatisch zur Urlicht-Truhe
+  if (rand() < CHESTS[ci].up && ci < CHESTS.length - 2) ci++;   // nie automatisch zur Sternentruhe
   const chest = CHESTS[ci];
   let r = rand() * 100, rar = 0;
   for (let k = 0, acc = 0; k < 4; k++) { acc += chest.odds[k]; if (r < acc) { rar = k; break; } rar = k; }

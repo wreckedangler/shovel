@@ -23,13 +23,21 @@ export const RAR_START = [2, 4, 6, 7], RAR_CAP = [4, 6, 9, 11];
 export const AVAILABLE = 12;          // Stufen 7–12 brauchen zusätzlich Splitter aus Truhen (loot.js SHARD_PRICE)
 // Preise steigen ab Mithril steil an: die letzten Stufen sind ein Langzeitziel (Urlicht ist sehr selten)
 export const PRICE = [0, 150, 450, 1100, 2400, 4200, 6500, 9500, 14000, 22000, 34000, 52000];
-// Die drei höchsten Stufen öffnet erst ein grosser Sieg (gilt für Schaufel und Rüstung)
-export const TIER_GATE = {
-  9: { ids: ['3-B'], txt: 'Besiege die Morchelmutter (3-B)' },
-  10: { ids: ['Q-1', 'Q-2', 'Q-3'], txt: 'Bezwinge alle drei Qualpfade' },
-  11: { ids: ['D-7'], txt: 'Besiege den Nullfürsten (Geheimduell D-7)' },
+// Die drei höchsten Stufen kosten zusätzlich ein Boss-Material (je Gegenstand, Hand und Rüstung gleich)
+export const MATS = {
+  kern: { name: 'Leerenkern', col: '#ff4fd8', txt: 'Rostmaulwurf, Pendelwerk, Morchelmutter und Wächter der Tiefe' },
+  chrono: { name: 'Chrono-Splitter', col: '#ffd84a', txt: 'Qualpfade und Jagd-Anführer ab Revier 6' },
+  funke: { name: 'Urlicht-Funke', col: '#fff2cf', txt: 'Meisterduelle' },
 };
-export const gateOpen = (cleared, t) => !TIER_GATE[t] || TIER_GATE[t].ids.every(id => cleared && cleared[id]);
+export const MAT_COST = { 9: ['kern', 1], 10: ['chrono', 2], 11: ['funke', 2] };
+// Erster Sieg: garantiert · Wiederholung: Chance
+export const MAT_DROP = {
+  '1-B': ['kern', 1, 0.2], '2-B': ['kern', 1, 0.2], '3-B': ['kern', 1, 0.2],
+  'Q-1': ['chrono', 2, 0.1], 'Q-2': ['chrono', 2, 0.1], 'Q-3': ['chrono', 2, 0.1],
+  '4-6': ['chrono', 1, 0.1], '4-7': ['chrono', 1, 0.1], '4-8': ['chrono', 1, 0.1], '4-9': ['chrono', 1, 0.1], '4-10': ['chrono', 1, 0.1],
+  'D-1': ['funke', 1, 0.1], 'D-2': ['funke', 1, 0.1], 'D-3': ['funke', 1, 0.1], 'D-4': ['funke', 1, 0.1], 'D-5': ['funke', 1, 0.1],
+  'D-6': ['funke', 2, 0.1], 'D-7': ['funke', 2, 0.1],
+};
 
 // dmg: Schaden · reach: Reichweite in px · stone: zerschlägt Stein · pogo: Abprall-Faktor
 export const SHOVEL = [

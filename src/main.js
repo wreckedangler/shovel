@@ -4,7 +4,7 @@ import { DUELS } from './duels.js';
 import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById, ghostKey } from './levels.js';
 import { THEMES } from './themes.js';
-import { TIERS, SHOVEL, PRICE, AVAILABLE, TIER_GATE, gateOpen } from './gear.js';
+import { TIERS, SHOVEL, PRICE, AVAILABLE, MATS, MAT_COST, MAT_DROP } from './gear.js';
 import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces, GRUND_CAP } from './armor.js';
 import { duelDeeds } from './sets.js';
 import { Renderer } from './render.js';
@@ -60,6 +60,20 @@ const lookOf = () => equipGear();
 // Hand (Ausrüstungsmodell 3): Grundschaufel (D.shovel) oder eine Waffe mit eigener Stufe (D.weaponLvl, sonst Startstufe)
 const weaponLvl = id => { const w = weaponById(id); return w ? Math.min(w.cap, Math.max(0, D.weaponLvl[id] ?? w.start)) : 0; };
 if (D.handModel !== 1) { const sh = D.gearUnlocked.shovel || 0; for (const id in D.weapons) { const w = weaponById(id); if (w && D.weaponLvl[id] === undefined) D.weaponLvl[id] = Math.max(w.start, Math.min(w.cap, sh)); } D.handModel = 1; save.write(); }
+// Boss-Materialien (Ausrüstungsmodell 3): Kosten der drei höchsten Stufen
+const matOk = t => { const c = MAT_COST[t]; return !c || (D.mats[c[0]] || 0) >= c[1]; };
+const matPay = t => { const c = MAT_COST[t]; if (c) D.mats[c[0]] -= c[1]; };
+const matMsg = t => { const c = MAT_COST[t], m = MATS[c[0]]; return `Für ${TIERS[t].name} brauchst du ${c[1]} ${m.name} (du hast ${D.mats[c[0]] || 0}). Quelle: ${m.txt}.`; };
+function grantMat(kind, n, why) {
+  D.mats[kind] = (D.mats[kind] || 0) + n;
+  return `<p class="keygain" style="--cc:${MATS[kind].col}">${ic('dia')} ${n > 1 ? n + ' × ' : ''}${esc(MATS[kind].name)}${why ? ` <small>${esc(why)}</small>` : ''}</p>`;
+}
+// Umstellung: Materialien für frühere erste Siege nachträglich gutschreiben (Wächter der Tiefe: je 10 Tiefen ein Leerenkern)
+if (D.matModel !== 1) {
+  for (const [id, [k, n]] of Object.entries(MAT_DROP)) if (D.cleared[id]) D.mats[k] = (D.mats[k] || 0) + n;
+  D.mats.kern = (D.mats.kern || 0) + Math.floor((D.endless.best || 0) / 10);
+  D.matModel = 1; save.write();
+}
 const handTier = () => (D.weapon && D.weapons[D.weapon] && weaponById(D.weapon) ? weaponLvl(D.weapon) : D.shovel);
 setAudio(D.sfx, D.music);
 // Neuer Kartenstand: Bestzeit und Geister dieses Levels neu führen (Sterne, Ränge und Freischaltungen bleiben)
@@ -370,6 +384,8 @@ async function finish() {
   const award = (tag, kind, why) => { const k = id + ':' + tag; if (cheated || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
   if (first) award('clear', level.boss || level.qual ? 'urlicht' : level.secret ? 'gold' : 'holz', level.qual ? 'Qualpfad bezwungen' : level.boss ? 'Boss bezwungen' : level.secret ? 'Geheimer Ort' : 'Erstmals geschafft');
   if (first && level.qual) { D.gems += 1500; D.earned += 1500; }
+  // Boss-Material: beim ersten Sieg sicher, danach mit Glück
+  if (!cheated && MAT_DROP[id]) { const [mk, mn, mp] = MAT_DROP[id]; if (first) keyHtml += grantMat(mk, mn, 'Erster Sieg'); else if (Math.random() < mp) keyHtml += grantMat(mk, 1, 'Glücksfund'); }
   if (!level.secret && D.stars[id] && D.stars[id].every(Boolean)) award('stars', 'eisen', 'Alle drei Sterne');
   if (info.coins && D.coins[id].length >= info.coins) award('coins', 'eisen', 'Alle Münzen');
   if (D.ranks[id] === 'S') award('rankS', 'gold', 'S-Rang');
@@ -951,6 +967,7 @@ async function finishEndless() {
   if (main) {
     E.depth = dep + 1; const rec = dep > E.best; E.best = Math.max(E.best, dep);
     const award = (kind, why) => { const k = 'E' + dep + ':' + E.seed; if (runHasGameplayCheats() || D.keyLog[k]) return; D.keyLog[k] = true; keyHtml += grantKey(kind, 1, why); };
+    if (level.bossTier && !runHasGameplayCheats() && !D.keyLog['K' + dep]) { D.keyLog['K' + dep] = true; keyHtml += grantMat('kern', 1, `Wächter der Tiefe ${dep}`); }
     if (rec && dep % 25 === 0) award('urlicht', `Tiefe ${dep}`); else if (rec && dep % 10 === 0) award('gold', `Tiefe ${dep}`); else if (dep % 5 === 0) award(dep % 10 === 0 ? 'eisen' : 'holz', `Tiefe ${dep}`);
   }
   if (hc) { E.hc.depth = dep + 1; E.hc.best = Math.max(E.hc.best || 0, dep); if (dep % 5 === 0 && !D.keyLog['H' + dep + ':' + E.hc.seed]) { D.keyLog['H' + dep + ':' + E.hc.seed] = true; keyHtml += grantKey(dep % 10 === 0 ? 'gold' : 'eisen', 1, `Ohne Wiederkehr ${dep}`); } }
@@ -1102,9 +1119,8 @@ function forge(msg = '') {
     if (nx >= TIERS.length) return '<span class="max">Höchste Stufe</span>';
     if (nx > cap) return `<span class="max">${id ? 'Höchststufe dieses Stücks' : `Grundstücke enden bei ${esc(TIERS[GRUND_CAP].name)}`}</span>`;
     if (nx >= AVAILABLE) return '';
-    if (!gateOpen(D.cleared, nx)) return `<span class="gate">${ic('lock')} ${esc(TIERS[nx].name)}: ${esc(TIER_GATE[nx].txt)}</span>`;
-    const afford = D.gems >= price && D.shards >= sp;
-    return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}" data-id="${id}"><span class="bl">${id ? 'Aufwerten' : 'Schmieden'}: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
+    const mc = MAT_COST[nx], afford = D.gems >= price && D.shards >= sp && matOk(nx);
+    return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}" data-id="${id}"><span class="bl">${id ? 'Aufwerten' : 'Schmieden'}: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}${mc ? ` + <i class="mat" style="--mc:${MATS[mc[0]].col}">${mc[1]} ${esc(MATS[mc[0]].name)}</i>` : ''}</span></button>`;
   };
   const pips = (cur, cap = 11) => `<span class="pips12">${TIERS.map((t, k) => `<i class="${k <= cur ? 'on' : k > cap ? 'x' : ''}" style="--c:${t.light}"></i>`).join('')}</span>`;
   const wp0 = D.weapon && D.weapons[D.weapon] && weaponById(D.weapon);
@@ -1143,6 +1159,7 @@ function forge(msg = '') {
   const wp = D.weapon && weaponById(D.weapon);
   show(`<div class="panel">
     <div class="top"><button class="back" data-a="map">‹</button><h2>Ausrüstung</h2><span class="gems">${ic('gem')} ${D.gems} · ${ic('dia')} ${D.shards}</span></div>
+    ${Object.values(D.mats).some(v => v > 0) ? `<p class="matrow">${Object.entries(MATS).map(([k, m]) => `<span style="--mc:${m.col}">${esc(m.name)}: <b>${D.mats[k] || 0}</b></span>`).join('')}</p>` : ''}
     <div class="equip">
       <div class="eqpv"><canvas id="preview" width="168" height="168"></canvas>
         <div class="stats6">
@@ -1327,10 +1344,10 @@ ui.addEventListener('click', async e => {
         const w = weaponById(b.dataset.id); if (!w || !D.weapons[w.id]) return sfx('nope');
         const n = weaponLvl(w.id) + 1, wp = PRICE[n], wsp = SHARD_PRICE[n] || 0;
         if (n > w.cap || n >= AVAILABLE) { sfx('nope'); return forge('Diese Waffe hat ihre Höchststufe erreicht.'); }
-        if (!gateOpen(D.cleared, n)) { sfx('nope'); return forge(TIER_GATE[n].txt + ', dann lässt sich ' + TIERS[n].name + ' schmieden.'); }
+        if (!matOk(n)) { sfx('nope'); return forge(matMsg(n)); }
         if (D.gems < wp) { sfx('nope'); return forge(`Dir fehlen noch ${wp - D.gems} Edelsteine.`); }
         if (D.shards < wsp) { sfx('nope'); return forge(`Dir fehlen noch ${wsp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
-        D.gems -= wp; D.shards -= wsp; D.weaponLvl[w.id] = n; save.write(); sfx('legend');
+        D.gems -= wp; D.shards -= wsp; matPay(n); D.weaponLvl[w.id] = n; save.write(); sfx('legend');
         return forge(`${esc(w.name)} ist jetzt ${esc(TIERS[n].name)}.`);
       }
       if (b.dataset.id) {
@@ -1338,20 +1355,20 @@ ui.addEventListener('click', async e => {
         const pid = b.dataset.id, u = uniqueById(pid); if (!u || !D.pieces[pid]) return sfx('nope');
         const n = pieceLvl(pid) + 1, pp = piecePrice(n), psp = Math.ceil((SHARD_PRICE[n] || 0) / 3);
         if (n > u.cap) { sfx('nope'); return forge('Dieses Stück hat seine Höchststufe erreicht.'); }
-        if (!gateOpen(D.cleared, n)) { sfx('nope'); return forge(TIER_GATE[n].txt + ', dann lässt sich ' + TIERS[n].name + ' schmieden.'); }
+        if (!matOk(n)) { sfx('nope'); return forge(matMsg(n)); }
         if (D.gems < pp) { sfx('nope'); return forge(`Dir fehlen noch ${pp - D.gems} Edelsteine.`); }
         if (D.shards < psp) { sfx('nope'); return forge(`Dir fehlen noch ${psp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
-        D.gems -= pp; D.shards -= psp; D.pieceLvl[pid] = n; save.write(); sfx('legend');
+        D.gems -= pp; D.shards -= psp; matPay(n); D.pieceLvl[pid] = n; save.write(); sfx('legend');
         return forge(`${esc(u.name)} ist jetzt ${esc(TIERS[n].name)}.`);
       }
       const k = b.dataset.k, isSh = k === 'shovel', nx = (isSh ? D.gearUnlocked.shovel : D[k]) + 1, price = isSh ? PRICE[nx] : piecePrice(nx);
       if (isSh && nx > GRUND_CAP) { sfx('nope'); return forge(`Die Grundschaufel endet bei ${TIERS[GRUND_CAP].name}. Für mehr eine Waffe anlegen und aufwerten.`); }
       if (!isSh && nx > GRUND_CAP) { sfx('nope'); return forge(`Grundstücke enden bei ${TIERS[GRUND_CAP].name}. Für mehr ein besonderes Stück anlegen und aufwerten.`); }
       const sp = isSh ? SHARD_PRICE[nx] || 0 : Math.ceil((SHARD_PRICE[nx] || 0) / 3);
-      if (nx < AVAILABLE && !gateOpen(D.cleared, nx)) { sfx('nope'); return forge(TIER_GATE[nx].txt + ', dann lässt sich ' + TIERS[nx].name + ' schmieden.'); }
+      if (nx < AVAILABLE && !matOk(nx)) { sfx('nope'); return forge(matMsg(nx)); }
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }
       if (D.shards < sp) { sfx('nope'); return forge(`Dir fehlen noch ${sp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
-      D.gems -= price; D.shards -= sp; D[k] = nx; if (isSh) D.gearUnlocked.shovel = nx;
+      D.gems -= price; D.shards -= sp; matPay(nx); D[k] = nx; if (isSh) D.gearUnlocked.shovel = nx;
       // geschmiedete Stufe gleich anlegen, ausser ein einzigartiges Stück ist angelegt (es behält seine eigene Stufe)
       if (!isSh && typeof D.equip[k] !== 'string') D.equip[k] = nx;
       save.write(); sfx('legend');
