@@ -14,6 +14,7 @@ import { ghostAt, fmtTime } from './ghost.js';
 import { drawLegend } from './legend-art.js';
 import { drawSetFx } from './sets.js';
 import { drawHunter } from './hunt-art.js';
+const POSED = new Set(['mole', 'golem', 'morchel', 'duelist', 'hunter', 'roamer', 'beetle', 'knight', 'toad', 'blorb', 'snail']);
 import * as S from './sprites.js';
 
 const K = '#140c1c';
@@ -25,11 +26,20 @@ export class Renderer {
   snapCamera(g) { this.cam = this.target(g); }
   target(g) {
     const p = g.camFocus || g.p;
-    // Vorausblick: in Blickrichtung und mit dem Tempo, weich nachgeführt
-    const want = p.face * (this.W < 260 ? 40 : 52) + p.vx * 10;
-    this.lead = (this.lead ?? want) + (want - (this.lead ?? want)) * 0.05;
+    // Vorausblick: vor allem mit dem Tempo, Blickrichtung nur leicht – ein Umdrehen reisst die Ansicht nicht herum
+    const want = Math.max(-56, Math.min(56, p.face * (this.W < 260 ? 14 : 20) + p.vx * 14));
+    this.lead = (this.lead ?? want) + (want - (this.lead ?? want)) * 0.04;
     let x = p.x + p.w / 2 + this.lead - this.W / 2;
     let y0 = p.y - this.H * 0.55;
+    // Gegner im Blick behalten: laufender Bosskampf oder der nächste nahe Gegner wird mit ins Bild genommen,
+    // der Held bleibt dabei immer mit Rand sichtbar
+    const th = !g.camFocus && this.threat(g);
+    if (th) {
+      const q = g.p, mid = (q.x + q.w / 2 + th.x + th.w / 2) / 2 - this.W / 2, m = Math.min(40, this.W * 0.2);
+      this.thMix = Math.min(1, (this.thMix || 0) + 0.04);
+      x += (mid - x) * 0.8 * this.thMix;
+      x = Math.max(q.x + q.w + m - this.W, Math.min(q.x - m, x));
+    } else this.thMix = Math.max(0, (this.thMix || 0) - 0.03);
     // Duell: Mitte zwischen beiden, aber der eigene Held bleibt mit Rand im Bild
     if (g.camFocus) { const q = g.p, m = Math.min(48, this.W * 0.22); x = Math.max(q.x + q.w + m - this.W, Math.min(q.x - m, x)); y0 = Math.max(q.y + 40 - this.H, Math.min(q.y - 30, y0)); }
     x = Math.max(0, Math.min(g.w * T - this.W, x));
@@ -39,6 +49,18 @@ export class Renderer {
     return { x, y };
   }
 
+  // Wichtigster Gegner fürs Bild: aktiver Boss, sonst der nächste wache Gegner in Reichweite
+  threat(g) {
+    const p = g.p, b = g.boss;
+    if (b && !b.dead && b.state !== 'idle' && !b.hidden && Math.abs(b.x - p.x) < this.W * 1.4) return b;
+    let best = null, bd = this.W * 0.75;
+    for (const e of g.ents) {
+      if (!e.foe || e.dead || e.hidden || e.float) continue;
+      const d = Math.abs(e.x + e.w / 2 - p.x - p.w / 2);
+      if (d < bd && Math.abs(e.y - p.y) < 64) { bd = d; best = e; }
+    }
+    return best;
+  }
   draw(g, ghosts = []) {
     // Zwischenwert zwischen zwei Logikschritten: flüssig auf 90/120-Hz-Bildschirmen
     const p0 = g.p, al = this.alpha ?? 1, rx = p0.x, ry = p0.y;
@@ -212,7 +234,7 @@ export class Renderer {
     if (e.elite && !e.dead && this.symbols) S.drawText(this.x, { schnell: '>>', zaeh: '+', teilt: '%', wut: '!' }[e.elite], Math.round(e.x + e.w / 2), Math.round(e.y) - 8, '#ffffff', 1, 'center');
     if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255', wut: '255,120,20' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
     if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
-    this.ent0(g, e, th);
+    if (e.foe && POSED.has(e.type) && !e.dead) this.posed(g, e, th); else this.ent0(g, e, th);
     if (e.frozen > 0 && !e.dead) { const x = this.x; x.globalAlpha = e.frozen < 40 && (this.t >> 2) & 1 ? 0.3 : 0.6; x.fillStyle = '#bff0ff'; x.fillRect(Math.round(e.x) - 1, Math.round(e.y) - 1, e.w + 2, e.h + 2); x.globalAlpha = 1; x.fillStyle = '#ffffff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y), e.w - 2, 1); }
     if (e.poison > 0 && !e.dead && (this.t + e.x) % 9 === 0) g.parts.push({ x: e.x + Math.random() * e.w, y: e.y, vx: 0, vy: -0.4, life: 16, col: g.mod.fire ? 'fire' : 'spore', grav: 0 });
     if (e.golden && !e.dead) {
@@ -220,6 +242,31 @@ export class Renderer {
       if ((this.t + e.x) % 12 < 2) { x.fillStyle = '#fff6b0'; x.fillRect(Math.round(e.x + Math.random() * e.w), Math.round(e.y + Math.random() * e.h), 1, 1); }
       x.globalAlpha = 0.45; x.fillStyle = '#ffd84a'; x.fillRect(Math.round(e.x), Math.round(e.y), e.w, e.h); x.globalAlpha = 1;
     }
+  }
+  // Lebendige Bewegung für Bosse und grössere Gegner (nur Darstellung): Laufen mit Schritt-Wippen,
+  // Strecken beim Sprung, Stauchen bei der Landung, Ausholen nach hinten, Vorstoss mit Nachbild, Flügelschlag beim Fliegen
+  posed(g, e, th) {
+    const x = this.x, m = this.pose || (this.pose = new WeakMap());
+    let st = m.get(e); if (!st) { st = { px: e.x, py: e.y, ph: 0, land: 0, air: false }; m.set(e, st); }
+    const vx = e.x - st.px, vy = e.y - st.py; st.px = e.x; st.py = e.y;
+    const s = e.state || '', fly = e.float || (e.design && (e.design.move === 'fly' || e.design.id === 'D-3'));
+    const face = e.face || e.dir || (vx >= 0 ? 1 : -1);
+    let sx = 1, sy = 1, shear = 0, bob = 0, jig = 0, smear = 0;
+    const air = !fly && Math.abs(vy) > 0.6;
+    if (st.air && !air) st.land = 7;
+    st.air = air;
+    if (fly) { const w = Math.sin(this.t * 0.45 + e.x * 0.01); sx = 1 + w * 0.07; sy = 1 - w * 0.04; shear = -vx * 0.05; }
+    else if (air) { if (vy < 0) { sy = 1.12; sx = 0.92; } else { sy = 1.05; sx = 0.97; } shear = -vx * 0.04; }
+    else if (Math.abs(vx) > 0.12) { st.ph += Math.min(0.6, Math.abs(vx) * 0.32); bob = -Math.abs(Math.sin(st.ph)) * 2.2; sy = 1 - Math.abs(Math.cos(st.ph * 2)) * 0.04; shear = -Math.sign(vx) * Math.min(0.12, Math.abs(vx) * 0.05); }
+    else { const br = Math.sin(this.t * 0.07 + e.x * 0.03); sy = 1 + br * 0.025; sx = 1 - br * 0.015; }
+    if (st.land > 0) { const k = st.land / 7; sy *= 1 - 0.18 * k; sx *= 1 + 0.16 * k; st.land--; }
+    if (['wind', 'crouch', 'warn', 'swing', 'slamwind', 'sink', 'roar'].includes(s)) { shear += face * 0.13; jig = (this.t >> 1) & 1 ? 1 : -1; if (s !== 'roar') sy *= 0.94; }
+    if (['charge', 'strike', 'sweep', 'pounce', 'leap', 'throw', 'volley', 'hop'].includes(s)) { shear -= face * 0.12; sx *= 1.06; if (Math.abs(vx) > 1.8) smear = vx; }
+    if (e.flash > 0) jig += e.flash & 1 ? 1 : -1;
+    const ox = e.x + e.w / 2, oy = e.y + e.h;
+    const draw = () => { x.save(); x.translate(ox + jig, oy + bob); x.transform(sx, 0, shear, sy, 0, 0); x.translate(-ox, -oy); this.ent0(g, e, th); x.restore(); };
+    if (smear) { const a = x.globalAlpha; x.globalAlpha = a * 0.28; x.save(); x.translate(-smear * 3, 0); draw(); x.restore(); x.globalAlpha = a; }
+    draw();
   }
   ent0(g, e, th) {
     if (e.type === 'hunter' || e.type === 'roamer' || e.type === 'duelist') return drawHunter(this.x, e, this.t);
