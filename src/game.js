@@ -23,7 +23,7 @@ export class Game {
     this.enemyRevision = opt.enemyRevision ?? 2;
     // Stärke der Boss-KI (0–4, Standard 2), steht in jeder Wiederholung
     this.aiLevel = aiLevelOf(opt.ai);
-    this.armorRevision = opt.armorRevision ?? 1;
+    this.armorRevision = opt.armorRevision ?? 2;
     this.sh = SHOVEL[gear.shovel];
     // Rüstung aus vier Teilen (altes Format { armor: n } = alle Teile Stufe n, ergibt exakt die alten Werte)
     this.look = loadout(gear);

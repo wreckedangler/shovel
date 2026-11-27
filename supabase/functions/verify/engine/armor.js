@@ -266,12 +266,13 @@ export const BOSS_REWARD = { '1-B': 'drachenklauen', '2-B': 'rueckspulmantel', '
   'D-6': 'blutpakt', 'D-7': 'knochenkoenig' };
 
 /* ---------- Ausrüstung lesen ---------- */
-// rev 0: alte Basis-Stufen (Wiederholungen von früher)
-// Wert eines Platzes: Zahl (Stufe) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück, Werte mindestens auf seiner Basis-Stufe)
-export function pieceOf(slot, v, rev = 1) {
+// Wert eines Platzes: Zahl (Stufe) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück).
+// rev 2 (aktuell): ein Stück hat immer genau seine eigene Stufe, die Schmiede hebt es nicht an.
+// rev 1: Stufe des Stücks, geschmiedete Stufe hob an · rev 0: alte Basis-Stufen (Wiederholungen von früher, Arena)
+export function pieceOf(slot, v, rev = 2) {
   if (typeof v === 'string') {
     const [id, t] = v.split('@'), it = uniqueById(id);
-    if (it && it.slot === slot) return { slot, tier: Math.max(rev ? it.tier : it.legacy, Math.min(11, Math.floor(+t || 0))), item: it };
+    if (it && it.slot === slot) return { slot, tier: rev >= 2 ? it.tier : Math.max(rev ? it.tier : it.legacy, Math.min(11, Math.floor(+t || 0))), item: it };
     return { slot, tier: 0, item: null };
   }
   const t = Number.isFinite(v) ? Math.max(0, Math.min(11, Math.floor(v))) : 0;
@@ -294,7 +295,7 @@ function stack(vals, cap, min) {
   return cap ? Math.min(cap, t) : t;
 }
 // Zusammenrechnen aller vier Teile (inklusive Obergrenzen). Ergebnis enthält die alten ARMOR-Felder (hp, kb, spike, inv, ward, air, magnet, rewind).
-export function armorStats(set, rev = 1) {
+export function armorStats(set, rev = 2) {
   let hp = 0, kbPts = 0, spikeRes = 0, inv = 0, ward = 0, air = 0, magnet = false, rewind = false;
   const tiers = {}, items = {}, raw = {};
   for (const s of SLOT_IDS) {
