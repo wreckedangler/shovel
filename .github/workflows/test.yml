@@ -20,9 +20,10 @@ jobs:
       - run: node tools/roamertest.mjs
       - run: node tools/dueltest.mjs
       - run: node tools/gentest.mjs 1000
-      - name: Suchbot-Stichprobe (Qualpfad 1, generiertes Level)
+      - name: Suchbot-Stichprobe (Qualpfad 1 in Abschnitten, generiertes Level)
         run: |
-          BEAM=40 timeout 600 node tools/solve.mjs Q-1 4 4
+          TARGET=80,11 BEAM=40 timeout 600 node tools/solve.mjs Q-1 4 4
+          START=100,10 TARGET=135,12 BEAM=40 timeout 600 node tools/solve.mjs Q-1 4 4
           GEN=1000:1 BEAM=30 timeout 600 node tools/solve.mjs gen
       - run: node tools/bundle.mjs
       - name: Typprüfung (JSDoc, ausgewählte Module)
