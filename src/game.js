@@ -536,7 +536,8 @@ export class Game {
         this.ev('boing', p.x, p.y); this.burst(cx(p), p.y + p.h, 8, 'spore', 1.5);
       } else if (p.spike) {
         if (this.ar.spike > 0) this.hurtPlayer(this.ar.spike, 0, true);
-        else { p.vy = -4; p.onGround = false; }
+        // Stachelfest: Stacheln tragen wie normaler Boden (früher Dauer-Hüpfen ohne Absprung; alte Wiederholungen behalten das)
+        else if (!this.armorRevision) { p.vy = -4; p.onGround = false; }
       }
     }
     if (p.land > 0) p.land--;
