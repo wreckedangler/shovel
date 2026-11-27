@@ -43,16 +43,16 @@ class Grid {
 const diffOf = depth => Math.min(1, depth / 30);
 
 /* ---------- Waagrechte Bauarten ---------- */
-function horizontal(r, bio, style, depth, chased = false) {
+function horizontal(r, bio, style, depth, chased = false, opt = {}) {
   const cave = style === 'hoehle', abyss = style === 'abgrund';
   // Zweistöckig (nur Pfad/Abgrund, nie bei Verfolgung): unterer Weg wie gewohnt, 6 Kacheln tiefer,
   // darüber ein schwieriger oberer Weg mit mehr Beute
-  const two = !chased && (style === 'lauf' || abyss) && r() < 0.4, O = two ? 6 : 0;
-  const d = diffOf(depth), H = 14 + O, W = ri(r, 90, 110) + Math.round(d * 50);
+  const two = !opt.qual && !chased && (style === 'lauf' || abyss) && r() < 0.4, O = two ? 6 : 0;
+  const d = diffOf(depth), H = 14 + O, W = opt.width || ri(r, 90, 110) + Math.round(d * 50);
   const g = new Grid(W + 60, H);
-  let x = 0, gy = 10 + O, last = '', coins = 0, sinceCheck = 0; const TOP = (cave ? 7 : 4) + O + (two ? 2 : 0);
+  let x = 0, gy = 10 + O, last = '', coins = opt.qual ? 3 : 0, sinceCheck = 0; const TOP = (cave ? 7 : 4) + O + (two ? 2 : 0);
   const checks = [];
-  const foeP = 0.27 + d * 0.4;
+  const foeP = opt.qual ? 0.8 : 0.27 + d * 0.4;
   const groundFoe = () => pickW(r, bio.foes), airFoe = () => pickW(r, bio.air);
   const putGround = (a, b, y = gy) => { for (let k = a; k < b; k++) g.ground(k, y); };
   const gems = (a, b, y) => { if (two && r() < 0.4) return; for (let k = a; k < b; k++) if (g.get(k, y) === '.') g.set(k, y, 'G'); };
@@ -140,8 +140,13 @@ function horizontal(r, bio, style, depth, chased = false) {
     pool.icicles = tw * (caveB || cave ? 1.5 : 0.5); pool.saws = tw * (mech ? 1.6 : 0.7); pool.arrows = tw * (bio.id === 'dornen' ? 1.8 : 0.8); pool.flips = tw * (mech || bio.id === 'wald' ? 1.2 : 0.6);
     if (depth >= 18) pool.troll = 0.6;
   }
+  if (opt.qual) {
+    // Qualpfad: Fallen und Gegner überall, kaum Verschnaufpausen, keine Verstecke
+    Object.assign(pool, { flat: 0.8, pocket: 0, arc: 0, dirt: (pool.dirt || 0) * 0.3, spikes: 3, gap: 3, bridge: 2.5, crumble: 2.2, saws: 3, arrows: 3, flips: 2.5, troll: 1.2, icicles: cave ? 3 : 1 });
+    if (chased) Object.assign(pool, { mover: 0, vent: 0 });
+  }
   while (x < W - 10) {
-    if (sinceCheck > 38 && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); checks.push(x + 1); x += 4; sinceCheck = 0; continue; }
+    if (sinceCheck > (opt.qual ? 64 : 38) && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); checks.push(x + 1); x += 4; sinceCheck = 0; continue; }
     let name = pickW(r, pool); if (name === last && r() < 0.7) name = pickW(r, pool);
     const x0 = x, gy0 = gy; CH[name](); last = name; sinceCheck += x - x0; 
   }
@@ -381,4 +386,44 @@ export function reachable(map) {
   const reach = p => seen.has(key(...p)) || visitedAir.has(key(...p));
   const ok = reach(goal), coinsOk = coins.filter(reach).length;
   return { ok, coins: coinsOk, coinTotal: coins.length, why: ok ? '' : 'Ziel unerreichbar' };
+}
+
+/* ---------- Qualpfade: angehängte Abschnitte in voller Härte ---------- */
+// Waagrecht: ein Abschnitt in Tiefe-40-Härte ohne Verstecke, Startplattform ohne 'P' (Anschluss an das handgebaute Level)
+export function qualSection(seed, themeId, width, style = 'lauf', chased = false) {
+  const r = rng(hashSeed('qual' + seed + ':' + themeId));
+  const bio = BIOMES.find(b => b.id === themeId) || BIOMES[0];
+  return horizontal(r, bio, style, 40, chased, { qual: true, width });
+}
+// Senkrecht: Qual-Schacht mit Bröckel- und Kippplattformen, Pfeilwerfern in den Wänden und Sägen über den Absätzen
+export function qualShaft(seed, themeId, height) {
+  const r = rng(hashSeed('qualschacht' + seed + ':' + themeId));
+  const bio = BIOMES.find(b => b.id === themeId) || BIOMES[0];
+  const W = 20, H = height, g = new Grid(W, H);
+  for (let y = 0; y < H; y++) { g.set(0, y, '#'); g.set(W - 1, y, '#'); }
+  let y = H + 1, px = 3, opw = 4, sinceCheck = 0, k = 0;
+  while (y > 7) {
+    const pw = ri(r, 3, 4), ny = y - 2;
+    const nx = Math.max(1, Math.min(W - 1 - pw, px + ri(r, -pw - 2, opw + 2)));
+    const overlap = nx < px + opw && nx + pw > px;
+    const kind = overlap ? '=' : pickW(r, { '=': 2, c: 2, K: 1.5 });
+    for (let j = 0; j < pw; j++) g.set(nx + j, ny, kind);
+    // Gegner auf breiten festen Absätzen, Flieger in der Luft
+    if (kind === '=' && pw >= 4 && r() < 0.6) g.set(nx + 1, ny - 1, pickW(r, bio.foes));
+    else if (Object.keys(bio.air).length && r() < 0.55) g.set(Math.max(2, Math.min(W - 3, nx + ri(r, -3, pw + 2))), ny - 2, pickW(r, bio.air));
+    // Pfeilwerfer in der Wand auf Laufhöhe, gegenüber vom Absatz
+    if (++k % 3 === 0) g.set(nx < W / 2 ? W - 1 : 0, ny - 1, 'A');
+    // Säge über manchen festen Absätzen (zwingt zum Timing)
+    if (kind === '=' && r() < 0.3 && ny - 3 > 1) g.set(nx + 1, ny - 3, 'Z');
+    if (r() < 0.35) g.set(nx + Math.floor(pw / 2), ny - 2 < 0 ? ny : ny - 2, g.get(nx + Math.floor(pw / 2), ny - 2) === '.' ? 'G' : g.get(nx + Math.floor(pw / 2), ny - 2));
+    sinceCheck += 2;
+    if (sinceCheck > 22 && kind === '=') { g.set(nx + pw - 1, ny - 1, 'C'); sinceCheck = 0; }
+    px = nx; y = ny; opw = pw;
+  }
+  for (let j = 0; j < 4; j++) g.set(Math.max(1, Math.min(W - 5, px)) + j, y - 3, '=');
+  g.set(Math.max(1, Math.min(W - 5, px)) + 1, y - 4, 'E');
+  // Laternen sind sichere Orte: keine Gegner direkt daneben
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) if (g.get(xx, yy) === 'C')
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -4; dx <= 4; dx++) if ('bokfsqvwuk'.includes(g.get(xx + dx, yy + dy))) g.set(xx + dx, yy + dy, '.');
+  return g.rows();
 }

@@ -48,7 +48,8 @@ export async function decodeReplay(code) {
 export function simulate(r, opts = {}) {
   let L = opts.level || levelById(r.level); if (!L) return null;
   // Wiederholung vom alten Kartenstand: auf der alten Karte abspielen
-  if (!opts.level && L.legacyMap && (r.opt?.mapRev ?? 1) !== L.rev) L = { ...L, map: L.legacyMap, par: L.legacyPar, rev: r.opt?.mapRev ?? 1 };
+  const mr = r.opt?.mapRev ?? 1;
+  if (!opts.level && L.maps && mr !== L.rev && L.maps[mr]) L = { ...L, map: L.maps[mr], par: L.pars[mr], rev: mr };
   const g = new Game(L, r.gear, { ...r.opt, enemyRevision: r.opt?.enemyRevision ?? 0, armorRevision: r.opt?.armorRevision ?? 0 });
   const ins = unrle(r.in), max = opts.max || 60 * 60 * 30;
   for (let i = 0; i < ins.length && i < max; i++) g.step(maskToInput(ins[i]));

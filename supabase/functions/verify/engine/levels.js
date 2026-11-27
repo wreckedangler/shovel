@@ -564,7 +564,13 @@ function remix(id, rev, par, edits) {
     if (cur !== want) throw new Error(`Umbau ${id} bei ${x + i},${y}: erwartet '${want}', gefunden '${cur}'`);
     rows[y][x + i] = str[i];
   }
-  L.legacyMap = L.map; L.legacyPar = L.par; L.map = rows.map(r => r.join('')); L.rev = rev; L.par = par;
+  setRev(L, rev, par, rows.map(r => r.join('')));
+}
+// Kartenstände je Level aufbewahren: Wiederholungen und Geister laufen auf dem Stand, mit dem sie aufgenommen wurden
+function setRev(L, rev, par, map) {
+  L.maps = L.maps || {}; L.pars = L.pars || {};
+  L.maps[L.rev || 1] = L.map; L.pars[L.rev || 1] = L.par;
+  L.map = map; L.rev = rev; L.par = par; L.legacyMap = L.maps[1]; L.legacyPar = L.pars[1];
 }
 // Welt 1: sanft
 remix('1-1', 2, 45, [[40, 10, 'b'], [45, 6, 'v'], [58, 10, 'b'], [73, 10, 'o'], [94, 4, 'v'], [122, 10, 'b']]);
@@ -579,10 +585,71 @@ remix('3-1', 2, 70, [[30, 7, 'v'], [57, 10, 's'], [76, 3, 's'], [100, 4, 'v'],
   [100, 11, 'cccc', '####'], [100, 12, '....', '####'], [100, 13, '....', '####']]);
 remix('3-2', 2, 72, [[30, 6, 'v'], [51, 10, 's'], [69, 7, 'L'], [84, 7, 'L'], [96, 10, 's'], [111, 5, 'v'], [102, 10, 'C']]);
 remix('3-3', 2, 78, [[27, 5, 'v'], [34, 8, 'v'], [75, 3, 's'], [87, 8, 'v'], [104, 9, 'A', '#'], [63, 10, 'C']]);
+/* ---------- Verdichtung (Welten 1–3 Kartenstand 3, Geheimlevels Kartenstand 2) ---------- */
+// Mehr Gegner und Fallen nach festen Regeln: Bodengegner auf freien, ebenen Strecken, Flieger über Gruben,
+// in Welt 2 und 3 Bodensägen, die man überspringen muss. Nie näher als 6 Kacheln an Start, Laterne, Ziel, Schild,
+// Truhe oder Altar. Danach wird die Karte statisch auf Schaffbarkeit geprüft.
+function densify(id, rev, opt) {
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), map = densifyRows(L.map, opt);
+  // nur prüfbar, wo die statische Prüfung schon die alte Karte versteht (manche Levels brauchen Pilz-Schaufel-Sprünge)
+  if (reachable(L.map).ok && !reachable(map).ok) throw new Error('Verdichtung macht ' + id + ' unschaffbar');
+  setRev(L, rev, L.par + (opt.parAdd || 0), map);
+}
+function densifyRows(src, { ground, air, every, saw = 0, quietR = 6 }) {
+  const rows = src.map(r => r.split('')), H = rows.length, W = rows[0].length;
+  const at = (x, y) => (x < 0 || x >= W || y < 0 || y >= H ? '#' : rows[y][x]);
+  const solid = c => '#=SDRBc'.includes(c);
+  const quiet = (x, y, r = 6) => { for (let yy = y - 3; yy <= y + 3; yy++) for (let xx = x - r; xx <= x + r; xx++) if ('PCEiTQYbokfsqvwuzZUAL'.includes(at(xx, yy))) return false; return true; };
+  let lastG = -99, lastA = -99, lastS = -99, n = 0;
+  for (let x = 8; x < W - 8; x++) for (let y = 1; y < H - 1; y++) {
+    if (at(x, y) !== '.' || at(x, y - 1) !== '.') continue;
+    const flat = [-2, -1, 0, 1, 2].every(d => '.G'.includes(at(x + d, y)) && solid(at(x + d, y + 1)) && at(x + d, y + 1) !== 'B');
+    if (flat && x - lastG >= every && quiet(x, y, quietR)) { rows[y][x] = ground[n++ % ground.length]; lastG = x; continue; }
+    if (flat && saw && x - lastS >= saw && x - lastG >= 4 && quiet(x, y, 4)) { rows[y][x] = 'Z'; lastS = x; continue; }
+    // Grube: drei Spalten ohne Boden bis ganz unten → Flieger zwei Reihen über der Kante
+    const pit = [-1, 0, 1].every(d => { for (let yy = y; yy < H; yy++) if (at(x + d, yy) !== '.' && at(x + d, yy) !== 'G') return false; return true; });
+    if (pit && air.length && x - lastA >= every && y >= 3 && quiet(x, y, 5)) { rows[y - 1][x] = air[n++ % air.length]; lastA = x; }
+  }
+  return rows.map(r => r.join(''));
+}
+const W1 = { ground: ['b', 'o'], air: ['v'], every: 22, parAdd: 4 }, W2 = { ground: ['k', 'b'], air: ['u'], every: 18, saw: 45, parAdd: 6 }, W3 = { ground: ['s', 'o', 'f'], air: ['v', 'w'], every: 15, saw: 40, parAdd: 8 };
+for (const id of ['1-1', '1-2', '1-3']) densify(id, 3, W1);
+for (const id of ['2-1', '2-2', '2-3']) densify(id, 3, W2);
+for (const id of ['3-1', '3-2', '3-3']) densify(id, 3, W3);
+densify('1-G', 2, W1); densify('2-G', 2, W2); densify('3-G', 2, W3); densify('X-0', 2, { ...W3, ground: ['k', 's', 'o'] });
+
+/* ---------- Qualpfade, Kartenstand 2: eine echte Qual ---------- */
+// Das handgebaute Level bleibt der Auftakt. Danach folgt ein langer Abschnitt in Tiefe-40-Härte: Fallen und Gegner überall,
+// Laternen nur alle 60+ Kacheln, ein Drittel der Gegner sind Elite (schnell, zäh oder teilend). Jeder Abschnitt wird
+// statisch auf Schaffbarkeit geprüft; der erste Seed, der besteht, wird genommen (immer derselbe, deterministisch).
+const QUAL_ELITE = 0.35;
+function qualExtend(id, { theme, style, width, chased = false, dense }) {
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), old = L.map.map(r => r.replace('E', 'C'));
+  for (let seed = 1; seed <= 60; seed++) {
+    const sec = qualSection(seed, theme, width, style, chased).map(r => r.replace('P', '.'));
+    const top = sec[0].replace(/[^#.]/g, '.');
+    const rows = [top, ...sec.slice(0, old.length - 1)];
+    const map = densifyRows(old.map((r, y) => r + rows[y]), dense);
+    if (reachable(map).ok) { setRev(L, 2, L.par + Math.round(width * 0.55), map); L.elite = QUAL_ELITE; return; }
+  }
+  throw new Error('Qualpfad ' + id + ': kein schaffbarer Abschnitt');
+}
+function qualClimb(id, { theme, height }) {
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), top = L.map.findIndex(r => r.includes('E'));
+  const old = L.map.slice(top).map(r => r.replace('E', 'C'));
+  for (let seed = 1; seed <= 60; seed++) {
+    const map = [...qualShaft(seed, theme, height), ...old];
+    if (reachable(map).ok) { setRev(L, 2, L.par + Math.round(height * 1.1), map); L.elite = QUAL_ELITE; return; }
+  }
+  throw new Error('Qualpfad ' + id + ': kein schaffbarer Aufstieg');
+}
+qualExtend('Q-1', { theme: 'hoehle', style: 'hoehle', width: 190, dense: { ground: ['b', 'o', 'k', 's'], air: ['v'], every: 9, saw: 22, quietR: 4 } });
+qualExtend('Q-2', { theme: 'dornen', style: 'abgrund', width: 200, chased: true, dense: { ground: ['b', 'f', 'q', 'k'], air: ['w', 'v'], every: 9, saw: 20, quietR: 4 } });
+qualClimb('Q-3', { theme: 'bau', height: 80 });
 // Online-Bestenlisten und Geister gelten je Kartenstand
 export const ghostKey = id => { const L = /** @type {any} */ (LEVELS.find(l => l.id === id)); return L && L.rev > 1 ? `${id}~${L.rev}` : id; };
 
-import { generateLevel } from './gen.js';
+import { generateLevel, qualSection, qualShaft, reachable } from './gen.js';
 const genCache = new Map();
 // Generierte Levels haben die Kennung ∞<Tiefe>-<Seed>
 export const levelById = id => {

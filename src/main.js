@@ -82,7 +82,7 @@ setAudio(D.sfx, D.music);
   let reset = 0;
   for (const L of LEVELS) if (L.rev && mr[L.id] !== L.rev) { if (D.best[L.id]) reset++; delete D.best[L.id]; delete D.ghosts[L.id]; delete D.imported[L.id]; mr[L.id] = L.rev; }
   save.write();
-  if (reset) setTimeout(() => toast('Neue Karten', `Welten 1–3 sind schwieriger geworden. ${reset} Bestzeit${reset > 1 ? 'en wurden' : ' wurde'} zurückgesetzt.`), 1500);
+  if (reset) setTimeout(() => toast('Neue Karten', `Karten wurden schwieriger und länger. ${reset} Bestzeit${reset > 1 ? 'en wurden' : ' wurde'} zurückgesetzt.`), 1500);
 }
 // Spieler online: Zähler im Titel laufend aktualisieren
 if (online()) {
@@ -692,7 +692,7 @@ const mainRun = L => L && L.gen && L.seed === D.endless.seed && L.depth === D.en
 const activeCurses = () => cursesOpen() ? Object.fromEntries(CURSES.filter(c => D.endless.curses && D.endless.curses[c.id]).map(c => [c.id, true])) : {};
 const curseMul = () => 1 + CURSES.filter(c => activeCurses()[c.id]).reduce((a, c) => a + c.mul, 0);
 function runOpts(L) {
-  if (!L.gen) return {};
+  if (!L.gen) return L.elite ? { elite: L.elite } : {};
   if (tsRun(L)) { const k = D.ts.k; D.ts.inStage = k; save.write(); return { daily: true, ai: AI_DEFAULT, elite: L.elite || 0, bossTier: L.bossTier || 0, noCheck: true, hudLabel: 'STUFE ' + k, marks: tsMarksFor(k) }; }
   const o = { elite: L.elite || 0, bossTier: L.bossTier || 0 };
   if (mainRun(L) || hcRun(L)) { o.curses = activeCurses(); if (o.curses.zeitdruck) o.timeLimit = Math.round(L.par * 60); }
