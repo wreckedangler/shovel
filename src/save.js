@@ -15,6 +15,7 @@ const DEF = {
   weapon: null,    // ausgerüstete Waffe (null = Schaufel)
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
+  mapRev: {},      // Kartenstand je Level (Bestzeiten gelten nur für denselben Stand)
   ai: 2,           // KI-Stärke der Bosse (0–4, 2 = Standard) – zum Testen in den Optionen
   cheatsKnown: {}, cheatsOn: {}, seenSplash: false,
   endless: { seed: 0, depth: 1, best: 0, runs: 0, coins: 0, curses: {}, hc: { on: false, seed: 0, depth: 1, best: 0 } },

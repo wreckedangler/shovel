@@ -3,7 +3,7 @@
 // Alle Bausteine halten die Sprungregeln ein: Lücke ≤ 3 Kacheln, Stufe ≤ 2 Kacheln, Pilz = 4 Kacheln.
 
 // Erhöhen, sobald sich erzeugte Levels ändern: Blutflecken älterer Versionen werden dann ausgeblendet.
-export const GEN_VERSION = 2;
+export const GEN_VERSION = 3;  // 3: schneller ansteigend, mehr Gegner und Fallen, früher Verfolger und Elitegegner
 
 export function rng(seed) {
   let s = (seed >>> 0) || 1;
@@ -40,7 +40,7 @@ class Grid {
 }
 
 // Schwierigkeit 0..1 aus der Tiefe (ab Tiefe 40 volle Härte)
-const diffOf = depth => Math.min(1, depth / 40);
+const diffOf = depth => Math.min(1, depth / 30);
 
 /* ---------- Waagrechte Bauarten ---------- */
 function horizontal(r, bio, style, depth, chased = false) {
@@ -52,7 +52,7 @@ function horizontal(r, bio, style, depth, chased = false) {
   const g = new Grid(W + 60, H);
   let x = 0, gy = 10 + O, last = '', coins = 0, sinceCheck = 0; const TOP = (cave ? 7 : 4) + O + (two ? 2 : 0);
   const checks = [];
-  const foeP = 0.22 + d * 0.35;
+  const foeP = 0.27 + d * 0.4;
   const groundFoe = () => pickW(r, bio.foes), airFoe = () => pickW(r, bio.air);
   const putGround = (a, b, y = gy) => { for (let k = a; k < b; k++) g.ground(k, y); };
   const gems = (a, b, y) => { if (two && r() < 0.4) return; for (let k = a; k < b; k++) if (g.get(k, y) === '.') g.set(k, y, 'G'); };
@@ -65,7 +65,7 @@ function horizontal(r, bio, style, depth, chased = false) {
   const CH = {
     flat() { const w = ri(r, 4, 8); putGround(x, x + w); maybeFoe(x, x + w); if (r() < 0.5) gems(x + 1, x + w - 1, gy - 3); if (r() < 0.12) g.set(x + w - 2, gy - 1, 'T'); else if (r() < 0.06) g.set(x + 1, gy - 1, 'h'); x += w; },
     gap() {
-      const w = ri(r, 2, d > 0.4 ? 3 : 2); arc(x - 1, w + 2, gy - 2, 2);
+      const w = ri(r, 2, d > 0.3 ? 3 : 2); arc(x - 1, w + 2, gy - 2, 2);
       if (Object.keys(bio.air).includes('w') && r() < 0.25 + d * 0.3) g.set(x + Math.floor(w / 2), gy - 3, 'w');
       x += w; let ny = Math.max(TOP, Math.min(11 + O, gy + ri(r, w > 2 ? 0 : -1, 1))); ny = Math.max(ny, gy - (w > 2 ? 0 : 1)); gy = ny; const lw = ri(r, 3, 5); putGround(x, x + lw); x += lw;
     },
@@ -75,7 +75,7 @@ function horizontal(r, bio, style, depth, chased = false) {
       gy += up ? -k : k; const w = ri(r, 4, 7); putGround(x, x + w); maybeFoe(x, x + w); if (up) gems(x, x + 2, gy - 2); x += w;
     },
     spikes() {
-      const pre = 2, w = ri(r, 2, d > 0.5 ? 3 : 2); putGround(x, x + pre + w + 3);
+      const pre = 2, w = ri(r, 2, d > 0.35 ? 3 : 2); putGround(x, x + pre + w + 3);
       for (let k = 0; k < w; k++) g.set(x + pre + k, gy, '^');
       arc(x + pre - 1, w + 2, gy - 2, 2);
       if (r() < 0.4 && gy > 8 + O) { for (let k = 0; k < 3; k++) g.set(x + pre + k - 1 + Math.floor(w / 2), gy - 3, '='); }
@@ -134,11 +134,11 @@ function horizontal(r, bio, style, depth, chased = false) {
   if (abyss) { pool.gap = (pool.gap || 1) * 2; pool.bridge = (pool.bridge || 1) * 2.5; pool.flat = 1; pool.dirt = 0; }
   if (cave) { pool.shroom = 0; pool.vent = 0; pool.dirt = (pool.dirt || 1) + 2; }
   if (chased) { pool.mover = 0; pool.vent = 0; pool.pocket = 0; pool.dirt = 0; pool.cog = 0; }
-  const tw = Math.max(0, Math.min(3, (depth - 5) / 6));
+  const tw = Math.max(0, Math.min(3.5, (depth - 3) / 5));
   if (tw > 0) {
     const caveB = ['hoehle', 'grotte', 'bau'].includes(bio.id), mech = ['uhrturm', 'glocke', 'bau'].includes(bio.id);
     pool.icicles = tw * (caveB || cave ? 1.5 : 0.5); pool.saws = tw * (mech ? 1.6 : 0.7); pool.arrows = tw * (bio.id === 'dornen' ? 1.8 : 0.8); pool.flips = tw * (mech || bio.id === 'wald' ? 1.2 : 0.6);
-    if (depth >= 25) pool.troll = 0.5;
+    if (depth >= 18) pool.troll = 0.6;
   }
   while (x < W - 10) {
     if (sinceCheck > 38 && last !== 'gap') { putGround(x, x + 4); g.set(x + 1, gy - 1, 'C'); checks.push(x + 1); x += 4; sinceCheck = 0; continue; }
@@ -318,12 +318,12 @@ function generateOnce(seed, depth, tryN) {
   // Verfolgung wird vorab gewürfelt, damit das Level dazu passt (keine Warte-Bausteine)
   let chase = null;
   if (style === 'schacht' && depth >= 6 && r() < 0.35) chase = { kind: ['bau', 'moder', 'uhrturm'].includes(bio.id) ? 'lava' : 'flut', speed: Math.min(0.55, 0.3 + depth * 0.005), delay: 150 };
-  else if (style !== 'schacht' && depth >= 12 && r() < 0.2) chase = { kind: style === 'hoehle' ? 'decke' : 'wurm', speed: Math.min(1.55, 1.05 + depth * 0.008), delay: 120 };
+  else if (style !== 'schacht' && depth >= 10 && r() < 0.25) chase = { kind: style === 'hoehle' ? 'decke' : 'wurm', speed: Math.min(1.55, 1.05 + depth * 0.008), delay: 120 };
   const map = style === 'schacht' ? shaft(r, bio, depth) : horizontal(r, bio, style, depth, !!chase);
   const noun = NOUN[style][Math.floor(r() * NOUN[style].length)];
   let adj = ADJ[Math.floor(r() * ADJ.length)]; if (noun in masc) adj = adj.replace(/e$/, 'er');
   const width = map[0].length, par = Math.round(style === 'schacht' ? 30 + map.length * 0.9 : 20 + width * 0.42);
-  const elite = depth >= 15 ? Math.min(0.35, (depth - 14) * 0.015) : 0;
+  const elite = depth >= 12 ? Math.min(0.4, (depth - 11) * 0.018) : 0;
   return { id: `∞${depth}-${seed}`, name: `${adj} ${noun}`, theme: bio.id, biome: bio.name, style, par: chase ? Math.round(par * 0.8) : par, map, signs: [], gen: true, seed, depth, chase, elite };
 }
 // Seeds der endlosen Tiefen: aus dem Welt-Seed und der Tiefe

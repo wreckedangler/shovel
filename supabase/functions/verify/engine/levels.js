@@ -551,6 +551,37 @@ function addLantern(id, col) {
 }
 addLantern('1-1', 100); addLantern('1-2', 92); addLantern('1-3', 40);
 
+/* ---------- Überarbeitung (Kartenstand 2): schwieriger und spannender ---------- */
+// Welt 1 bleibt einsteigerfreundlich (mehr Gegner an Schlüsselstellen, Fallstachel im Tunnel),
+// Welt 2 bringt Sägen, Pfeilwerfer und Kuckucke an die Sprünge, Welt 3 fordert mit Bröckelfallen über Abgründen.
+// Jede Änderung prüft, was vorher dort stand. Der alte Kartenstand bleibt erhalten (legacyMap):
+// Wiederholungen und Geister von vorher laufen darauf weiter, Bestzeiten werden für den neuen Stand neu geführt.
+// [x, y, Zeichen, erwartet] – erwartet ist standardmässig eine Reihe aus '.'
+function remix(id, rev, par, edits) {
+  const L = LEVELS.find(l => l.id === id), rows = L.map.map(r => r.split(''));
+  for (const [x, y, str, expect] of edits) for (let i = 0; i < str.length; i++) {
+    const want = expect ? expect[i] : '.', cur = rows[y] && rows[y][x + i];
+    if (cur !== want) throw new Error(`Umbau ${id} bei ${x + i},${y}: erwartet '${want}', gefunden '${cur}'`);
+    rows[y][x + i] = str[i];
+  }
+  L.legacyMap = L.map; L.legacyPar = L.par; L.map = rows.map(r => r.join('')); L.rev = rev; L.par = par;
+}
+// Welt 1: sanft
+remix('1-1', 2, 45, [[40, 10, 'b'], [45, 6, 'v'], [58, 10, 'b'], [73, 10, 'o'], [94, 4, 'v'], [122, 10, 'b']]);
+remix('1-2', 2, 60, [[30, 4, 'v'], [71, 8, 'L'], [78, 8, 'L'], [89, 6, 'v'], [103, 10, 'b'], [100, 5, 'v']]);
+remix('1-3', 2, 72, [[28, 9, 'v'], [76, 10, 'b'], [100, 12, 'v'], [112, 16, 'o']]);
+// Welt 2: Sägen über den Plattformen, Pfeile im Schacht, Säge auf dem Glockenweg
+remix('2-1', 2, 68, [[29, 5, 'Z'], [71, 10, 'k'], [97, 0, 'u'], [112, 9, 'Z']]);
+remix('2-2', 2, 56, [[0, 13, 'A', '#'], [23, 21, 'A', '#'], [10, 15, 'u'], [5, 27, 'z']]);
+remix('2-3', 2, 82, [[14, 6, 'U'], [90, 4, 'Z'], [36, 4, 'u'], [76, 4, 'C'], [27, 7, 'v']]);
+// Welt 3: Bröckelfallen über Abgründen, Fallstachel in der Grotte, Pfeilwerfer am Ende des Riesenstiels
+remix('3-1', 2, 70, [[30, 7, 'v'], [57, 10, 's'], [76, 3, 's'], [100, 4, 'v'],
+  [100, 11, 'cccc', '####'], [100, 12, '....', '####'], [100, 13, '....', '####']]);
+remix('3-2', 2, 72, [[30, 6, 'v'], [51, 10, 's'], [69, 7, 'L'], [84, 7, 'L'], [96, 10, 's'], [111, 5, 'v'], [102, 10, 'C']]);
+remix('3-3', 2, 78, [[27, 5, 'v'], [34, 8, 'v'], [75, 3, 's'], [87, 8, 'v'], [104, 9, 'A', '#'], [63, 10, 'C']]);
+// Online-Bestenlisten und Geister gelten je Kartenstand
+export const ghostKey = id => { const L = LEVELS.find(l => l.id === id); return L && L.rev > 1 ? `${id}~${L.rev}` : id; };
+
 import { generateLevel } from './gen.js';
 const genCache = new Map();
 // Generierte Levels haben die Kennung ∞<Tiefe>-<Seed>

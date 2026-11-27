@@ -2,7 +2,7 @@
 import { Game } from './game.js';
 import { DUELS } from './duels.js';
 import { HUNTS } from './hunts.js';
-import { LEVELS, WORLDS, levelById } from './levels.js';
+import { LEVELS, WORLDS, levelById, ghostKey } from './levels.js';
 import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, PRICE, AVAILABLE } from './gear.js';
 import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces } from './armor.js';
@@ -54,6 +54,14 @@ const T_ = 16;
 const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? (D[s] > it.tier ? `${e}@${D[s]}` : e) : (Number.isFinite(e) ? e : D[s])]; }));
 const lookOf = () => equipGear();
 setAudio(D.sfx, D.music);
+// Neuer Kartenstand: Bestzeit und Geister dieses Levels neu führen (Sterne, Ränge und Freischaltungen bleiben)
+{
+  const mr = D.mapRev = D.mapRev || {};
+  let reset = 0;
+  for (const L of LEVELS) if (L.rev && mr[L.id] !== L.rev) { if (D.best[L.id]) reset++; delete D.best[L.id]; delete D.ghosts[L.id]; delete D.imported[L.id]; mr[L.id] = L.rev; }
+  save.write();
+  if (reset) setTimeout(() => toast('Neue Karten', `Welten 1–3 sind schwieriger geworden. ${reset} Bestzeit${reset > 1 ? 'en wurden' : ' wurde'} zurückgesetzt.`), 1500);
+}
 // Spieler online: Zähler im Titel laufend aktualisieren
 if (online()) {
   startPresence();
@@ -360,7 +368,7 @@ async function finish() {
   save.write();
   checkAch();
   let up = '';
-  if (record && online() && D.name && game.aiLevel === AI_DEFAULT) up = (await uploadGhost({ level: id, name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
+  if (record && online() && D.name && game.aiLevel === AI_DEFAULT) up = (await uploadGhost({ level: ghostKey(id), name: D.name, frames, code })) ? 'Online hochgeladen.' : 'Online-Upload fehlgeschlagen.';
   stopMusic(); sfx('win');
   mode = 'result';
   const next = viaSecret && level.secretExit ? levelById(level.secretExit) : level.secret ? null : level.qual ? null : LEVELS.slice(li + 1).find(l => !l.secret && !l.qual);
@@ -1063,7 +1071,7 @@ async function detail(id) {
   };
   render(opts, online());
   if (online()) {
-    const top = await topGhosts(id, 5);
+    const top = await topGhosts(ghostKey(id), 5);
     top.forEach((g, i) => opts.push({ code: g.code, label: `#${i + 1} ${g.name} (${fmtTime(g.frames)})`, on: i === 0 }));
     if ($('#detail') === el) render(opts, false);
   }
