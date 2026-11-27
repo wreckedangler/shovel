@@ -1,5 +1,5 @@
 // Truhen, Relikte, Aussehen und Splitter. Reine Daten und Würfel-Logik, ohne DOM (Node-testbar).
-import { UNIQUES, BOSS_REWARD, SLOT_IDS } from './armor.js';
+import { UNIQUES, BOSS_REWARD } from './armor.js';
 const BOSS_ONLY = new Set(Object.values(BOSS_REWARD));
 import { CHEST_WEAPONS } from './weapons.js';
 
@@ -80,9 +80,8 @@ export function openChest(D, chestId, rand = Math.random) {
   if (pity) rar = 3;
   if (rar === 3) D.loot.pity = 0;
   D.loot.opened++;
-  // Rüstungsteile erst, wenn ihre Stufe in Reichweite ist: höchstens eine Stufe über der besten geschmiedeten
-  const reach = Math.max(0, ...SLOT_IDS.map(s => +D[s] || 0)) + 1;
-  const pool = ITEMS.filter(i => i.rar === rar && !('boss' in i && i.boss) && !('tier' in i && +i.tier > reach));
+  // Funde starten auf ihrer Startstufe (Ausrüstungsmodell 3), darum gibt es keine Reichweiten-Sperre mehr
+  const pool = ITEMS.filter(i => i.rar === rar && !('boss' in i && i.boss));
   // Fehlende Gegenstände sind doppelt so wahrscheinlich wie Duplikate
   const weights = pool.map(i => (owned(D, i) ? 1 : 2));
   let w = rand() * weights.reduce((a, b) => a + b, 0), item = pool[0];

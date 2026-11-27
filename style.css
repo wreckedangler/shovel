@@ -451,6 +451,7 @@ body.bigui .note,body.bigui small,body.bigui .icard small{font-size:calc(13px * 
 .pips12{display:flex;gap:2px;margin-top:3px}
 .pips12 i{width:8px;height:4px;background:#2a2218;border:1px solid #0b0907}
 .pips12 i.on{background:var(--c);box-shadow:0 0 4px var(--c)}
+.pips12 i.x{opacity:.25;background:repeating-linear-gradient(135deg,#2a2218 0 2px,#0b0907 2px 4px)}
 .picker{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-top:4px}
 .picker .note{grid-column:1/-1;margin:2px 0}
 .panel .picker button.pick{display:flex!important;gap:6px;align-items:center;text-align:left;padding:4px 6px!important;font-size:12px!important;border:1px solid #3a3020!important;background:rgba(10,8,6,.6)!important;border-image:none!important;min-height:0}

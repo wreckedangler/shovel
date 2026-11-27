@@ -15,6 +15,7 @@ const DEF = {
   weapon: null,    // ausgerüstete Waffe (null = Schaufel)
   deathsTotal: 0, stars: {}, chests: {},
   stick: false, vibrate: true, fullscreen: true,
+  pieceLvl: {},    // aufgewertete Stufe je gefundenem Stück (Ausrüstungsmodell 3)
   mapRev: {},      // Kartenstand je Level (Bestzeiten gelten nur für denselben Stand)
   ai: 2,           // KI-Stärke der Bosse (0–4, 2 = Standard) – zum Testen in den Optionen
   cheatsKnown: {}, cheatsOn: {}, seenSplash: false,

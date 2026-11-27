@@ -5,7 +5,7 @@ import { HUNTS } from './hunts.js';
 import { LEVELS, WORLDS, levelById, ghostKey } from './levels.js';
 import { THEMES } from './themes.js';
 import { TIERS, SHOVEL, PRICE, AVAILABLE, TIER_GATE, gateOpen } from './gear.js';
-import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces } from './armor.js';
+import { SLOTS, SLOT_IDS, UNIQUES, uniqueById, armorStats, tierPerk, piecePrice, effectText, slotName, BOSS_REWARD, EFFECTS, SETS, setPieces, GRUND_CAP } from './armor.js';
 import { duelDeeds } from './sets.js';
 import { Renderer } from './render.js';
 import { initInput, pollInput, clearInput, setStickMode } from './input.js';
@@ -50,8 +50,12 @@ let VH = 180, VW = 320;
 const D = save.d;
 let lastMenu = 'title';
 const T_ = 16;
-// Angelegte Rüstung als gear-Werte: Stufe oder 'id@stufe' (einzigartige Stücke wachsen mit der geschmiedeten Stufe des Platzes)
-const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? (D[s] > it.tier ? `${e}@${D[s]}` : e) : (Number.isFinite(e) ? e : D[s])]; }));
+// Ausrüstungsmodell 3: jedes gefundene Stück hat seine eigene, aufwertbare Stufe (D.pieceLvl, sonst Startstufe)
+const pieceLvl = id => { const it = uniqueById(id); return it ? Math.min(it.cap, Math.max(0, D.pieceLvl[id] ?? it.start)) : 0; };
+// Umstellung: bereits gefundene Stücke behalten die höhere von alter Stufe und neuer Startstufe
+if (D.armorModel !== 3) { for (const id in D.pieces) { const it = uniqueById(id); if (it && D.pieceLvl[id] === undefined) D.pieceLvl[id] = Math.min(it.cap, Math.max(it.tier, it.start)); } D.armorModel = 3; save.write(); }
+// Angelegte Rüstung als gear-Werte: Stufe (Grundstück) oder 'id@stufe' (gefundenes Stück)
+const equipGear = () => Object.fromEntries(SLOT_IDS.map(s => { const e = D.equip[s], it = typeof e === 'string' && uniqueById(e); return [s, it ? `${e}@${pieceLvl(e)}` : (Number.isFinite(e) ? e : D[s])]; }));
 const lookOf = () => equipGear();
 setAudio(D.sfx, D.music);
 // Neuer Kartenstand: Bestzeit und Geister dieses Levels neu führen (Sterne, Ränge und Freischaltungen bleiben)
@@ -1090,32 +1094,35 @@ const pieceName = (slot, v) => { const it = typeof v === 'string' && uniqueById(
 function forge(msg = '') {
   mode = 'menu';
   const eq = equipGear(), A = armorStats(eq), RL = relicMods(D);
-  const buyBtn = (key, nx, price, sp) => {
+  const buyBtn = (key, nx, price, sp, id = '', cap = 11) => {
     if (nx >= TIERS.length) return '<span class="max">Höchste Stufe</span>';
+    if (nx > cap) return `<span class="max">${id ? 'Höchststufe dieses Stücks' : `Grundstücke enden bei ${esc(TIERS[GRUND_CAP].name)}`}</span>`;
     if (nx >= AVAILABLE) return '';
     if (!gateOpen(D.cleared, nx)) return `<span class="gate">${ic('lock')} ${esc(TIERS[nx].name)}: ${esc(TIER_GATE[nx].txt)}</span>`;
     const afford = D.gems >= price && D.shards >= sp;
-    return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}"><span class="bl">Schmieden: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
+    return `<button class="forgebtn ${afford ? 'can' : 'off'}" data-a="buy" data-k="${key}" data-id="${id}"><span class="bl">${id ? 'Aufwerten' : 'Schmieden'}: <i style="color:${TIERS[nx].light}">${esc(TIERS[nx].name)}</i></span><span class="bp">${ic('gem')} ${price}${sp ? ` + ${ic('dia')} ${sp}` : ''}</span></button>`;
   };
-  const pips = cur => `<span class="pips12">${TIERS.map((t, k) => `<i class="${k <= cur ? 'on' : ''}" style="--c:${t.light}"></i>`).join('')}</span>`;
+  const pips = (cur, cap = 11) => `<span class="pips12">${TIERS.map((t, k) => `<i class="${k <= cur ? 'on' : k > cap ? 'x' : ''}" style="--c:${t.light}"></i>`).join('')}</span>`;
   const shovelRow = `<div class="srow">
       <canvas class="sic" data-si="${D.shovel}"></canvas>
       <div class="sinfo"><small>Schaufel</small><b class="tn" style="--c:${TIERS[D.shovel].light}">${esc(TIERS[D.shovel].name)}</b><p>${esc(SHOVEL[D.shovel].perk)}</p>${pips(D.shovel)}</div>
       <div class="sbtn">${buyBtn('shovel', D.gearUnlocked.shovel + 1, PRICE[D.gearUnlocked.shovel + 1], SHARD_PRICE[D.gearUnlocked.shovel + 1] || 0)}</div>
       ${D.gearUnlocked.shovel ? `<div class="chips">${TIERS.slice(0, D.gearUnlocked.shovel + 1).map((t, i) => `<button class="tier-pick" data-a="gear-tier" data-k="shovel" data-tier="${i}" title="${esc(t.name)}" aria-label="Schaufel aus ${esc(t.name)}" aria-pressed="${D.shovel === i}"><canvas class="gi ${i === D.shovel ? 'cur' : ''} own" data-gi="shovel:${i}" aria-hidden="true"></canvas></button>`).join('')}</div>` : ''}</div>`;
   const slotRow = sl => {
-    const s = sl.id, v = D.equip[s], it = typeof v === 'string' && uniqueById(v), t = D[s], nx = t + 1;
+    const s = sl.id, v = D.equip[s], it = typeof v === 'string' && uniqueById(v), t = D[s];
     const own = UNIQUES.filter(u => u.slot === s && D.pieces[u.id]), all = UNIQUES.filter(u => u.slot === s).length;
+    const cur = it ? pieceLvl(it.id) : v, cap = it ? it.cap : Math.max(GRUND_CAP, t), nx = (it ? cur : t) + 1;
     const col = it ? RAR[it.rar].col : TIERS[v].light;
+    const range = u => `${TIERS[pieceLvl(u.id)].name} (bis ${TIERS[u.cap].name})`;
     const picker = forgeOpen === s ? `<div class="picker">
-        <button class="pick ${!it ? 'on' : ''}" data-a="wear" data-k="${s}" data-id=""><canvas data-pi="${s}:${t}"></canvas><span><b>${esc(pieceName(s, t))}</b><small>Geschmiedet · ${esc(tierPerk(s, t))}</small></span></button>
-        ${own.map(u => `<button class="pick r${u.rar} ${v === u.id ? 'on' : ''}" data-a="wear" data-k="${s}" data-id="${u.id}" style="--rc:${RAR[u.rar].col}"><canvas data-pi="${s}:${u.id}"></canvas><span><b>${esc(u.name)}</b><small style="color:${RAR[u.rar].col}">${rarName(u.rar)} · ${TIERS[u.tier].name}</small><small>${esc(effectText(u.fx))}</small><small class="dim">${esc(tierPerk(s, u.tier))}</small></span></button>`).join('')}
-        <p class="note">${own.length} / ${all} einzigartige Stücke gefunden. Weitere liegen in Truhen, bei Endgegnern und auf den Qualpfaden.</p></div>` : '';
+        <button class="pick ${!it ? 'on' : ''}" data-a="wear" data-k="${s}" data-id=""><canvas data-pi="${s}:${t}"></canvas><span><b>${esc(pieceName(s, t))}</b><small>Grundstück · ${esc(TIERS[t].name)} (bis ${esc(TIERS[Math.max(GRUND_CAP, t)].name)})</small><small>${esc(tierPerk(s, t))}</small></span></button>
+        ${own.map(u => `<button class="pick r${u.rar} ${v === u.id ? 'on' : ''}" data-a="wear" data-k="${s}" data-id="${u.id}" style="--rc:${RAR[u.rar].col}"><canvas data-pi="${s}:${u.id}"></canvas><span><b>${esc(u.name)}</b><small style="color:${RAR[u.rar].col}">${rarName(u.rar)} · ${esc(range(u))}</small><small>${esc(effectText(u.fx))}</small><small class="dim">${esc(tierPerk(s, pieceLvl(u.id)))}</small></span></button>`).join('')}
+        <p class="note">${own.length} / ${all} einzigartige Stücke gefunden. Jedes Stück wird einzeln aufgewertet und behält seine Stufe.</p></div>` : '';
     return `<div class="srow ${it ? 'uniq r' + it.rar : ''}" style="--rc:${col}">
       <canvas class="sic" data-pi="${s}:${v}"></canvas>
-      <div class="sinfo"><small>${esc(sl.name)} · Stufe ${(it ? it.tier : v) + 1} ${TIERS[it ? it.tier : v].name}${!it && v < t ? ` von ${t + 1}` : ''}</small><b style="color:${col}">${esc(pieceName(s, v))}</b>
-        <p>${esc(it ? effectText(it.fx) : tierPerk(s, v))}</p>${pips(it ? it.tier : t)}${it ? `<small class="forged">Geschmiedet bis ${esc(TIERS[t].name)}</small>` : ''}</div>
-      <div class="sbtn">${buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3))}
+      <div class="sinfo"><small>${esc(sl.name)} · ${esc(TIERS[cur].name)} · bis ${esc(TIERS[cap].name)}</small><b style="color:${col}">${esc(pieceName(s, v))}</b>
+        <p>${esc(it ? effectText(it.fx) : tierPerk(s, v))}</p>${pips(cur, cap)}${it ? `<small class="forged">${esc(tierPerk(s, cur))}</small>` : !it && v < t ? `<small class="forged">Geschmiedet bis ${esc(TIERS[t].name)}</small>` : ''}</div>
+      <div class="sbtn">${it ? buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3), it.id, it.cap) : buyBtn(s, nx, piecePrice(nx), Math.ceil((SHARD_PRICE[nx] || 0) / 3), '', Math.max(GRUND_CAP, t))}
         <button data-a="slotpick" data-k="${s}" class="${forgeOpen === s ? 'on' : ''}">${forgeOpen === s ? 'Schliessen' : `Wechseln${own.length ? ` · ${own.length}` : ''}`}</button></div>
       ${picker}</div>`;
   };
@@ -1304,7 +1311,19 @@ ui.addEventListener('click', async e => {
       return;
     }
     case 'buy': {
+      if (b.dataset.id) {
+        // Gefundenes Stück aufwerten (bis zu seiner Höchststufe)
+        const pid = b.dataset.id, u = uniqueById(pid); if (!u || !D.pieces[pid]) return sfx('nope');
+        const n = pieceLvl(pid) + 1, pp = piecePrice(n), psp = Math.ceil((SHARD_PRICE[n] || 0) / 3);
+        if (n > u.cap) { sfx('nope'); return forge('Dieses Stück hat seine Höchststufe erreicht.'); }
+        if (!gateOpen(D.cleared, n)) { sfx('nope'); return forge(TIER_GATE[n].txt + ', dann lässt sich ' + TIERS[n].name + ' schmieden.'); }
+        if (D.gems < pp) { sfx('nope'); return forge(`Dir fehlen noch ${pp - D.gems} Edelsteine.`); }
+        if (D.shards < psp) { sfx('nope'); return forge(`Dir fehlen noch ${psp - D.shards} Splitter. Die gibt es in der Schatzkammer.`); }
+        D.gems -= pp; D.shards -= psp; D.pieceLvl[pid] = n; save.write(); sfx('legend');
+        return forge(`${esc(u.name)} ist jetzt ${esc(TIERS[n].name)}.`);
+      }
       const k = b.dataset.k, isSh = k === 'shovel', nx = (isSh ? D.gearUnlocked.shovel : D[k]) + 1, price = isSh ? PRICE[nx] : piecePrice(nx);
+      if (!isSh && nx > GRUND_CAP) { sfx('nope'); return forge(`Grundstücke enden bei ${TIERS[GRUND_CAP].name}. Für mehr ein besonderes Stück anlegen und aufwerten.`); }
       const sp = isSh ? SHARD_PRICE[nx] || 0 : Math.ceil((SHARD_PRICE[nx] || 0) / 3);
       if (nx < AVAILABLE && !gateOpen(D.cleared, nx)) { sfx('nope'); return forge(TIER_GATE[nx].txt + ', dann lässt sich ' + TIERS[nx].name + ' schmieden.'); }
       if (nx >= AVAILABLE || D.gems < price) { sfx('nope'); return forge(`Dir fehlen noch ${price - D.gems} Edelsteine.`); }

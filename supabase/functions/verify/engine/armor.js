@@ -256,6 +256,12 @@ const TIER_OF = {
 };
 for (const [t, list] of Object.entries(TIER_OF)) for (const id of list) { const u = BY_ID.get(id); if (!u) throw new Error('Stufe für unbekanntes Stück ' + id); u.legacy = u.tier; u.tier = +t; }
 for (const u of U) if (u.legacy === undefined) throw new Error('Keine Stufe für ' + u.id);
+// Ausrüstungsmodell 3: jedes Stück startet auf der Startstufe seiner Seltenheit und wird in der Schmiede aufgewertet,
+// höchstens bis zu seiner Höchststufe. Geschmiedete Grundstücke (ohne Effekt) enden bei Mithril.
+// Seltenheit: 0 gewöhnlich (Eisen–Titan) · 1 selten (Titan–Mithril) · 2 episch (Mithril–Leere-Kristall) · 3 legendär und Sets (Sternenmetall–Urlicht)
+export const GRUND_CAP = 6;
+export const RAR_START = [2, 4, 6, 7], RAR_CAP = [4, 6, 9, 11];
+for (const u of U) { u.start = RAR_START[u.rar]; u.cap = RAR_CAP[u.rar]; }
 // Beschreibung der Effekte eines Stücks
 export const effectText = fx => Object.entries(fx).map(([k, v]) => EFFECTS[k].txt(v)).join(' · ');
 
@@ -266,13 +272,17 @@ export const BOSS_REWARD = { '1-B': 'drachenklauen', '2-B': 'rueckspulmantel', '
   'D-6': 'blutpakt', 'D-7': 'knochenkoenig' };
 
 /* ---------- Ausrüstung lesen ---------- */
-// Wert eines Platzes: Zahl (Stufe) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück).
-// rev 2 (aktuell): ein Stück hat immer genau seine eigene Stufe, die Schmiede hebt es nicht an.
-// rev 1: Stufe des Stücks, geschmiedete Stufe hob an · rev 0: alte Basis-Stufen (Wiederholungen von früher, Arena)
-export function pieceOf(slot, v, rev = 2) {
+// Wert eines Platzes: Zahl (Stufe eines Grundstücks) oder Text 'id' bzw. 'id@stufe' (einzigartiges Stück).
+// rev 3 (aktuell): 'id@stufe' ist die aufgewertete Stufe des Stücks (ohne Angabe: Startstufe), höchstens seine Höchststufe.
+// Ältere Regeln bleiben für Wiederholungen eingefroren: rev 2 feste Stufe je Stück · rev 1 geschmiedete Stufe hob an · rev 0 alte Basis-Stufen (auch Arena)
+export function pieceOf(slot, v, rev = 3) {
   if (typeof v === 'string') {
     const [id, t] = v.split('@'), it = uniqueById(id);
-    if (it && it.slot === slot) return { slot, tier: rev >= 2 ? it.tier : Math.max(rev ? it.tier : it.legacy, Math.min(11, Math.floor(+t || 0))), item: it };
+    if (it && it.slot === slot) {
+      const n = Math.min(11, Math.floor(+t || 0));
+      const tier = rev >= 3 ? Math.min(it.cap, Math.max(0, t === undefined ? it.start : n)) : rev === 2 ? it.tier : Math.max(rev ? it.tier : it.legacy, n);
+      return { slot, tier, item: it };
+    }
     return { slot, tier: 0, item: null };
   }
   const t = Number.isFinite(v) ? Math.max(0, Math.min(11, Math.floor(v))) : 0;
@@ -295,7 +305,7 @@ function stack(vals, cap, min) {
   return cap ? Math.min(cap, t) : t;
 }
 // Zusammenrechnen aller vier Teile (inklusive Obergrenzen). Ergebnis enthält die alten ARMOR-Felder (hp, kb, spike, inv, ward, air, magnet, rewind).
-export function armorStats(set, rev = 2) {
+export function armorStats(set, rev = 3) {
   let hp = 0, kbPts = 0, spikeRes = 0, inv = 0, ward = 0, air = 0, magnet = false, rewind = false;
   const tiers = {}, items = {}, raw = {};
   for (const s of SLOT_IDS) {
