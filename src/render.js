@@ -209,8 +209,8 @@ export class Renderer {
 
 
   ent(g, e, th) {
-    if (e.elite && !e.dead && this.symbols) S.drawText(this.x, { schnell: '>>', zaeh: '+', teilt: '%' }[e.elite], Math.round(e.x + e.w / 2), Math.round(e.y) - 8, '#ffffff', 1, 'center');
-    if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
+    if (e.elite && !e.dead && this.symbols) S.drawText(this.x, { schnell: '>>', zaeh: '+', teilt: '%', wut: '!' }[e.elite], Math.round(e.x + e.w / 2), Math.round(e.y) - 8, '#ffffff', 1, 'center');
+    if (e.elite && !e.dead) { const r = 12 + Math.sin(this.t / 6) * 2, ec = { schnell: '255,220,80', zaeh: '255,70,60', teilt: '190,110,255', wut: '255,120,20' }[e.elite]; const gr = this.x.createRadialGradient(e.x + e.w / 2, e.y + e.h / 2, 2, e.x + e.w / 2, e.y + e.h / 2, r); gr.addColorStop(0, `rgba(${ec},0.55)`); gr.addColorStop(1, `rgba(${ec},0)`); this.x.fillStyle = gr; this.x.fillRect(e.x + e.w / 2 - r, e.y + e.h / 2 - r, r * 2, r * 2); }
     if (g.isHidden(e.x + e.w / 2, e.y + e.h / 2)) { if (e.type === 'coin' && g.mod.seer && (this.t >> 4) & 1) { this.x.globalAlpha = 0.5; this.ent0(g, e, th); this.x.globalAlpha = 1; } return; }
     this.ent0(g, e, th);
     if (e.frozen > 0 && !e.dead) { const x = this.x; x.globalAlpha = e.frozen < 40 && (this.t >> 2) & 1 ? 0.3 : 0.6; x.fillStyle = '#bff0ff'; x.fillRect(Math.round(e.x) - 1, Math.round(e.y) - 1, e.w + 2, e.h + 2); x.globalAlpha = 1; x.fillStyle = '#ffffff'; x.fillRect(Math.round(e.x) + 1, Math.round(e.y), e.w - 2, 1); }
@@ -699,6 +699,7 @@ export class Renderer {
     if (!g.level.arena) S.drawText(x, fmtTime(g.frame), tx, 6, '#fff', 1, 'center');
     let gy = 14;
     if (g.level.gen) { S.drawText(x, g.hudLabel || 'TIEFE ' + g.level.depth, tx, gy, '#c58bff', 1, 'center'); gy += 8; }
+    else if (g.qual) { S.drawText(x, g.hudLabel, tx, gy, g.qualLives <= 1 ? '#ff4a4a' : '#ffb04a', 1, 'center'); gy += 8; }
     if (g.timeLimit && !g.done) { const left = Math.max(0, g.timeLimit - g.frame); S.drawText(x, 'NOCH ' + fmtTime(left), tx, gy, left < 600 && (this.t >> 3) & 1 ? '#ff5050' : '#ffb0a0', 1, 'center'); gy += 8; }
     if (g.chase && !g.done) { const d = g.chase.vert ? (g.chase.pos - g.p.y - g.p.h) : (g.p.x - g.chase.pos); if (d < 90 && (this.t >> 2) & 1) { x.fillStyle = 'rgba(255,40,40,0.18)'; g.chase.vert ? x.fillRect(0, this.H - 18, W, 18) : x.fillRect(0, 0, 14, this.H); } }
     for (const gh of ghosts) {

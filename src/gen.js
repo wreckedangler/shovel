@@ -420,8 +420,8 @@ export function qualShaft(seed, themeId, height) {
     if (sinceCheck > 22 && kind === '=') { g.set(nx + pw - 1, ny - 1, 'C'); sinceCheck = 0; }
     px = nx; y = ny; opw = pw;
   }
-  for (let j = 0; j < 4; j++) g.set(Math.max(1, Math.min(W - 5, px)) + j, y - 3, '=');
-  g.set(Math.max(1, Math.min(W - 5, px)) + 1, y - 4, 'E');
+  for (let j = 0; j < 4; j++) g.set(Math.max(1, Math.min(W - 5, px)) + j, y - 2, '=');
+  g.set(Math.max(1, Math.min(W - 5, px)) + 1, y - 3, 'E');
   // Laternen sind sichere Orte: keine Gegner direkt daneben
   for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) if (g.get(xx, yy) === 'C')
     for (let dy = -3; dy <= 3; dy++) for (let dx = -4; dx <= 4; dx++) if ('bokfsqvwuk'.includes(g.get(xx + dx, yy + dy))) g.set(xx + dx, yy + dy, '.');

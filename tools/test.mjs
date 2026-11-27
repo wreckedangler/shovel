@@ -15,7 +15,7 @@ for (const L of LEVELS) {
   L.map.forEach((r, i) => r.length !== w && bad(`${L.id} Reihe ${i} hat ${r.length} statt ${w}`));
   const all = L.map.join('');
   if (!all.includes('P')) bad(`${L.id} ohne Start`);
-  if (!L.boss && !all.includes('E')) bad(`${L.id} ohne Ziel`);
+  if (!L.boss && !L.qualBoss && !all.includes('E')) bad(`${L.id} ohne Ziel`);
   const signs = (all.match(/i/g) || []).length;
   if (signs !== L.signs.length) bad(`${L.id}: ${signs} Schilder, ${L.signs.length} Texte`);
 

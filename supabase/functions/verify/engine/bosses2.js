@@ -4,7 +4,7 @@
 // Jede Attacke hat weiterhin eine sichtbare Ausholzeit; nach den grossen Attacken folgt eine Strafpause.
 import { T, GRAV, MAXFALL, cx, sign } from './core.js';
 import { eproj, rock, blorbAt } from './foes.js';
-import { sense, predictX, choose, dodgeDir, windT, restT, steer, brain } from './brain.js';
+import { sense, predictX, choose, dodgeDir, windT, restT, steer, brain, chaseJump, airJump } from './brain.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // Flugzeit bis zur Höhe dy unter dem Start (Wurf mit Anfangsgeschwindigkeit vy, Schwerkraft a)
@@ -27,6 +27,11 @@ function evade(g, e, d) {
   e.state = 'evade'; e.vx = d * 2.7; e.vy = -3.4; e.face = -d; e.t = 0; g.ev('boing'); g.burst(cx(e), e.y + e.h, 8, 'dust', 1.6);
 }
 
+// Nachspringen (Fassung 3): wie der Held auf Absätze, mit Doppelsprung ab Meister
+function jumpState(g, e, s) {
+  grav(g, e); airJump(g, e, s);
+  if (e.onGround && e.vy >= 0) { e.vx = 0; e.state = 'walk'; e.t = Math.min(e.t || 30, restT(g, 16, 8)); g.shake = Math.max(g.shake, 3); }
+}
 /* ---------- Rostmaulwurf ---------- */
 export function moleAI(g, e) {
   if (e.iframe) e.iframe--; if (e.flash) e.flash--;
@@ -40,12 +45,15 @@ export function moleAI(g, e) {
       const want = s.dist > 120 ? 1 : s.dist < 44 ? -0.8 : 0.35;
       e.vx = steer(e.vx, s.dir * want * 0.9 * sp, 0.1); grav(g, e);
       const d = dodgeDir(g, e, s); if (d && e.onGround) return evade(g, e, d);
+      if (chaseJump(g, e, s)) { e.state = 'jump'; return; }
       if (--e.t <= 0 && e.onGround) {
         const act = choose(g, e, {
           charge: (s.air ? 0.4 : 1.4) + (s.dist > 70 ? 0.6 : 0),
           dig: 0.7 + (s.air ? 0.9 : 0) + (s.dist < 50 ? 0.5 : 0),
           slam: 0.5 + (s.dist > 110 ? 0.9 : 0) + (rage ? 0.4 : 0),
+          pounce: g.enemyRevision >= 3 ? 0.6 + (s.air || s.dy < -16 ? 1.2 : 0) + (s.dist < 90 ? 0.4 : 0) : 0,
         });
+        if (act === 'pounce') { const air = 2 * 7 / GRAV; e.state = 'pounce'; e.vy = -7; e.vx = clamp((predictX(s, air) - cx(e)) / air, -3, 3); e.air2 = brain(g).level >= 3; g.ev('charge'); return; }
         if (act === 'charge') { e.state = 'wind'; e.t = windT(g, 34, 20); }
         else if (act === 'dig') { e.state = 'sink'; e.t = windT(g, 34, 22); }
         else { e.state = 'slamwind'; e.t = windT(g, 30, 20); e.vy = -4.2; }
@@ -53,6 +61,13 @@ export function moleAI(g, e) {
       return;
     }
     case 'evade': grav(g, e); if (e.onGround) { e.vx = 0; e.state = 'walk'; e.t = Math.min(e.t || 99, restT(g, 22, 12)); } return;
+    case 'jump': return jumpState(g, e, s);
+    case 'pounce':
+      // Sprungangriff wie ein Schaufel-Sprung: hoch über den Helden und mit Wucht herab
+      grav(g, e); airJump(g, e, s);
+      if (e.vy > 0 && Math.abs(s.dx) < 10) e.vx *= 0.6;
+      if (e.onGround && e.vy >= 0) { e.vx = 0; g.shake = 8; g.ev('thud'); for (const dd of [-1, 1]) g.add(eproj(cx(e) - 6 + dd * 12, e.y + e.h - 10, dd * 2.8, 0, 'shock')); e.state = 'stun'; e.t = restT(g, 40, 22); }
+      return;
     case 'wind':
       e.vx = 0; grav(g, e);
       // Bis kurz vor dem Ansturm wird nachgezielt, danach steht die Richtung fest
@@ -118,6 +133,7 @@ export function golemAI(g, e) {
       const want = s.dist > 130 ? 0.9 : s.dist < 50 ? -0.9 : 0.25;
       e.vx = steer(e.vx, s.dir * want * 0.8 * sp, 0.08); grav(g, e);
       const d = dodgeDir(g, e, s); if (d && e.onGround) return evade(g, e, d);
+      if (chaseJump(g, e, s)) { e.state = 'jump'; return; }
       if (--e.t <= 0 && e.onGround) {
         const act = choose(g, e, {
           leap: 0.8 + (s.dist > 90 ? 0.6 : 0) + (s.air ? 0 : 0.4),
@@ -130,6 +146,7 @@ export function golemAI(g, e) {
       return;
     }
     case 'evade': grav(g, e); if (e.onGround) { e.vx = 0; e.state = 'walk'; e.t = restT(g, 20, 10); } return;
+    case 'jump': return jumpState(g, e, s);
     case 'crouch':
       e.vx = 0; grav(g, e);
       if (--e.t <= 0) {
@@ -183,6 +200,7 @@ export function morchelAI(g, e) {
       e.vx = steer(e.vx, s.dir * want * 0.7 * sp, 0.08); grav(g, e);
       if (e.onGround && g.frame % 28 === 0) { e.vy = -2.2; }
       const d = dodgeDir(g, e, s); if (d && e.onGround) return evade(g, e, d);
+      if (chaseJump(g, e, s)) { e.state = 'jump'; return; }
       if (--e.t <= 0 && e.onGround) {
         const blorbs = g.ents.filter(o => o.type === 'blorb' && !o.dead).length;
         const act = choose(g, e, {
@@ -197,6 +215,7 @@ export function morchelAI(g, e) {
       }
       return;
     }
+    case 'jump': return jumpState(g, e, s);
     case 'evade': case 'retreat':
       grav(g, e);
       if (e.onGround) {

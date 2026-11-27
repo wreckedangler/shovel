@@ -643,9 +643,38 @@ function qualClimb(id, { theme, height }) {
   }
   throw new Error('Qualpfad ' + id + ': kein schaffbarer Aufstieg');
 }
+// Kartenstand 3: Wächter-Arena vor dem Ziel und Qual-Regeln (Treffer +1 Herz, 4 Leben bis zurück zum Start, mehr Elite)
+function arenaRows(w) {
+  return Array.from({ length: 14 }, (_, y) => Array.from({ length: w }, (_, x) =>
+    y === 0 || y >= 11 ? '#' : x === w - 1 ? '#' : '.').join(''));
+}
+function putRow(rows, x, y, str) { const r = rows[y].split(''); for (let i = 0; i < str.length; i++) r[x + i] = str[i]; rows[y] = r.join(''); }
+function qualArena(id, hunt) {
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), x0 = L.map[0].length, A = arenaRows(30);
+  putRow(A, 6, 8, '==='); putRow(A, 20, 8, '==='); putRow(A, 12, 6, '====');
+  const map = L.map.map((r, y) => r.replace('E', 'C') + A[y]);
+  const test = map.slice(); test[10] = test[10].slice(0, x0 + 26) + 'E' + test[10].slice(x0 + 27);
+  if (!reachable(test).ok) throw new Error('Qualpfad ' + id + ': Arena nicht erreichbar');
+  setRev(L, 3, L.par + 25, map);
+  Object.assign(L, { gate: x0, qualBoss: { hunt, x0, x1: x0 + 29 }, qualRules: true, elite: 0.5 });
+}
+function qualArenaTop(id, hunt) {
+  const L = /** @type {any} */ (LEVELS.find(l => l.id === id)), W = 44;
+  const eRow = L.map.findIndex(r => r.includes('E'));
+  const body = L.map.slice(eRow + 1).map(r => r.padEnd(W, '#'));
+  const A = Array.from({ length: 14 }, (_, y) => Array.from({ length: W }, (_, x) =>
+    y === 0 ? '#' : x === 0 || x === W - 1 ? '#' : x <= 18 ? (y === 12 ? '=' : '.') : y >= 11 ? '#' : '.').join(''));
+  putRow(A, 8, 11, 'C'); putRow(A, 26, 8, '==='); putRow(A, 35, 8, '==='); putRow(A, 30, 6, '====');
+  const map = [...A, ...body];
+  const test = map.slice(); test[10] = test[10].slice(0, 40) + 'E' + test[10].slice(41);
+  if (!reachable(test).ok) { if (globalThis.process?.env?.DBG) console.log(test.slice(0, 24).join('\n')); throw new Error('Qualpfad ' + id + ': Arena nicht erreichbar'); }
+  setRev(L, 3, L.par + 25, map);
+  Object.assign(L, { gate: 20, qualBoss: { hunt, x0: 20, x1: 43 }, qualRules: true, elite: 0.5 });
+}
 qualExtend('Q-1', { theme: 'hoehle', style: 'hoehle', width: 190, dense: { ground: ['b', 'o', 'k', 's'], air: ['v'], every: 9, saw: 22, quietR: 4 } });
 qualExtend('Q-2', { theme: 'dornen', style: 'abgrund', width: 200, chased: true, dense: { ground: ['b', 'f', 'q', 'k'], air: ['w', 'v'], every: 9, saw: 20, quietR: 4 } });
 qualClimb('Q-3', { theme: 'bau', height: 80 });
+qualArena('Q-1', 7); qualArena('Q-2', 8); qualArenaTop('Q-3', 9);
 // Online-Bestenlisten und Geister gelten je Kartenstand
 export const ghostKey = id => { const L = /** @type {any} */ (LEVELS.find(l => l.id === id)); return L && L.rev > 1 ? `${id}~${L.rev}` : id; };
 

@@ -1,7 +1,7 @@
 import { T, GRAV, MAXFALL, cx, fsin } from './core.js';
 import { foeBase, hurtFoe, eproj } from './foes.js';
 import { HUNTS } from './hunts.js';
-import { sense, predictX, choose, dodgeDir, windT, restT, steer } from './brain.js';
+import { sense, predictX, choose, dodgeDir, windT, restT, steer, chaseJump, airJump } from './brain.js';
 
 // Alle Attacken haben eine sichtbare Ausholzeit. Ziel und Blickrichtung stehen
 // ab Beginn der Warnung fest, sodass selbst die letzte Stufe ausweichbar ist.
@@ -86,6 +86,8 @@ function chiefStalk(g, e) {
   e.vx = steer(e.vx, s.dir * want * (0.34 + e.rank * 0.055) * 1.3 * s.A.speed, 0.08);
   const d = e.design.move !== 'fly' && e.onGround ? dodgeDir(g, e, s) : 0;
   if (d) { e.vy = -4.4; e.vx = d * 2.4; g.ev('boing'); }
+  else if (e.design.move !== 'fly' && chaseJump(g, e, s)) { /* springt dem Helden auf den Absatz nach */ }
+  if (e.design.move !== 'fly') airJump(g, e, s);
   move(g, e, want !== 0);
   if (--e.t <= 0 && !g.p.dead) {
     e.action = a; e.intent = null;
@@ -103,7 +105,7 @@ function updateHunter(g, e) {
       e.dead = true;
       g.setGate('.');
       g.dropGems(cx(e), e.y, 130 + e.rank * 15);
-      g.add({ type: 'goal', x: 60 * T, y: 11 * T - 48, w: 12, h: 48 });
+      g.add({ type: 'goal', x: e.goalX ?? 60 * T, y: 11 * T - 48, w: 12, h: 48 });
       g.ev('win2');
     }
     return;
@@ -184,4 +186,20 @@ export function populateHunt(g, index) {
   const hunt = HUNTS[index];
   hunt.monsters.forEach((design, slot) => g.add(hunter(design, hunt, index, slot, false, g.enemyRevision)));
   g.boss = g.add(hunter(hunt.boss, hunt, index, 0, true, g.enemyRevision));
+}
+
+// Wächter am Ende eines Qualpfads: ein Jagd-Anführer in einer eigenen Arena (Spalten x0..x1, Boden Reihe 11),
+// begleitet von zwei zähen Kreaturen seiner Jagd. Gilt als Boss des Levels (Tor schliesst hinter dem Helden).
+export function qualWarden(g, index, x0, x1) {
+  const hunt = HUNTS[index], rev = g.enemyRevision;
+  const chief = hunter(hunt.boss, hunt, index, 0, true, rev);
+  const place = (e, x) => { e.x = x; e.home = { x, y: e.y }; e.left = (x0 + 1) * T; e.right = x1 * T - e.w; };
+  place(chief, Math.round((x0 + x1) / 2) * T); chief.goalX = (x1 - 3) * T;
+  chief.hp = chief.maxhp = Math.round(chief.maxhp * 1.5);
+  g.boss = g.add(chief);
+  hunt.monsters.slice(0, 2).forEach((design, slot) => {
+    const m = hunter(design, hunt, index, slot, false, rev);
+    place(m, (x0 + 5 + slot * 14) * T); m.hp *= 3; m.maxhp = m.hp; m.elite = 'zaeh';
+    g.add(m);
+  });
 }

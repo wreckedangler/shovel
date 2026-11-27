@@ -28,8 +28,12 @@ function think(g, b) {
     const pref = PREF[b.design.id] || 100, want = s.dist < pref - 30 ? -1 : s.dist > pref + 40 ? 1 : 0;
     b.vx = steer(b.vx || 0, s.dir * want * 1.2 * s.A.speed, 0.15);
     const d = dodgeDir(g, b, s);
-    if (d && !b.hopT) { b.vx = (b.x - 11 * T < 30 ? 1 : 43 * T - b.w - b.x < 30 ? -1 : d) * 3.2; b.hopT = 16; g.ev('boing'); }
-    if (b.hopT > 0) { b.hopT--; b.y = 11 * T - b.h - Math.round(fsin(Math.PI * b.hopT / 16) * 20); }
+    if (d && !b.hopT) { b.vx = (b.x - 11 * T < 30 ? 1 : 43 * T - b.w - b.x < 30 ? -1 : d) * 3.2; b.hopT = b.hopN = 16; b.hopH = 20; g.ev('boing'); }
+    // Fassung 3: steht der Held auf einem Sims, springt der Meister hinauf und wieder herab (wie der Held)
+    else if (g.enemyRevision >= 3 && !b.hopT && s.ground && s.dy < -24 && s.dist < 160 && (b.jumpCd || 0) < g.frame && g.rand() < s.A.leap) {
+      b.jumpCd = g.frame + 50; b.hopT = b.hopN = 30; b.hopH = Math.min(96, -s.dy + 18); b.vx = Math.max(-3.4, Math.min(3.4, (predictX(s, 15) - cx(b)) / 15)); g.ev('boing');
+    }
+    if (b.hopT > 0) { b.hopT--; b.y = 11 * T - b.h - Math.round(fsin(Math.PI * b.hopT / (b.hopN || 16)) * (b.hopH || 20)); if (b.hopT > (b.hopN || 16) / 2 && Math.abs(s.dx) < 8) b.vx *= 0.7; }
     b.x = clampX(b, b.x + b.vx);
   }
   if (--b.t > 0) return;

@@ -4,7 +4,7 @@ import { populateRoamers } from './roamers.js';
 import { clearLegend, cutThread, prepareLoom, recordShadow } from './legend-duels.js';
 import { duelBoss } from './duel-combat.js';
 import { setsActive, setPre, setPost, setHit } from './sets.js';
-import { populateHunt } from './hunters.js';
+import { populateHunt, qualWarden } from './hunters.js';
 import { SHOVEL } from './gear.js';
 import { armorStats, loadout, pvpNormalize } from './armor.js';
 import { aiLevelOf } from './brain.js';
@@ -20,7 +20,7 @@ export { T, fsin, fcos } from './core.js';
 export class Game {
   constructor(level, gear, opt = {}) {
     this.level = level;
-    this.enemyRevision = opt.enemyRevision ?? 2;
+    this.enemyRevision = opt.enemyRevision ?? 3;
     // Stärke der Boss-KI (0–4, Standard 2), steht in jeder Wiederholung
     this.aiLevel = aiLevelOf(opt.ai);
     this.armorRevision = opt.armorRevision ?? 3;
@@ -135,6 +135,7 @@ export class Game {
     if (level.duel != null) this.boss = this.add(duelBoss(level.duel));
     if (level.id === 'D-6') prepareLoom(this);
     if (level.hunt != null) populateHunt(this, level.hunt);
+    if (level.qualBoss && (level.rev || 1) >= 3) qualWarden(this, level.qualBoss.hunt, level.qualBoss.x0, level.qualBoss.x1);
     signs.sort((a, b) => a.x - b.x).forEach((s, i) => { s.text = level.signs[i] || ''; });
     this.secretTotal += countFakeGroups(this.tiles);
     // Hinter falschen Wänden verborgene Kammern bleiben abgedeckt, bis die Wand bricht
@@ -171,7 +172,8 @@ export class Game {
     if (cu.flut) for (const e of foes) if (MAKERS[e.type] && !e.float) { const c = MAKERS[e.type](e.x + 18, e.y); if (!this.solid(Math.floor((c.x + c.w) / T), Math.floor((c.y + 2) / T))) this.add(c); }
     const eliteP = cu.elite ? 1 : opt.elite || 0;
     for (const e of this.ents) if (e.foe && e !== this.boss && MAKERS[e.type] && this.rand() < eliteP) {
-      e.elite = ['schnell', 'zaeh', 'teilt'][Math.floor(this.rand() * 3)];
+      e.elite = this.enemyRevision >= 3 ? ['schnell', 'zaeh', 'teilt', 'wut'][Math.floor(this.rand() * 4)] : ['schnell', 'zaeh', 'teilt'][Math.floor(this.rand() * 3)];
+      if (e.elite === 'wut') e.dmg = (e.dmg || 1) + 1;
       if (e.elite === 'zaeh') { e.hp *= 3; } e.loot = (e.loot || 8) * 3;
     }
     // Neue Boss-Fassung: weniger Leben, klügere KI; Lebenspunkte skalieren mit der KI-Stärke
@@ -182,6 +184,10 @@ export class Game {
     this.bossTier = opt.bossTier || 0;
     if (this.boss && this.bossTier) { this.boss.hp = this.boss.maxhp = Math.round(this.boss.maxhp * (1 + 0.3 * Math.min(4, this.bossTier))); }
     this.noCheck = !!opt.noCheck;
+    // Qualpfad-Regeln (Kartenstand 3): jeder Treffer kostet ein Herz mehr, und nach 4 Toden ist alles verloren:
+    // alle Laternen erlöschen, es geht zurück an den Start
+    this.qual = !!(level.qualRules && (level.rev || 1) >= 3);
+    if (this.qual) { this.qualLives = 4; this.hudLabel = 'LEBEN 4'; }
     if (level.chase) {
       const ch = level.chase, vert = ch.kind === 'flut' || ch.kind === 'lava';
       this.chase = { ...ch, vert, pos: vert ? this.h * T + 60 : -90, t: 0 };
@@ -397,6 +403,8 @@ export class Game {
       if (e.slowT > 0 && e.slowT-- % 2) continue;
       e.update(this, e);
       if (!e.dead && (e.elite === 'schnell' || (e === this.boss && this.bossTier && this.frame % Math.max(3, 7 - this.bossTier) === 0))) e.update(this, e);
+      // Wütende Elite: stürmt auf den Helden zu, sobald er nah ist (Bodengegner)
+      if (!e.dead && e.elite === 'wut' && !e.float && !this.p.dead && Math.abs(cx(this.p) - cx(e)) < 120 && Math.abs(this.p.y - e.y) < 48) { const v = e.vx; e.vx = sign(cx(this.p) - cx(e)) * 1.1; this.moveX(e); e.vx = v; }
     }
     this.stepTraps();
     this.contacts();
@@ -654,6 +662,7 @@ export class Game {
 
   hurtPlayer(dmg, dir, spike) {
     const p = this.p;
+    if (this.qual && dmg > 0) dmg += 1;   // Qualpfad: jeder Treffer kostet ein Herz mehr
     if (p.inv > 0 || p.dead || this.done || this.cheat.gott) { if (spike) { p.vy = -6; p.onGround = false; } return; }
     if (this.wardN > 0 || (this.relic.schild && this.shieldT <= 0) || this.gemCharges > 0) {
       if (this.wardN > 0) this.wardN--; else if (this.relic.schild && this.shieldT <= 0) this.shieldT = [0, 40, 30, 20][this.relic.schild] * 60; else this.gemCharges--;
@@ -716,6 +725,12 @@ export class Game {
       return;
     }
     p.dead = 70; p.hp = 0; this.chain = 0; this.deaths++;
+    if (this.qual && --this.qualLives <= 0) {
+      this.qualLives = 4; this.check = { ...this.spawn };
+      for (const o of this.ents) if (o.type === 'lantern') o.lit = false;
+      this.banner = { text: 'ALLE LEBEN VERLOREN', sub: 'Zurück zum Anfang', col: '#ff4a4a', t: 120 };
+    }
+    if (this.qual) this.hudLabel = 'LEBEN ' + this.qualLives;
     const lost = 0; // kein Edelstein-Verlust mehr beim Tod: schwere Stellen sollen nicht doppelt bestrafen
     this.gems -= lost;
     this.burst(cx(p), p.y + 7, 24, 'hero', 3, 0.1, 40);
@@ -756,7 +771,8 @@ export class Game {
       if (this.tile(tx, ty) === 'I') { this.setT(tx, ty, 'J'); this.ev('troll', tx * T, ty * T); this.num(tx * T + 8, ty * T - 2, 'HA!', '#ff7a8a'); this.burst(tx * T + 8, ty * T + 8, 10, 'spark', 1.5); }
     // Verfolger: Flut/Lava von unten, Wurm/Einsturz von links
     const ch = this.chase;
-    if (ch && !this.done && !p.dead) {
+    // Qualpfad: im Wächterkampf ruht der Verfolger
+    if (ch && !this.done && !p.dead && !(this.qual && this.boss && this.boss.state !== 'idle')) {
       ch.t++;
       if (ch.t > (ch.delay || 90)) {
         if (ch.vert) { const gap = ch.pos - (p.y + p.h); ch.pos -= ch.speed * (gap > 200 ? 2.2 : 1); if (p.y + p.h > ch.pos + 4) { this.ev('drown'); this.kill('chase'); } }
