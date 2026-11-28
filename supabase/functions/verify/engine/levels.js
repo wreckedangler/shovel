@@ -616,6 +616,8 @@ const W1 = { ground: ['b', 'o'], air: ['v'], every: 22, parAdd: 4 }, W2 = { grou
 for (const id of ['1-1', '1-2', '1-3']) densify(id, 3, W1);
 for (const id of ['2-1', '2-2', '2-3']) densify(id, 3, W2);
 for (const id of ['3-1', '3-2', '3-3']) densify(id, 3, W3);
+// Dornenkamm: der erste Sprung aufs Stachelfeld war mit Grundausrüstung (Holz) knapp zu weit → Plattformen doppelt so breit
+remix('1-3', 4, 76, [[25, 15, '='], [29, 15, '='], [33, 15, '=']]);
 densify('1-G', 2, W1); densify('2-G', 2, W2); densify('3-G', 2, W3); densify('X-0', 2, { ...W3, ground: ['k', 's', 'o'] });
 
 /* ---------- Qualpfade, Kartenstand 2: eine echte Qual ---------- */
